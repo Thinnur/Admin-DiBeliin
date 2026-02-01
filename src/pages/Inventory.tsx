@@ -33,6 +33,7 @@ import {
     useAccounts,
     useDeleteAccount,
     useUpdateAccountStatus,
+    useUpdateAccount,
 } from '@/hooks/useInventory';
 import type { Account, AccountBrand, AccountStatus } from '@/types/database';
 
@@ -96,6 +97,7 @@ export default function InventoryPage() {
     // Mutations
     const deleteAccount = useDeleteAccount();
     const updateStatus = useUpdateAccountStatus();
+    const updateAccount = useUpdateAccount();
 
     // Calculate stats
     const stats = calculateStats(accounts || []);
@@ -118,11 +120,23 @@ export default function InventoryPage() {
         });
     };
 
+    const handleToggleVoucher = (account: Account, voucher: 'nomin' | 'min50k', newValue: boolean) => {
+        const updates = voucher === 'nomin'
+            ? { is_nomin_ready: newValue }
+            : { is_min50k_ready: newValue };
+
+        updateAccount.mutate({
+            id: account.id,
+            updates,
+        });
+    };
+
     // Create columns with actions
     const columnActions: AccountColumnActions = {
         onEdit: handleEdit,
         onDelete: handleDelete,
         onMarkAsSold: handleMarkAsSold,
+        onToggleVoucher: handleToggleVoucher,
     };
     const columns = createAccountColumns(columnActions);
 

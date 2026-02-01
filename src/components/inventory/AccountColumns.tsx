@@ -3,18 +3,29 @@
 // =============================================================================
 // TanStack Table columns with Shadcn UI components
 
+import { useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { format, differenceInDays } from 'date-fns';
 import {
     Copy,
     Edit,
     Trash2,
-    ShoppingCart,
+    MoreHorizontal,
     AlertCircle,
+    Check,
+    X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { Account, AccountStatus, AccountBrand } from '@/types/database';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 
 // -----------------------------------------------------------------------------
@@ -45,7 +56,7 @@ function BrandBadge({ brand }: { brand: AccountBrand }) {
 }
 
 /**
- * Status badge with premium colors
+ * Status badge with premium colors (Global Health Status)
  */
 function StatusBadge({ status }: { status: AccountStatus }) {
     const styles: Record<AccountStatus, string> = {
@@ -71,6 +82,50 @@ function StatusBadge({ status }: { status: AccountStatus }) {
             <span className="text-[10px]">{icons[status]}</span>
             <span className="capitalize">{status}</span>
         </span>
+    );
+}
+
+/**
+ * Voucher status badges - shows individual voucher availability
+ */
+function VoucherStatusBadges({ account }: { account: Account }) {
+    const { brand, is_nomin_ready, is_min50k_ready } = account;
+
+    const getBadgeStyle = (isReady: boolean) => {
+        if (isReady) {
+            return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+        }
+        return 'bg-slate-100 text-slate-500 border-slate-200';
+    };
+
+    return (
+        <div className="flex flex-wrap gap-1.5">
+            {/* No Min Badge - always shown */}
+            <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(is_nomin_ready)}`}
+            >
+                {is_nomin_ready ? (
+                    <Check className="w-3 h-3" />
+                ) : (
+                    <X className="w-3 h-3" />
+                )}
+                NoMin
+            </span>
+
+            {/* Min 50k Badge - only for KopKen */}
+            {brand === 'kopken' && (
+                <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(is_min50k_ready)}`}
+                >
+                    {is_min50k_ready ? (
+                        <Check className="w-3 h-3" />
+                    ) : (
+                        <X className="w-3 h-3" />
+                    )}
+                    50k
+                </span>
+            )}
+        </div>
     );
 }
 
@@ -136,6 +191,121 @@ function PhoneCell({ phone }: { phone: string }) {
     );
 }
 
+/**
+ * Actions dropdown with voucher toggle options
+ */
+function ActionsCell({
+    account,
+    actions
+}: {
+    account: Account;
+    actions?: AccountColumnActions;
+}) {
+    const [isOpen, setIsOpen] = useState(false);
+    const isReady = account.status === 'ready';
+
+    return (
+        <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
+            <DropdownMenuTrigger asChild>
+                <button
+                    className="p-2 rounded-md hover:bg-slate-100 text-slate-600 transition-colors"
+                    title="Actions"
+                >
+                    <MoreHorizontal className="w-4 h-4" />
+                </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuLabel>Voucher Status</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                {/* Toggle No Min */}
+                <DropdownMenuItem
+                    onClick={() => {
+                        actions?.onToggleVoucher?.(account, 'nomin', !account.is_nomin_ready);
+                        setIsOpen(false);
+                    }}
+                    className="cursor-pointer"
+                >
+                    <span className="flex items-center gap-2">
+                        {account.is_nomin_ready ? (
+                            <Check className="w-4 h-4 text-emerald-600" />
+                        ) : (
+                            <X className="w-4 h-4 text-slate-400" />
+                        )}
+                        NoMin: {account.is_nomin_ready ? 'Ready' : 'Used'}
+                    </span>
+                </DropdownMenuItem>
+
+                {/* Toggle Min 50k - only for KopKen */}
+                {account.brand === 'kopken' && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions?.onToggleVoucher?.(account, 'min50k', !account.is_min50k_ready);
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer"
+                    >
+                        <span className="flex items-center gap-2">
+                            {account.is_min50k_ready ? (
+                                <Check className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                                <X className="w-4 h-4 text-slate-400" />
+                            )}
+                            50k: {account.is_min50k_ready ? 'Ready' : 'Used'}
+                        </span>
+                    </DropdownMenuItem>
+                )}
+
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel>Account Actions</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+
+                {/* Edit */}
+                {actions?.onEdit && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions.onEdit?.(account);
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer"
+                    >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit Account
+                    </DropdownMenuItem>
+                )}
+
+                {/* Mark as Sold - only for ready accounts */}
+                {isReady && actions?.onMarkAsSold && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions.onMarkAsSold?.(account);
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer text-emerald-600"
+                    >
+                        <Check className="w-4 h-4 mr-2" />
+                        Mark as Sold
+                    </DropdownMenuItem>
+                )}
+
+                {/* Delete */}
+                {actions?.onDelete && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions.onDelete?.(account);
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer text-red-600"
+                    >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Account
+                    </DropdownMenuItem>
+                )}
+            </DropdownMenuContent>
+        </DropdownMenu>
+    );
+}
+
 // -----------------------------------------------------------------------------
 // Column Definitions
 // -----------------------------------------------------------------------------
@@ -147,6 +317,7 @@ export interface AccountColumnActions {
     onEdit?: (account: Account) => void;
     onDelete?: (account: Account) => void;
     onMarkAsSold?: (account: Account) => void;
+    onToggleVoucher?: (account: Account, voucher: 'nomin' | 'min50k', newValue: boolean) => void;
 }
 
 /**
@@ -173,13 +344,11 @@ export function createAccountColumns(
             cell: ({ row }) => <PhoneCell phone={row.getValue('phone_number')} />,
         },
 
-        // Voucher Type Column
+        // Voucher Status Column (replaces old voucher_type)
         {
-            accessorKey: 'voucher_type',
-            header: 'Voucher',
-            cell: ({ row }) => (
-                <span className="text-sm">{row.getValue('voucher_type') || '-'}</span>
-            ),
+            id: 'voucher_status',
+            header: 'Vouchers',
+            cell: ({ row }) => <VoucherStatusBadges account={row.original} />,
         },
 
         // Expiry Date Column
@@ -194,10 +363,10 @@ export function createAccountColumns(
             },
         },
 
-        // Status Column
+        // Status Column (Global Health Status)
         {
             accessorKey: 'status',
-            header: 'Status',
+            header: 'Health',
             cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
             filterFn: (row, id, value) => {
                 return value.includes(row.getValue(id));
@@ -222,50 +391,11 @@ export function createAccountColumns(
         {
             id: 'actions',
             header: '',
-            cell: ({ row }) => {
-                const account = row.original;
-                const isReady = account.status === 'ready';
-
-                return (
-                    <div className="flex items-center justify-end gap-1">
-                        {/* Mark as Sold (only for ready accounts) */}
-                        {isReady && actions?.onMarkAsSold && (
-                            <button
-                                onClick={() => actions.onMarkAsSold?.(account)}
-                                className="p-2 rounded-md hover:bg-green-50 text-green-600 transition-colors"
-                                title="Mark as Sold"
-                            >
-                                <ShoppingCart className="w-4 h-4" />
-                            </button>
-                        )}
-
-                        {/* Edit */}
-                        {actions?.onEdit && (
-                            <button
-                                onClick={() => actions.onEdit?.(account)}
-                                className="p-2 rounded-md hover:bg-gray-100 text-gray-600 transition-colors"
-                                title="Edit"
-                            >
-                                <Edit className="w-4 h-4" />
-                            </button>
-                        )}
-
-                        {/* Delete */}
-                        {actions?.onDelete && (
-                            <button
-                                onClick={() => actions.onDelete?.(account)}
-                                className="p-2 rounded-md hover:bg-red-50 text-red-600 transition-colors"
-                                title="Delete"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                        )}
-                    </div>
-                );
-            },
+            cell: ({ row }) => <ActionsCell account={row.original} actions={actions} />,
         },
     ];
 }
 
 // Export a default column set for quick use
 export const defaultAccountColumns = createAccountColumns();
+

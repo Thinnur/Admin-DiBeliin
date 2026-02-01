@@ -3,7 +3,7 @@
 // =============================================================================
 // Modal form for adding new accounts
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Loader2 } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
@@ -30,18 +30,6 @@ import { useAddAccount } from '@/hooks/useInventory';
 import type { AccountBrand } from '@/types/database';
 
 // -----------------------------------------------------------------------------
-// Voucher Options
-// -----------------------------------------------------------------------------
-
-const VOUCHER_OPTIONS = [
-    { value: 'No Min', label: 'No Minimum' },
-    { value: 'Min 30k', label: 'Min 30k' },
-    { value: 'Min 50k', label: 'Min 50k' },
-    { value: 'Min 75k', label: 'Min 75k' },
-    { value: 'Min 100k', label: 'Min 100k' },
-];
-
-// -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
 
@@ -53,17 +41,28 @@ export function AddAccountDialog() {
     const [brand, setBrand] = useState<AccountBrand>('kopken');
     const [phoneNumber, setPhoneNumber] = useState('');
     const [password, setPassword] = useState('');
-    const [voucherType, setVoucherType] = useState('No Min');
+    const [isNominReady, setIsNominReady] = useState(true);
+    const [isMin50kReady, setIsMin50kReady] = useState(true);
     const [expiryDate, setExpiryDate] = useState('');
     const [purchasePrice, setPurchasePrice] = useState('');
     const [notes, setNotes] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
 
+    // When brand changes, update Min 50k checkbox
+    useEffect(() => {
+        if (brand === 'fore') {
+            setIsMin50kReady(false); // Fore doesn't have Min 50k
+        } else {
+            setIsMin50kReady(true); // Reset to true for KopKen
+        }
+    }, [brand]);
+
     const resetForm = () => {
         setBrand('kopken');
         setPhoneNumber('');
         setPassword('');
-        setVoucherType('No Min');
+        setIsNominReady(true);
+        setIsMin50kReady(true);
         setExpiryDate('');
         setPurchasePrice('');
         setNotes('');
@@ -101,10 +100,12 @@ export function AddAccountDialog() {
                 brand,
                 phone_number: phoneNumber,
                 password,
-                voucher_type: voucherType,
+                voucher_type: 'Multi', // Legacy field, kept for compatibility
                 expiry_date: expiryDate,
                 purchase_price: Number(purchasePrice) || 0,
                 status: 'ready',
+                is_nomin_ready: isNominReady,
+                is_min50k_ready: brand === 'kopken' ? isMin50kReady : false, // Fore always false
                 notes: notes || null,
             });
 
@@ -181,24 +182,53 @@ export function AddAccountDialog() {
                         </div>
                     </div>
 
-                    {/* Voucher Type & Expiry Row */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="voucher_type">Voucher Type</Label>
-                            <Select value={voucherType} onValueChange={setVoucherType}>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select voucher" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {VOUCHER_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value}>
-                                            {option.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
+                    {/* Voucher Checkboxes */}
+                    <div className="space-y-3">
+                        <Label>Available Vouchers</Label>
+                        <div className="flex flex-col gap-2">
+                            {/* No Min Checkbox */}
+                            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isNominReady}
+                                    onChange={(e) => setIsNominReady(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-900">Voucher No Min</span>
+                                    <span className="text-xs text-slate-500">No minimum purchase required</span>
+                                </div>
+                            </label>
 
+                            {/* Min 50k Checkbox - Only for KopKen */}
+                            {brand === 'kopken' && (
+                                <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                    <input
+                                        type="checkbox"
+                                        checked={isMin50kReady}
+                                        onChange={(e) => setIsMin50kReady(e.target.checked)}
+                                        className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                    />
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-medium text-slate-900">Voucher Min 50k</span>
+                                        <span className="text-xs text-slate-500">Minimum purchase Rp 50.000</span>
+                                    </div>
+                                </label>
+                            )}
+
+                            {/* Info for Fore */}
+                            {brand === 'fore' && (
+                                <div className="p-3 bg-slate-50 border border-dashed rounded-lg">
+                                    <p className="text-xs text-slate-500">
+                                        Fore Coffee accounts only have the No Min voucher.
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Expiry Date & Price Row */}
+                    <div className="grid grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="expiry_date">Expiry Date</Label>
                             <Input
@@ -212,18 +242,17 @@ export function AddAccountDialog() {
                                 <p className="text-xs text-red-500">{errors.expiryDate}</p>
                             )}
                         </div>
-                    </div>
 
-                    {/* Purchase Price */}
-                    <div className="space-y-2">
-                        <Label htmlFor="purchase_price">Purchase Price (Rp)</Label>
-                        <Input
-                            id="purchase_price"
-                            type="number"
-                            placeholder="50000"
-                            value={purchasePrice}
-                            onChange={(e) => setPurchasePrice(e.target.value)}
-                        />
+                        <div className="space-y-2">
+                            <Label htmlFor="purchase_price">Purchase Price (Rp)</Label>
+                            <Input
+                                id="purchase_price"
+                                type="number"
+                                placeholder="50000"
+                                value={purchasePrice}
+                                onChange={(e) => setPurchasePrice(e.target.value)}
+                            />
+                        </div>
                     </div>
 
                     {/* Notes */}
@@ -257,3 +286,4 @@ export function AddAccountDialog() {
         </Dialog>
     );
 }
+

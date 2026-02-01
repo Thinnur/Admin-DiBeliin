@@ -26,7 +26,9 @@ export interface Account {
   brand: AccountBrand;
   voucher_type: string;
   expiry_date: string; // ISO date string (YYYY-MM-DD)
-  status: AccountStatus;
+  status: AccountStatus; // Global health status (e.g., 'issue' if password wrong, 'expired' if expired)
+  is_nomin_ready: boolean; // Voucher No Min availability
+  is_min50k_ready: boolean; // Voucher Min 50k availability (KopKen only, always false for Fore)
   purchase_price: number;
   notes: string | null;
   created_at: string; // ISO timestamp

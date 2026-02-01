@@ -8,6 +8,7 @@ import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     Package,
     DollarSign,
+    Calculator,
     Menu,
     X,
     Coffee,
@@ -39,6 +40,12 @@ const navItems = [
         icon: DollarSign,
         description: 'Track transactions',
     },
+    {
+        label: 'Calculator',
+        path: '/calculator',
+        icon: Calculator,
+        description: 'Optimize orders',
+    },
 ];
 
 // -----------------------------------------------------------------------------
@@ -53,6 +60,10 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     '/finance': {
         title: 'Finance',
         description: 'Track income, expenses, and profits',
+    },
+    '/calculator': {
+        title: 'Calculator',
+        description: 'Optimize order splitting for maximum savings',
     },
 };
 

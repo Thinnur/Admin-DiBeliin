@@ -248,3 +248,97 @@ export async function markAccountAsSold(
 
     return account;
 }
+
+// -----------------------------------------------------------------------------
+// Voucher-Specific Operations (for Order Calculator)
+// -----------------------------------------------------------------------------
+
+/**
+ * Fetch ready accounts that have a specific voucher available
+ * Used by Order Calculator for auto-assignment
+ */
+export async function fetchReadyAccountsForVoucher(
+    brand: AccountBrand,
+    voucherType: 'nomin' | 'min50k'
+): Promise<Account[]> {
+    const voucherField = voucherType === 'nomin' ? 'is_nomin_ready' : 'is_min50k_ready';
+
+    const { data, error } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('brand', brand)
+        .eq('status', 'ready')
+        .eq(voucherField, true)
+        .order('expiry_date', { ascending: true }); // FIFO - soonest expiry first
+
+    if (error) {
+        throw new Error(`Failed to fetch accounts for voucher: ${error.message}`);
+    }
+
+    return data as Account[];
+}
+
+/**
+ * Update a single voucher flag on an account
+ */
+export async function updateVoucherStatus(
+    accountId: string,
+    voucherType: 'nomin' | 'min50k',
+    isReady: boolean
+): Promise<Account> {
+    const updates = voucherType === 'nomin'
+        ? { is_nomin_ready: isReady }
+        : { is_min50k_ready: isReady };
+
+    return updateAccount(accountId, updates);
+}
+
+/**
+ * Batch update voucher statuses
+ * Used when executing an optimized order strategy
+ */
+export interface VoucherUpdate {
+    accountId: string;
+    voucherType: 'nomin' | 'min50k';
+    isReady: boolean;
+}
+
+export async function batchUpdateVouchers(
+    updates: VoucherUpdate[]
+): Promise<{ success: Account[]; failed: { update: VoucherUpdate; error: string }[] }> {
+    const results = await Promise.allSettled(
+        updates.map((update) =>
+            updateVoucherStatus(update.accountId, update.voucherType, update.isReady)
+        )
+    );
+
+    const success: Account[] = [];
+    const failed: { update: VoucherUpdate; error: string }[] = [];
+
+    results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+            success.push(result.value);
+        } else {
+            failed.push({
+                update: updates[index],
+                error: result.reason?.message || 'Unknown error',
+            });
+        }
+    });
+
+    return { success, failed };
+}
+
+/**
+ * Check if an account should be marked as sold
+ * (when all vouchers are exhausted)
+ */
+export function shouldMarkAsSold(account: Account): boolean {
+    // Fore only has nomin, so if nomin is false, it's sold
+    if (account.brand === 'fore') {
+        return !account.is_nomin_ready;
+    }
+
+    // KopKen has both, so if both are false, it's sold
+    return !account.is_nomin_ready && !account.is_min50k_ready;
+}

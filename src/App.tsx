@@ -13,6 +13,7 @@ import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/Login';
 import InventoryPage from '@/pages/Inventory';
 import FinancePage from '@/pages/Finance';
+import CalculatorPage from '@/pages/Calculator';
 
 import './App.css';
 
@@ -29,6 +30,7 @@ function App() {
             <Route element={<AdminLayout />}>
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/finance" element={<FinancePage />} />
+              <Route path="/calculator" element={<CalculatorPage />} />
             </Route>
           </Route>
 
