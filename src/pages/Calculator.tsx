@@ -719,9 +719,11 @@ Example:
                                                     <Phone className="w-4 h-4 text-slate-400" />
                                                     <span className="font-medium">{assignment.account.phone_number}</span>
                                                 </div>
-                                                <div className="flex items-center gap-2 text-sm mt-1">
-                                                    <Key className="w-4 h-4 text-slate-400" />
-                                                    <span className="font-mono text-slate-600">{assignment.account.password}</span>
+                                                <div className="flex items-center gap-2 text-sm mt-2">
+                                                    <Key className="w-4 h-4 text-amber-600" />
+                                                    <span className="font-mono font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded border border-amber-200">
+                                                        {assignment.account.password}
+                                                    </span>
                                                 </div>
                                             </div>
                                         ))}
