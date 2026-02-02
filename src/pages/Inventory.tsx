@@ -321,35 +321,41 @@ export default function InventoryPage() {
                         </TabsList>
 
                         <TabsContent value="kopken">
-                            <DataTable
-                                columns={columns}
-                                data={filteredAccounts}
-                                isLoading={isLoading}
-                                filterColumnName="phone_number"
-                                filterPlaceholder="Search by phone number..."
-                                onFilterChange={handleSearchChange}
-                                emptyMessage={
-                                    statusFilter !== 'all' || searchQuery.trim() !== ''
-                                        ? 'No accounts match your filters.'
-                                        : 'No ready accounts found for Kopi Kenangan.'
-                                }
-                            />
+                            <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
+                                <DataTable
+                                    columns={columns}
+                                    data={filteredAccounts}
+                                    isLoading={isLoading}
+                                    filterColumnName="phone_number"
+                                    filterPlaceholder="Search by phone number..."
+                                    onFilterChange={handleSearchChange}
+                                    disablePagination={true}
+                                    emptyMessage={
+                                        statusFilter !== 'all' || searchQuery.trim() !== ''
+                                            ? 'No accounts match your filters.'
+                                            : 'No ready accounts found for Kopi Kenangan.'
+                                    }
+                                />
+                            </div>
                         </TabsContent>
 
                         <TabsContent value="fore">
-                            <DataTable
-                                columns={columns}
-                                data={filteredAccounts}
-                                isLoading={isLoading}
-                                filterColumnName="phone_number"
-                                filterPlaceholder="Search by phone number..."
-                                onFilterChange={handleSearchChange}
-                                emptyMessage={
-                                    statusFilter !== 'all' || searchQuery.trim() !== ''
-                                        ? 'No accounts match your filters.'
-                                        : 'No ready accounts found for Fore Coffee.'
-                                }
-                            />
+                            <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
+                                <DataTable
+                                    columns={columns}
+                                    data={filteredAccounts}
+                                    isLoading={isLoading}
+                                    filterColumnName="phone_number"
+                                    filterPlaceholder="Search by phone number..."
+                                    onFilterChange={handleSearchChange}
+                                    disablePagination={true}
+                                    emptyMessage={
+                                        statusFilter !== 'all' || searchQuery.trim() !== ''
+                                            ? 'No accounts match your filters.'
+                                            : 'No ready accounts found for Fore Coffee.'
+                                    }
+                                />
+                            </div>
                         </TabsContent>
                     </Tabs>
                 </CardContent>

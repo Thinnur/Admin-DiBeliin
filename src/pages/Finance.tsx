@@ -16,6 +16,7 @@ import {
     CreditCard,
     Camera,
     Loader2,
+    Plus,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -294,6 +295,9 @@ export default function FinancePage() {
     const [aiDialogOpen, setAiDialogOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // FAB Dialog State (for mobile)
+    const [fabDialogOpen, setFabDialogOpen] = useState(false);
+
     // Queries
     const { data: transactions = [], isLoading: transactionsLoading } =
         useTransactions(typeFilter === 'all' ? undefined : { type: typeFilter });
@@ -429,17 +433,22 @@ export default function FinancePage() {
                                 )}
                             </Button>
 
-                            <AddTransactionDialog />
+                            {/* Desktop Add Transaction Button - Hidden on Mobile */}
+                            <div className="hidden md:flex">
+                                <AddTransactionDialog />
+                            </div>
                         </div>
                     </div>
                 </CardHeader>
                 <CardContent className="pt-4">
-                    <DataTable
-                        columns={columns}
-                        data={transactions}
-                        isLoading={transactionsLoading}
-                        emptyMessage="No transactions found. Add your first transaction!"
-                    />
+                    <div className="overflow-x-auto">
+                        <DataTable
+                            columns={columns}
+                            data={transactions}
+                            isLoading={transactionsLoading}
+                            emptyMessage="No transactions found. Add your first transaction!"
+                        />
+                    </div>
                 </CardContent>
             </Card>
 
@@ -453,6 +462,22 @@ export default function FinancePage() {
                     trigger={null}
                 />
             )}
+
+            {/* Mobile FAB for Add Transaction */}
+            <button
+                onClick={() => setFabDialogOpen(true)}
+                className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl bg-primary text-primary-foreground flex items-center justify-center z-50 md:hidden hover:bg-primary/90 transition-colors"
+                aria-label="Add Transaction"
+            >
+                <Plus className="h-6 w-6" />
+            </button>
+
+            {/* FAB Dialog */}
+            <AddTransactionDialog
+                open={fabDialogOpen}
+                onOpenChange={setFabDialogOpen}
+                trigger={null}
+            />
         </div>
     );
 }

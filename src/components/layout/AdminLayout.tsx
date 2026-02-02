@@ -86,7 +86,7 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
             {/* Mobile Overlay */}
             {isOpen && (
                 <div
-                    className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm lg:hidden"
+                    className="fixed inset-0 z-40 bg-slate-900/60 backdrop-blur-sm md:hidden"
                     onClick={onClose}
                 />
             )}
@@ -94,7 +94,7 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
             {/* Sidebar */}
             <aside
                 className={cn(
-                    'fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white transform transition-transform duration-300 ease-out lg:translate-x-0 lg:static lg:z-auto',
+                    'fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white transform transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto',
                     'flex flex-col',
                     isOpen ? 'translate-x-0' : '-translate-x-full'
                 )}
@@ -115,7 +115,7 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="lg:hidden text-slate-400 hover:text-white hover:bg-slate-800"
+                        className="md:hidden text-slate-400 hover:text-white hover:bg-slate-800"
                         onClick={onClose}
                     >
                         <X className="h-5 w-5" />
@@ -217,12 +217,12 @@ interface HeaderProps {
 function Header({ onMenuClick, pageInfo }: HeaderProps) {
     return (
         <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/80">
-            <div className="flex items-center justify-between h-full px-4 lg:px-6">
+            <div className="flex items-center justify-between h-full px-4 md:px-6">
                 <div className="flex items-center gap-4">
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="lg:hidden hover:bg-slate-100"
+                        className="md:hidden hover:bg-slate-100"
                         onClick={onMenuClick}
                     >
                         <Menu className="h-5 w-5 text-slate-600" />
@@ -303,7 +303,7 @@ export default function AdminLayout() {
                 />
 
                 {/* Page Content */}
-                <main className="flex-1 p-4 lg:p-6 overflow-auto">
+                <main className="flex-1 p-4 md:p-6 overflow-auto">
                     <div className="animate-fade-in">
                         <Outlet />
                     </div>

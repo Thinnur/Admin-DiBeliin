@@ -40,6 +40,7 @@ interface DataTableProps<TData, TValue> {
     isLoading?: boolean;
     emptyMessage?: string;
     onFilterChange?: (value: string) => void;
+    disablePagination?: boolean;
 }
 
 
@@ -88,6 +89,7 @@ export function DataTable<TData, TValue>({
     isLoading = false,
     emptyMessage = 'No results found.',
     onFilterChange,
+    disablePagination = false,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -104,6 +106,11 @@ export function DataTable<TData, TValue>({
         state: {
             sorting,
             columnFilters,
+        },
+        initialState: {
+            pagination: {
+                pageSize: disablePagination ? data.length || 1000 : 10,
+            },
         },
     });
 
@@ -184,36 +191,38 @@ export function DataTable<TData, TValue>({
                 </Table>
             </div>
 
-            {/* Pagination */}
-            <div className="flex items-center justify-between px-2">
-                <div className="text-sm text-muted-foreground">
-                    Showing {table.getRowModel().rows.length} of {data.length} row(s)
-                </div>
-                <div className="flex items-center space-x-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.previousPage()}
-                        disabled={!table.getCanPreviousPage()}
-                    >
-                        <ChevronLeft className="h-4 w-4" />
-                        Previous
-                    </Button>
+            {/* Pagination - Hidden when disablePagination is true */}
+            {!disablePagination && (
+                <div className="flex items-center justify-between px-2">
                     <div className="text-sm text-muted-foreground">
-                        Page {table.getState().pagination.pageIndex + 1} of{' '}
-                        {table.getPageCount()}
+                        Showing {table.getRowModel().rows.length} of {data.length} row(s)
                     </div>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => table.nextPage()}
-                        disabled={!table.getCanNextPage()}
-                    >
-                        Next
-                        <ChevronRight className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center space-x-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => table.previousPage()}
+                            disabled={!table.getCanPreviousPage()}
+                        >
+                            <ChevronLeft className="h-4 w-4" />
+                            Previous
+                        </Button>
+                        <div className="text-sm text-muted-foreground">
+                            Page {table.getState().pagination.pageIndex + 1} of{' '}
+                            {table.getPageCount()}
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => table.nextPage()}
+                            disabled={!table.getCanNextPage()}
+                        >
+                            Next
+                            <ChevronRight className="h-4 w-4" />
+                        </Button>
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
     );
 }
