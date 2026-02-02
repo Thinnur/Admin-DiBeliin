@@ -3,7 +3,7 @@
 // =============================================================================
 // Premium financial dashboard with KPI cards and transaction history
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { format } from 'date-fns';
 import {
     TrendingUp,
@@ -14,8 +14,11 @@ import {
     ArrowDownRight,
     Receipt,
     CreditCard,
+    Camera,
+    Loader2,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
+import { toast } from 'sonner';
 
 import { DataTable } from '@/components/ui/data-table';
 import { AddTransactionDialog } from '@/components/finance/AddTransactionDialog';
@@ -45,6 +48,7 @@ import {
     useFinancialSummary,
     useDeleteTransaction,
 } from '@/hooks/useFinance';
+import { analyzeReceipt, type ReceiptAnalysisResult } from '@/services/aiService';
 import type { Transaction, TransactionType } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -284,6 +288,12 @@ function getTransactionColumns(
 export default function FinancePage() {
     const [typeFilter, setTypeFilter] = useState<TransactionType | 'all'>('all');
 
+    // AI Scanning State
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
+    const [aiResult, setAiResult] = useState<ReceiptAnalysisResult | null>(null);
+    const [aiDialogOpen, setAiDialogOpen] = useState(false);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
     // Queries
     const { data: transactions = [], isLoading: transactionsLoading } =
         useTransactions(typeFilter === 'all' ? undefined : { type: typeFilter });
@@ -295,10 +305,56 @@ export default function FinancePage() {
         deleteTransaction.mutate(id);
     };
 
+    const handleScanClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        // Reset file input for re-selection
+        e.target.value = '';
+
+        // Validate file type
+        if (!file.type.startsWith('image/')) {
+            toast.error('Pilih file gambar (PNG, JPG, dll)');
+            return;
+        }
+
+        setIsAnalyzing(true);
+        try {
+            const result = await analyzeReceipt(file);
+            setAiResult(result);
+            setAiDialogOpen(true);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Terjadi kesalahan';
+            toast.error(message);
+        } finally {
+            setIsAnalyzing(false);
+        }
+    };
+
+    const handleAiDialogClose = (open: boolean) => {
+        setAiDialogOpen(open);
+        if (!open) {
+            setAiResult(null);
+        }
+    };
+
     const columns = getTransactionColumns(handleDelete);
 
     return (
         <div className="space-y-6">
+            {/* Hidden File Input for AI Scanning */}
+            <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+            />
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <KPICard
@@ -353,6 +409,26 @@ export default function FinancePage() {
                                 <option value="expense">Expense Only</option>
                             </select>
 
+                            {/* Scan Button */}
+                            <Button
+                                variant="outline"
+                                onClick={handleScanClick}
+                                disabled={isAnalyzing}
+                                className="gap-2"
+                            >
+                                {isAnalyzing ? (
+                                    <>
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        Analyzing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Camera className="h-4 w-4" />
+                                        Scan Bukti (AI)
+                                    </>
+                                )}
+                            </Button>
+
                             <AddTransactionDialog />
                         </div>
                     </div>
@@ -366,6 +442,17 @@ export default function FinancePage() {
                     />
                 </CardContent>
             </Card>
+
+            {/* AI Confirmation Dialog */}
+            {aiResult && (
+                <AddTransactionDialog
+                    open={aiDialogOpen}
+                    onOpenChange={handleAiDialogClose}
+                    initialData={aiResult}
+                    isFromAI={true}
+                    trigger={null}
+                />
+            )}
         </div>
     );
 }

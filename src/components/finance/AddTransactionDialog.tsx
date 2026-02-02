@@ -3,8 +3,8 @@
 // =============================================================================
 // Modal form for adding new transactions
 
-import { useState } from 'react';
-import { Plus, Loader2, DollarSign } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Loader2, DollarSign, Sparkles } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -48,12 +48,46 @@ const EXPENSE_CATEGORIES = [
 ];
 
 // -----------------------------------------------------------------------------
+// Props Interface
+// -----------------------------------------------------------------------------
+
+export interface AddTransactionDialogProps {
+    /** Pre-filled data from AI or other sources */
+    initialData?: {
+        type: TransactionType;
+        amount: number;
+        date: string;
+        description: string;
+        category: string;
+    };
+    /** Controlled open state */
+    open?: boolean;
+    /** Callback when open state changes */
+    onOpenChange?: (open: boolean) => void;
+    /** Custom trigger element (defaults to "Add Transaction" button) */
+    trigger?: React.ReactNode;
+    /** Whether data is from AI analysis */
+    isFromAI?: boolean;
+}
+
+// -----------------------------------------------------------------------------
 // Component
 // -----------------------------------------------------------------------------
 
-export function AddTransactionDialog() {
-    const [open, setOpen] = useState(false);
+export function AddTransactionDialog({
+    initialData,
+    open: controlledOpen,
+    onOpenChange,
+    trigger,
+    isFromAI = false,
+}: AddTransactionDialogProps = {}) {
+    const [internalOpen, setInternalOpen] = useState(false);
     const addTransaction = useAddTransaction();
+
+    // Use controlled or internal state
+    const isControlled = controlledOpen !== undefined;
+    const open = isControlled ? controlledOpen : internalOpen;
+    const setOpen = isControlled ? (onOpenChange ?? setInternalOpen) : setInternalOpen;
 
     // Form state
     const [type, setType] = useState<TransactionType>('income');
@@ -64,6 +98,18 @@ export function AddTransactionDialog() {
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+
+    // Apply initial data when provided
+    useEffect(() => {
+        if (initialData && open) {
+            setType(initialData.type);
+            setAmount(String(initialData.amount));
+            setCategory(initialData.category);
+            setDescription(initialData.description);
+            setDate(initialData.date);
+            setErrors({});
+        }
+    }, [initialData, open]);
 
     const resetForm = () => {
         setType('income');
@@ -124,20 +170,30 @@ export function AddTransactionDialog() {
             setOpen(isOpen);
             if (!isOpen) resetForm();
         }}>
-            <DialogTrigger asChild>
-                <Button>
-                    <Plus className="mr-2 h-4 w-4" />
-                    Add Transaction
-                </Button>
-            </DialogTrigger>
+            {trigger !== undefined ? (
+                <DialogTrigger asChild>{trigger}</DialogTrigger>
+            ) : (
+                <DialogTrigger asChild>
+                    <Button>
+                        <Plus className="mr-2 h-4 w-4" />
+                        Add Transaction
+                    </Button>
+                </DialogTrigger>
+            )}
             <DialogContent className="sm:max-w-[500px]">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                        <DollarSign className="h-5 w-5" />
-                        Add Transaction
+                        {isFromAI ? (
+                            <Sparkles className="h-5 w-5 text-amber-500" />
+                        ) : (
+                            <DollarSign className="h-5 w-5" />
+                        )}
+                        {isFromAI ? 'Konfirmasi Transaksi AI' : 'Add Transaction'}
                     </DialogTitle>
                     <DialogDescription>
-                        Record a new income or expense transaction.
+                        {isFromAI
+                            ? 'Data berikut diekstrak oleh AI. Silakan periksa dan edit jika perlu.'
+                            : 'Record a new income or expense transaction.'}
                     </DialogDescription>
                 </DialogHeader>
 

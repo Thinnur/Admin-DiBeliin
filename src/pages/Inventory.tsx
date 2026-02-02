@@ -3,8 +3,8 @@
 // =============================================================================
 // Premium inventory page for managing coffee shop accounts
 
-import { useState } from 'react';
-import { Package, Coffee } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Package, Coffee, Ticket } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { DataTable } from '@/components/ui/data-table';
@@ -23,6 +23,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import {
+    Tabs,
+    TabsContent,
+    TabsList,
+    TabsTrigger,
+} from '@/components/ui/tabs';
 
 import { AddAccountDialog } from '@/components/inventory/AddAccountDialog';
 import {
@@ -41,32 +47,29 @@ import type { Account, AccountBrand, AccountStatus } from '@/types/database';
 // Filter Types
 // -----------------------------------------------------------------------------
 
-type BrandFilter = 'all' | AccountBrand;
 type StatusFilter = 'all' | AccountStatus;
 
 // -----------------------------------------------------------------------------
-// Stats Cards
+// Stats Calculation (for summary cards)
 // -----------------------------------------------------------------------------
 
-interface StatsData {
-    total: number;
-    ready: number;
-    booked: number;
-    expiringSoon: number;
+interface VoucherStats {
+    foreNomin: number;
+    kopkenNomin: number;
+    kopkenMin50k: number;
 }
 
-function calculateStats(accounts: Account[]): StatsData {
-    const today = new Date();
-    const threeDaysFromNow = new Date(today.getTime() + 3 * 24 * 60 * 60 * 1000);
-
+function calculateVoucherStats(accounts: Account[]): VoucherStats {
     return {
-        total: accounts.length,
-        ready: accounts.filter((a) => a.status === 'ready').length,
-        booked: accounts.filter((a) => a.status === 'booked').length,
-        expiringSoon: accounts.filter((a) => {
-            const expiry = new Date(a.expiry_date);
-            return expiry <= threeDaysFromNow && expiry >= today && a.status === 'ready';
-        }).length,
+        foreNomin: accounts.filter(
+            (a) => a.brand === 'fore' && a.is_nomin_ready === true
+        ).length,
+        kopkenNomin: accounts.filter(
+            (a) => a.brand === 'kopken' && a.is_nomin_ready === true
+        ).length,
+        kopkenMin50k: accounts.filter(
+            (a) => a.brand === 'kopken' && a.is_min50k_ready === true
+        ).length,
     };
 }
 
@@ -75,32 +78,62 @@ function calculateStats(accounts: Account[]): StatsData {
 // -----------------------------------------------------------------------------
 
 export default function InventoryPage() {
-    // Filter state
-    const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
+    // Tab state for brand selection
+    const [activeTab, setActiveTab] = useState<AccountBrand>('kopken');
+
+    // Status filter
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
 
-    // Build filter object for query
-    const queryFilters = {
-        ...(brandFilter !== 'all' && { brand: brandFilter }),
-        ...(statusFilter !== 'all' && { status: statusFilter }),
-    };
+    // Search query state (will be managed via DataTable internally, but we track it manually for smart filtering)
+    const [searchQuery, setSearchQuery] = useState('');
 
-    // Fetch accounts with filters
+    // Fetch ALL accounts (no server-side filtering, we filter client-side now)
     const {
-        data: accounts,
+        data: allAccounts,
         isLoading,
         isError,
-    } = useAccounts(
-        Object.keys(queryFilters).length > 0 ? queryFilters : undefined
-    );
+    } = useAccounts();
 
     // Mutations
     const deleteAccount = useDeleteAccount();
     const updateStatus = useUpdateAccountStatus();
     const updateAccount = useUpdateAccount();
 
-    // Calculate stats
-    const stats = calculateStats(accounts || []);
+    // Calculate voucher stats from all accounts (memoized)
+    const voucherStats = useMemo(
+        () => calculateVoucherStats(allAccounts || []),
+        [allAccounts]
+    );
+
+    // Smart Filtered Accounts Logic
+    const filteredAccounts = useMemo(() => {
+        if (!allAccounts) return [];
+
+        let result = allAccounts;
+
+        // Rule 1: Always filter by active Tab (Brand)
+        result = result.filter((account) => account.brand === activeTab);
+
+        // Rule 2 (Visibility / Smart Filtering):
+        // IF searchQuery is empty AND filterStatus is 'all' (default):
+        //   ONLY show accounts where status === 'ready' (Hide sold/expired/issue)
+        // ELSE (If user searches OR explicitly selects a status filter):
+        //   Show matching accounts regardless of status
+        const isDefaultState = searchQuery.trim() === '' && statusFilter === 'all';
+
+        if (isDefaultState) {
+            // Default: Only show ready accounts
+            result = result.filter((account) => account.status === 'ready');
+        } else {
+            // User is searching or filtering explicitly
+            if (statusFilter !== 'all') {
+                result = result.filter((account) => account.status === statusFilter);
+            }
+            // Search is handled by DataTable's internal filter
+        }
+
+        return result;
+    }, [allAccounts, activeTab, searchQuery, statusFilter]);
 
     // Action handlers
     const handleEdit = (account: Account) => {
@@ -140,6 +173,11 @@ export default function InventoryPage() {
     };
     const columns = createAccountColumns(columnActions);
 
+    // Handle search input change (for smart filtering logic)
+    const handleSearchChange = (value: string) => {
+        setSearchQuery(value);
+    };
+
     // Error state
     if (isError) {
         return (
@@ -152,63 +190,70 @@ export default function InventoryPage() {
 
     return (
         <div className="space-y-6">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-100 rounded-lg">
-                            <Package className="h-5 w-5 text-slate-600" />
+            {/* Summary Stats Cards - Ready Stock */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Sisa Voucher Fore */}
+                <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
+                    <CardHeader className="pb-2">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-amber-100 rounded-xl">
+                                <Coffee className="h-5 w-5 text-amber-600" />
+                            </div>
+                            <CardTitle className="text-base font-medium text-slate-700">
+                                Sisa Voucher Fore
+                            </CardTitle>
                         </div>
-                        <div>
-                            <p className="text-2xl font-bold text-slate-900 tabular-nums">
-                                {stats.total}
-                            </p>
-                            <p className="text-sm text-slate-500">Total Accounts</p>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-4xl font-bold text-amber-600 tabular-nums">
+                            {voucherStats.foreNomin}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">Voucher No Minimum</p>
+                    </CardContent>
+                </Card>
+
+                {/* Sisa KopKen No Min */}
+                <Card className="shadow-sm bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
+                    <CardHeader className="pb-2">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-emerald-100 rounded-xl">
+                                <Ticket className="h-5 w-5 text-emerald-600" />
+                            </div>
+                            <CardTitle className="text-base font-medium text-slate-700">
+                                Sisa KopKen No Min
+                            </CardTitle>
                         </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-emerald-50 rounded-lg">
-                            <Coffee className="h-5 w-5 text-emerald-600" />
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-4xl font-bold text-emerald-600 tabular-nums">
+                            {voucherStats.kopkenNomin}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">Voucher No Minimum</p>
+                    </CardContent>
+                </Card>
+
+                {/* Sisa KopKen Min 50k */}
+                <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-white border-blue-100">
+                    <CardHeader className="pb-2">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-blue-100 rounded-xl">
+                                <Package className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <CardTitle className="text-base font-medium text-slate-700">
+                                Sisa KopKen Min 50k
+                            </CardTitle>
                         </div>
-                        <div>
-                            <p className="text-2xl font-bold text-emerald-600 tabular-nums">
-                                {stats.ready}
-                            </p>
-                            <p className="text-sm text-slate-500">Ready to Sell</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 rounded-lg">
-                            <Coffee className="h-5 w-5 text-blue-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-blue-600 tabular-nums">
-                                {stats.booked}
-                            </p>
-                            <p className="text-sm text-slate-500">Booked</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-amber-50 rounded-lg">
-                            <Coffee className="h-5 w-5 text-amber-600" />
-                        </div>
-                        <div>
-                            <p className="text-2xl font-bold text-amber-600 tabular-nums">
-                                {stats.expiringSoon}
-                            </p>
-                            <p className="text-sm text-slate-500">Expiring Soon</p>
-                        </div>
-                    </div>
-                </div>
+                    </CardHeader>
+                    <CardContent>
+                        <p className="text-4xl font-bold text-blue-600 tabular-nums">
+                            {voucherStats.kopkenMin50k}
+                        </p>
+                        <p className="text-sm text-slate-500 mt-1">Voucher Min. Belanja 50rb</p>
+                    </CardContent>
+                </Card>
             </div>
 
-            {/* Account Table Card */}
+            {/* Brand Tabs with Table */}
             <Card className="shadow-sm">
                 <CardHeader className="border-b border-slate-100 pb-4">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -220,21 +265,6 @@ export default function InventoryPage() {
                         </div>
 
                         <div className="flex flex-wrap items-center gap-3">
-                            {/* Brand Filter */}
-                            <Select
-                                value={brandFilter}
-                                onValueChange={(value) => setBrandFilter(value as BrandFilter)}
-                            >
-                                <SelectTrigger className="w-[140px] bg-white">
-                                    <SelectValue placeholder="Brand" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Brands</SelectItem>
-                                    <SelectItem value="kopken">Kopi Kenangan</SelectItem>
-                                    <SelectItem value="fore">Fore Coffee</SelectItem>
-                                </SelectContent>
-                            </Select>
-
                             {/* Status Filter */}
                             <Select
                                 value={statusFilter}
@@ -256,17 +286,17 @@ export default function InventoryPage() {
                             </Select>
 
                             {/* Clear Filters */}
-                            {(brandFilter !== 'all' || statusFilter !== 'all') && (
+                            {(statusFilter !== 'all' || searchQuery.trim() !== '') && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
-                                        setBrandFilter('all');
                                         setStatusFilter('all');
+                                        setSearchQuery('');
                                     }}
                                     className="text-slate-500"
                                 >
-                                    Clear
+                                    Clear Filters
                                 </Button>
                             )}
 
@@ -275,18 +305,53 @@ export default function InventoryPage() {
                     </div>
                 </CardHeader>
                 <CardContent className="pt-4">
-                    <DataTable
-                        columns={columns}
-                        data={accounts || []}
-                        isLoading={isLoading}
-                        filterColumnName="phone_number"
-                        filterPlaceholder="Search by phone number..."
-                        emptyMessage={
-                            brandFilter !== 'all' || statusFilter !== 'all'
-                                ? 'No accounts match your filters.'
-                                : 'No accounts found. Add your first account!'
-                        }
-                    />
+                    <Tabs
+                        value={activeTab}
+                        onValueChange={(value) => setActiveTab(value as AccountBrand)}
+                    >
+                        <TabsList className="mb-4">
+                            <TabsTrigger value="kopken" className="gap-2">
+                                <Coffee className="h-4 w-4" />
+                                Kopi Kenangan
+                            </TabsTrigger>
+                            <TabsTrigger value="fore" className="gap-2">
+                                <Coffee className="h-4 w-4" />
+                                Fore Coffee
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="kopken">
+                            <DataTable
+                                columns={columns}
+                                data={filteredAccounts}
+                                isLoading={isLoading}
+                                filterColumnName="phone_number"
+                                filterPlaceholder="Search by phone number..."
+                                onFilterChange={handleSearchChange}
+                                emptyMessage={
+                                    statusFilter !== 'all' || searchQuery.trim() !== ''
+                                        ? 'No accounts match your filters.'
+                                        : 'No ready accounts found for Kopi Kenangan.'
+                                }
+                            />
+                        </TabsContent>
+
+                        <TabsContent value="fore">
+                            <DataTable
+                                columns={columns}
+                                data={filteredAccounts}
+                                isLoading={isLoading}
+                                filterColumnName="phone_number"
+                                filterPlaceholder="Search by phone number..."
+                                onFilterChange={handleSearchChange}
+                                emptyMessage={
+                                    statusFilter !== 'all' || searchQuery.trim() !== ''
+                                        ? 'No accounts match your filters.'
+                                        : 'No ready accounts found for Fore Coffee.'
+                                }
+                            />
+                        </TabsContent>
+                    </Tabs>
                 </CardContent>
             </Card>
         </div>

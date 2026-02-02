@@ -39,7 +39,9 @@ interface DataTableProps<TData, TValue> {
     filterPlaceholder?: string;
     isLoading?: boolean;
     emptyMessage?: string;
+    onFilterChange?: (value: string) => void;
 }
+
 
 // -----------------------------------------------------------------------------
 // Skeleton Loader
@@ -85,6 +87,7 @@ export function DataTable<TData, TValue>({
     filterPlaceholder = 'Search...',
     isLoading = false,
     emptyMessage = 'No results found.',
+    onFilterChange,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -120,13 +123,16 @@ export function DataTable<TData, TValue>({
                         value={
                             (table.getColumn(filterColumnName)?.getFilterValue() as string) ?? ''
                         }
-                        onChange={(event) =>
-                            table.getColumn(filterColumnName)?.setFilterValue(event.target.value)
-                        }
+                        onChange={(event) => {
+                            const value = event.target.value;
+                            table.getColumn(filterColumnName)?.setFilterValue(value);
+                            onFilterChange?.(value);
+                        }}
                         className="pl-9"
                     />
                 </div>
             )}
+
 
             {/* Table */}
             <div className="rounded-md border">

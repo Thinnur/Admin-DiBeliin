@@ -192,6 +192,36 @@ function PhoneCell({ phone }: { phone: string }) {
 }
 
 /**
+ * PIN cell with copy button (monospace for clarity)
+ */
+function PINCell({ pin }: { pin: string | null }) {
+    const handleCopy = () => {
+        if (pin) {
+            navigator.clipboard.writeText(pin);
+            toast.success('PIN copied!');
+        }
+    };
+
+    if (!pin) {
+        return <span className="text-slate-400 text-sm">-</span>;
+    }
+
+    return (
+        <div className="flex items-center gap-2">
+            <span className="font-mono text-sm tabular-nums text-slate-700 tracking-wider">{pin}</span>
+            <button
+                onClick={handleCopy}
+                className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors group"
+                title="Copy PIN"
+            >
+                <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
+            </button>
+        </div>
+    );
+}
+
+
+/**
  * Actions dropdown with voucher toggle options
  */
 function ActionsCell({
@@ -344,7 +374,15 @@ export function createAccountColumns(
             cell: ({ row }) => <PhoneCell phone={row.getValue('phone_number')} />,
         },
 
+        // PIN Column
+        {
+            accessorKey: 'password',
+            header: 'PIN',
+            cell: ({ row }) => <PINCell pin={row.original.password} />,
+        },
+
         // Voucher Status Column (replaces old voucher_type)
+
         {
             id: 'voucher_status',
             header: 'Vouchers',

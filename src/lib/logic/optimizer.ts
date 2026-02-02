@@ -239,7 +239,13 @@ export function optimizeOrder(
     // Step 5: Calculate totals
     const totalBill = optimizedGroups.reduce((sum, g) => sum + g.totalPrice, 0);
     const totalDiscount = optimizedGroups.reduce((sum, g) => sum + g.estimatedDiscount, 0);
-    const totalAdminCost = optimizedGroups.length * accountCost;
+
+    // Combo Pricing: Count voucher types separately
+    // A "Min 50k" voucher piggybacks on a "No Min" voucher for free (1 admin fee per pair)
+    const countNomin = optimizedGroups.filter(g => g.recommendedVoucher === 'nomin').length;
+    const countMin50k = optimizedGroups.filter(g => g.recommendedVoucher === 'min50k').length;
+    const totalAdminCost = Math.max(countNomin, countMin50k) * accountCost;
+
     const finalPrice = totalBill - totalDiscount + totalAdminCost;
 
     return {

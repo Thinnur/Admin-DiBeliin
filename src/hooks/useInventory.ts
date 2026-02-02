@@ -22,6 +22,7 @@ import {
     deleteAccount,
     fetchReadyAccountsByBrand,
 } from '../services/apiAccounts';
+import { createTransaction as createExpenseTransaction } from '../services/apiTransactions';
 import { autoAssign as autoAssignLogic } from '../lib/logic/autoAssign';
 import type {
     Account,
@@ -34,6 +35,7 @@ import type {
     AutoAssignRequest,
     AutoAssignResult,
 } from '../types/database';
+
 
 // -----------------------------------------------------------------------------
 // Query Hooks (Read Operations)
@@ -103,22 +105,46 @@ export function useReadyAccounts(
 
 /**
  * Add a new account
+ * Automatically creates an expense transaction if purchase_price > 0
  */
 export function useAddAccount() {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: (account: AccountInsert) => createAccount(account),
-        onSuccess: (newAccount) => {
+        onSuccess: (newAccount, variables) => {
             // Invalidate and refetch accounts list
             queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
             toast.success(`Account ${newAccount.phone_number} added successfully`);
+
+            // Auto-create expense transaction if purchase_price > 0
+            if (variables.purchase_price && variables.purchase_price > 0) {
+                // Fire-and-forget: Don't block UI if finance recording fails
+                createExpenseTransaction({
+                    transaction_type: 'expense',
+                    amount: variables.purchase_price,
+                    category: 'stock',
+                    description: `Beli Akun ${variables.brand} - ${variables.phone_number}`,
+                    related_account_id: newAccount.id,
+                })
+                    .then(() => {
+                        // Invalidate finance queries to refresh Finance page
+                        queryClient.invalidateQueries({ queryKey: ['transactions'] });
+                    })
+                    .catch((error: Error) => {
+                        // Log error but don't crash UI
+                        console.error('Failed to record expense transaction:', error);
+                        toast.warning('Account added, but failed to record expense. Please add manually in Finance.');
+                    });
+
+            }
         },
         onError: (error: Error) => {
             toast.error(`Failed to add account: ${error.message}`);
         },
     });
 }
+
 
 /**
  * Update an existing account
@@ -135,8 +161,8 @@ export function useUpdateAccount() {
                 queryKeys.accounts.detail(updatedAccount.id),
                 updatedAccount
             );
-            // Invalidate list to refresh
-            queryClient.invalidateQueries({ queryKey: queryKeys.accounts.list() });
+            // ⚡️ FORCE REFRESH: Mark all 'accounts' data as stale so it refetches immediately
+            queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
             toast.success('Account updated successfully');
         },
         onError: (error: Error) => {
