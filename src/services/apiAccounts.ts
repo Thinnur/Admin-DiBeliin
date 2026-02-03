@@ -177,14 +177,50 @@ export async function createAccount(account: AccountInsert): Promise<Account> {
 
 /**
  * Update an existing account
+ * Auto-sets status to 'sold' if all vouchers are exhausted
  */
 export async function updateAccount(
     id: string,
     updates: AccountUpdate
 ): Promise<Account> {
+    // If updating voucher flags, check if we need to auto-set status to 'sold'
+    const isVoucherUpdate = 'is_nomin_ready' in updates || 'is_min50k_ready' in updates;
+
+    let finalUpdates = { ...updates };
+
+    if (isVoucherUpdate && !('status' in updates)) {
+        // Fetch current account to merge with updates
+        const currentAccount = await fetchAccountById(id);
+
+        if (currentAccount && currentAccount.status === 'ready') {
+            // Determine final voucher states after update
+            const finalNomin = 'is_nomin_ready' in updates
+                ? updates.is_nomin_ready!
+                : currentAccount.is_nomin_ready;
+            const finalMin50k = 'is_min50k_ready' in updates
+                ? updates.is_min50k_ready!
+                : currentAccount.is_min50k_ready;
+
+            // Check if account should be marked as sold
+            let shouldSell = false;
+
+            if (currentAccount.brand === 'fore') {
+                // Fore only has nomin
+                shouldSell = !finalNomin;
+            } else {
+                // KopKen has both vouchers
+                shouldSell = !finalNomin && !finalMin50k;
+            }
+
+            if (shouldSell) {
+                finalUpdates.status = 'sold';
+            }
+        }
+    }
+
     const { data, error } = await supabase
         .from('accounts')
-        .update(updates)
+        .update(finalUpdates)
         .eq('id', id)
         .select()
         .single();

@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 
 import type { Account, AccountStatus, AccountBrand } from '@/types/database';
+import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -336,6 +337,60 @@ function ActionsCell({
     );
 }
 
+/**
+ * Mobile-only info cell that displays account data in a stacked 3-line layout
+ */
+function MobileInfoCell({ account }: { account: Account }) {
+    const expiryDate = new Date(account.expiry_date);
+
+    const handleCopyPhone = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(account.phone_number);
+        toast.success('Nomor HP disalin!');
+    };
+
+    return (
+        <div className="flex flex-col gap-2 py-1.5">
+            {/* Line 1: Brand & Phone (The Header) */}
+            <div className="flex items-center gap-2">
+                <BrandBadge brand={account.brand} />
+                <span className="font-mono font-semibold text-sm tracking-tight text-foreground">
+                    {account.phone_number}
+                </span>
+                <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                    onClick={handleCopyPhone}
+                >
+                    <Copy className="h-3 w-3" />
+                </Button>
+            </div>
+
+            {/* Line 2: PIN & Health (The Status) */}
+            <div className="flex items-center gap-2.5">
+                {account.password && (
+                    <div className="flex items-center gap-1.5 text-xs bg-muted/40 px-1.5 py-0.5 rounded-sm">
+                        <span className="text-muted-foreground">PIN:</span>
+                        <span className="font-mono font-medium text-foreground select-all">
+                            {account.password}
+                        </span>
+                    </div>
+                )}
+                <StatusBadge status={account.status} />
+            </div>
+
+            {/* Line 3: Voucher & Expiry (The Value) */}
+            <div className="flex items-center gap-2">
+                <VoucherStatusBadges account={account} />
+                <span className="text-xs text-muted-foreground">
+                    {format(expiryDate, 'dd MMM yyyy')}
+                </span>
+            </div>
+        </div>
+    );
+}
+
 // -----------------------------------------------------------------------------
 // Column Definitions
 // -----------------------------------------------------------------------------
@@ -357,7 +412,15 @@ export function createAccountColumns(
     actions?: AccountColumnActions
 ): ColumnDef<Account>[] {
     return [
-        // Brand Column
+        // Mobile Info Column - visible only on mobile
+        {
+            id: 'mobile_info',
+            header: '',
+            cell: ({ row }) => <MobileInfoCell account={row.original} />,
+            meta: { className: 'md:hidden' },
+        },
+
+        // Brand Column - hidden on mobile
         {
             accessorKey: 'brand',
             header: 'Brand',
@@ -365,31 +428,34 @@ export function createAccountColumns(
             filterFn: (row, id, value) => {
                 return value.includes(row.getValue(id));
             },
+            meta: { className: 'hidden md:table-cell' },
         },
 
-        // Phone Number Column
+        // Phone Number Column - hidden on mobile
         {
             accessorKey: 'phone_number',
             header: 'Phone',
             cell: ({ row }) => <PhoneCell phone={row.getValue('phone_number')} />,
+            meta: { className: 'hidden md:table-cell' },
         },
 
-        // PIN Column
+        // PIN Column - hidden on mobile
         {
             accessorKey: 'password',
             header: 'PIN',
             cell: ({ row }) => <PINCell pin={row.original.password} />,
+            meta: { className: 'hidden md:table-cell' },
         },
 
-        // Voucher Status Column (replaces old voucher_type)
-
+        // Voucher Status Column - hidden on mobile
         {
             id: 'voucher_status',
             header: 'Vouchers',
             cell: ({ row }) => <VoucherStatusBadges account={row.original} />,
+            meta: { className: 'hidden md:table-cell' },
         },
 
-        // Expiry Date Column
+        // Expiry Date Column - hidden on mobile
         {
             accessorKey: 'expiry_date',
             header: 'Expiry Date',
@@ -399,9 +465,10 @@ export function createAccountColumns(
                 const dateB = new Date(rowB.getValue('expiry_date') as string);
                 return dateA.getTime() - dateB.getTime();
             },
+            meta: { className: 'hidden md:table-cell' },
         },
 
-        // Status Column (Global Health Status)
+        // Status Column (Global Health Status) - hidden on mobile
         {
             accessorKey: 'status',
             header: 'Health',
@@ -409,9 +476,10 @@ export function createAccountColumns(
             filterFn: (row, id, value) => {
                 return value.includes(row.getValue(id));
             },
+            meta: { className: 'hidden md:table-cell' },
         },
 
-        // Purchase Price Column
+        // Purchase Price Column - hidden on mobile
         {
             accessorKey: 'purchase_price',
             header: 'Price',
@@ -423,9 +491,10 @@ export function createAccountColumns(
                     </span>
                 );
             },
+            meta: { className: 'hidden md:table-cell' },
         },
 
-        // Actions Column
+        // Actions Column - always visible
         {
             id: 'actions',
             header: '',

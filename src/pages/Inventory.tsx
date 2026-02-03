@@ -4,8 +4,7 @@
 // Premium inventory page for managing coffee shop accounts
 
 import { useState, useMemo } from 'react';
-import { Package, Coffee, Ticket } from 'lucide-react';
-import { toast } from 'sonner';
+import { Package, Coffee, Ticket, Plus } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -87,6 +86,10 @@ export default function InventoryPage() {
     // Search query state (will be managed via DataTable internally, but we track it manually for smart filtering)
     const [searchQuery, setSearchQuery] = useState('');
 
+    // Edit dialog state
+    const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+    const [isDialogOpen, setIsDialogOpen] = useState(false);
+
     // Fetch ALL accounts (no server-side filtering, we filter client-side now)
     const {
         data: allAccounts,
@@ -137,7 +140,13 @@ export default function InventoryPage() {
 
     // Action handlers
     const handleEdit = (account: Account) => {
-        toast.info(`Edit ${account.phone_number} - Coming soon!`);
+        setEditingAccount(account);
+        setIsDialogOpen(true);
+    };
+
+    const handleAddNew = () => {
+        setEditingAccount(null);
+        setIsDialogOpen(true);
     };
 
     const handleDelete = (account: Account) => {
@@ -164,14 +173,23 @@ export default function InventoryPage() {
         });
     };
 
-    // Create columns with actions
-    const columnActions: AccountColumnActions = {
-        onEdit: handleEdit,
-        onDelete: handleDelete,
-        onMarkAsSold: handleMarkAsSold,
-        onToggleVoucher: handleToggleVoucher,
+    const handleDialogOpenChange = (open: boolean) => {
+        setIsDialogOpen(open);
+        if (!open) {
+            setEditingAccount(null); // Reset on close
+        }
     };
-    const columns = createAccountColumns(columnActions);
+
+    // Create columns with actions (memoized)
+    const columns = useMemo(() => {
+        const columnActions: AccountColumnActions = {
+            onEdit: handleEdit,
+            onDelete: handleDelete,
+            onMarkAsSold: handleMarkAsSold,
+            onToggleVoucher: handleToggleVoucher,
+        };
+        return createAccountColumns(columnActions);
+    }, []);
 
     // Handle search input change (for smart filtering logic)
     const handleSearchChange = (value: string) => {
@@ -190,6 +208,13 @@ export default function InventoryPage() {
 
     return (
         <div className="space-y-6">
+            {/* Edit/Add Account Dialog (controlled externally) */}
+            <AddAccountDialog
+                open={isDialogOpen}
+                onOpenChange={handleDialogOpenChange}
+                accountToEdit={editingAccount}
+            />
+
             {/* Summary Stats Cards - Ready Stock */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* Sisa Voucher Fore */}
@@ -300,7 +325,10 @@ export default function InventoryPage() {
                                 </Button>
                             )}
 
-                            <AddAccountDialog />
+                            <Button onClick={handleAddNew}>
+                                <Plus className="mr-2 h-4 w-4" />
+                                Add Account
+                            </Button>
                         </div>
                     </div>
                 </CardHeader>
