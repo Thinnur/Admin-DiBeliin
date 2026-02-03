@@ -185,6 +185,7 @@ function PhoneCell({ phone }: { phone: string }) {
                 onClick={handleCopy}
                 className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors group"
                 title="Copy phone number"
+                aria-label="Copy phone number"
             >
                 <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
             </button>
@@ -214,6 +215,7 @@ function PINCell({ pin }: { pin: string | null }) {
                 onClick={handleCopy}
                 className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors group"
                 title="Copy PIN"
+                aria-label="Copy PIN"
             >
                 <Copy className="w-3.5 h-3.5 text-slate-400 group-hover:text-slate-600 transition-colors" />
             </button>
@@ -241,6 +243,7 @@ function ActionsCell({
                 <button
                     className="p-2 rounded-md hover:bg-slate-100 text-slate-600 transition-colors"
                     title="Actions"
+                    aria-label="Actions"
                 >
                     <MoreHorizontal className="w-4 h-4" />
                 </button>
@@ -362,6 +365,7 @@ function MobileInfoCell({ account }: { account: Account }) {
                     size="icon"
                     className="h-6 w-6 text-muted-foreground hover:text-foreground"
                     onClick={handleCopyPhone}
+                    aria-label="Copy phone number"
                 >
                     <Copy className="h-3 w-3" />
                 </Button>
