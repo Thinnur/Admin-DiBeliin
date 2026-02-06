@@ -14,6 +14,9 @@ import LoginPage from '@/pages/Login';
 import InventoryPage from '@/pages/Inventory';
 import FinancePage from '@/pages/Finance';
 import CalculatorPage from '@/pages/Calculator';
+import OperationalPage from '@/pages/Operational';
+import OutletManagementPage from '@/pages/OutletManagement';
+import MenuManagementPage from '@/pages/MenuManagement';
 
 import './App.css';
 
@@ -31,6 +34,9 @@ function App() {
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/finance" element={<FinancePage />} />
               <Route path="/calculator" element={<CalculatorPage />} />
+              <Route path="/operational" element={<OperationalPage />} />
+              <Route path="/outlets" element={<OutletManagementPage />} />
+              <Route path="/menus" element={<MenuManagementPage />} />
             </Route>
           </Route>
 
@@ -41,7 +47,16 @@ function App() {
           <Route path="*" element={<Navigate to="/inventory" replace />} />
         </Routes>
       </BrowserRouter>
-      <Toaster richColors position="top-right" />
+      <Toaster
+        richColors
+        position="top-right"
+        offset="env(safe-area-inset-top, 16px)"
+        toastOptions={{
+          style: {
+            marginTop: 'env(safe-area-inset-top, 0px)',
+          },
+        }}
+      />
     </QueryClientProvider>
   );
 }

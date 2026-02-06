@@ -45,13 +45,18 @@
     font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
     margin: 0;
     min-height: 100vh;
-    /* iOS Safe Area Padding */
+    /* Prevent iOS bounce scroll effect */
+    overscroll-behavior-y: none;
+  }
+
+  /* PWA Safe Area - Applied to root container */
+  #root {
+    min-height: 100vh;
+    /* iOS Safe Area Padding for notched devices */
     padding-top: env(safe-area-inset-top);
     padding-bottom: env(safe-area-inset-bottom);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
-    /* Prevent iOS bounce scroll effect */
-    overscroll-behavior-y: none;
   }
 
   /* Improved focus rings */
@@ -62,6 +67,17 @@
   /* Tabular numbers for data */
   .tabular-nums {
     font-variant-numeric: tabular-nums;
+  }
+
+  /* Toast notifications safe area (Sonner) */
+  [data-sonner-toaster] {
+    /* Offset from top for notched devices */
+    top: calc(env(safe-area-inset-top) + 16px) !important;
+  }
+
+  [data-sonner-toaster][data-y-position='bottom'] {
+    /* Offset from bottom for home indicator */
+    bottom: calc(env(safe-area-inset-bottom) + 16px) !important;
   }
 }
 

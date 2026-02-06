@@ -9,12 +9,15 @@ import {
     Package,
     DollarSign,
     Calculator,
+    Sliders,
+    MapPin,
     Menu,
     X,
     Coffee,
     ChevronRight,
     LogOut,
     User,
+    UtensilsCrossed,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -46,6 +49,24 @@ const navItems = [
         icon: Calculator,
         description: 'Optimize orders',
     },
+    {
+        label: 'Operational',
+        path: '/operational',
+        icon: Sliders,
+        description: 'Store & vouchers',
+    },
+    {
+        label: 'Outlets',
+        path: '/outlets',
+        icon: MapPin,
+        description: 'Manage outlets',
+    },
+    {
+        label: 'Daftar Menu',
+        path: '/menus',
+        icon: UtensilsCrossed,
+        description: 'Kelola menu & harga',
+    },
 ];
 
 // -----------------------------------------------------------------------------
@@ -64,6 +85,18 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     '/calculator': {
         title: 'Calculator',
         description: 'Optimize order splitting for maximum savings',
+    },
+    '/operational': {
+        title: 'Operational',
+        description: 'Manage store status and vouchers',
+    },
+    '/outlets': {
+        title: 'Outlets',
+        description: 'Manage outlet locations',
+    },
+    '/menus': {
+        title: 'Daftar Menu',
+        description: 'Kelola harga dan ketersediaan menu',
     },
 };
 
@@ -216,7 +249,13 @@ interface HeaderProps {
 
 function Header({ onMenuClick, pageInfo }: HeaderProps) {
     return (
-        <header className="sticky top-0 z-30 h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/80">
+        <header
+            className="sticky z-30 h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/80"
+            style={{
+                top: 'env(safe-area-inset-top, 0px)',
+                paddingTop: 'env(safe-area-inset-top, 0px)'
+            }}
+        >
             <div className="flex items-center justify-between h-full px-4 md:px-6">
                 <div className="flex items-center gap-4">
                     <Button
