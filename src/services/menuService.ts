@@ -80,17 +80,66 @@ export async function createMenuItem(item: Omit<MenuItem, 'id' | 'created_at'>):
  * @param data - Fields to update (prices, availability)
  */
 export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<MenuItem> {
-    const { data: updated, error } = await supabase
-        .from('menu_items')
-        .update(data)
-        .eq('id', id)
-        .select()
-        .single();
-
-    if (error) {
-        console.error('Error updating menu item:', error);
-        throw new Error(`Failed to update menu item: ${error.message}`);
+    // Ensure ID is a number
+    const numericId = Number(id);
+    if (isNaN(numericId)) {
+        throw new Error(`Invalid menu item ID: ${id}`);
     }
 
-    return updated;
+    // Build a clean payload - only include defined fields
+    const cleanPayload: Record<string, unknown> = {};
+
+    if (data.regular_price !== undefined) {
+        cleanPayload.regular_price = data.regular_price;
+    }
+    if (data.large_price !== undefined) {
+        cleanPayload.large_price = data.large_price;
+    }
+    if (data.regular_discount_price !== undefined) {
+        cleanPayload.regular_discount_price = data.regular_discount_price;
+    }
+    if (data.large_discount_price !== undefined) {
+        cleanPayload.large_discount_price = data.large_discount_price;
+    }
+    if (data.is_available !== undefined) {
+        cleanPayload.is_available = data.is_available;
+    }
+
+    console.log('menuService.updateMenuItem - ID:', numericId, 'Type:', typeof numericId);
+    console.log('Clean payload:', cleanPayload);
+
+    // First, check if the item exists (helps debug RLS issues)
+    const { data: existingItem, error: fetchError } = await supabase
+        .from('menu_items')
+        .select('id, name')
+        .eq('id', numericId)
+        .single();
+
+    console.log('Pre-check - Existing item:', existingItem, 'Fetch error:', fetchError);
+
+    if (fetchError || !existingItem) {
+        console.error('Item not found or RLS blocking read. Error:', fetchError);
+        throw new Error(`Menu item with ID ${numericId} not found (RLS may be blocking access)`);
+    }
+
+    // Now perform the update
+    const { data: updatedRows, error: updateError } = await supabase
+        .from('menu_items')
+        .update(cleanPayload)
+        .eq('id', numericId)
+        .select();
+
+    console.log('Update result - Rows:', updatedRows, 'Error:', updateError);
+
+    if (updateError) {
+        console.error('Supabase error updating menu item:', updateError);
+        throw new Error(`Failed to update menu item: ${updateError.message}`);
+    }
+
+    // Handle case where no rows were updated
+    if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(`Update returned no rows - RLS may be blocking UPDATE operations on ID ${numericId}`);
+    }
+
+    return updatedRows[0] as MenuItem;
 }

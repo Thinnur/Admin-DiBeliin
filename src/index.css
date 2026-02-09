@@ -52,9 +52,9 @@
   /* PWA Safe Area - Applied to root container */
   #root {
     min-height: 100vh;
-    /* iOS Safe Area Padding for notched devices */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    min-height: 100dvh;
+    /* Dynamic viewport height for iOS */
+    /* Only horizontal safe area at root - vertical handled by components */
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }

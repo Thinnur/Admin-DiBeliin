@@ -490,17 +490,46 @@ export default function MenuManagement() {
         setIsEditDialogOpen(true);
     };
 
+    // Helper function to sanitize price input
+    const sanitizePrice = (value: unknown): number | null => {
+        if (value === null || value === undefined || value === '') {
+            return null;
+        }
+        // Strip any non-numeric characters (like "Rp", ".", spaces)
+        const cleanedString = String(value).replace(/[^0-9]/g, '');
+        if (!cleanedString) {
+            return null;
+        }
+        const parsed = parseInt(cleanedString, 10);
+        return isNaN(parsed) ? null : parsed;
+    };
+
     const handleSave = async (id: number, data: MenuItemUpdate) => {
         setIsSaving(true);
         try {
-            const updated = await updateMenuItem(id, data);
+            // Sanitize price inputs - force to integer or null
+            const regularPrice = sanitizePrice(data.regular_price);
+            const largePrice = sanitizePrice(data.large_price);
+
+            // Construct clean payload with ONLY the fields we want to update
+            const payload: MenuItemUpdate = {
+                regular_price: regularPrice,
+                large_price: largePrice,
+                is_available: data.is_available ?? true,
+            };
+
+            console.log('Updating menu item ID:', id);
+            console.log('Payload:', payload);
+
+            const updated = await updateMenuItem(id, payload);
             setMenuItems((prev) => prev.map((item) => (item.id === id ? updated : item)));
             toast.success('Menu berhasil diperbarui');
             setIsEditDialogOpen(false);
             setEditingItem(null);
         } catch (error) {
-            console.error('Error updating menu item:', error);
-            toast.error('Gagal memperbarui menu');
+            console.error('Full error object:', error);
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toast.error(`Gagal update: ${errorMessage}`);
         } finally {
             setIsSaving(false);
         }

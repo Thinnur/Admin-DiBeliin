@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Loader2, Coffee, LogIn, Mail, Lock } from 'lucide-react';
+import { Loader2, LogIn, Mail, Lock } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { supabase } from '@/lib/supabase';
@@ -84,9 +84,11 @@ export default function LoginPage() {
                     {/* Logo */}
                     <div className="mx-auto relative">
                         <div className="absolute inset-0 bg-amber-400/20 blur-xl rounded-full scale-150" />
-                        <div className="relative p-4 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl shadow-lg shadow-amber-500/25">
-                            <Coffee className="h-10 w-10 text-white" strokeWidth={1.5} />
-                        </div>
+                        <img
+                            src="/Logo DiBeliin Admin.png"
+                            alt="DiBeliin Admin"
+                            className="relative h-24 w-auto drop-shadow-lg"
+                        />
                     </div>
 
                     <div className="space-y-2">

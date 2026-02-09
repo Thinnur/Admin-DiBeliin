@@ -1,25 +1,25 @@
 {
     "id": "/",
     "name": "Admin DiBeliin",
-    "short_name": "DiBeliin",
+    "short_name": "DiBeliin Admin",
     "description": "Jastip Management System - DiBeliin Admin Panel",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",
     "background_color": "#ffffff",
-    "theme_color": "#ffffff",
+    "theme_color": "#7a5545",
     "orientation": "portrait",
     "icons": [
         {
-            "src": "/vite.svg",
+            "src": "/Logo DiBeliin Admin.png",
             "sizes": "192x192",
-            "type": "image/svg+xml",
+            "type": "image/png",
             "purpose": "any"
         },
         {
-            "src": "/vite.svg",
+            "src": "/Logo DiBeliin Admin.png",
             "sizes": "512x512",
-            "type": "image/svg+xml",
+            "type": "image/png",
             "purpose": "any maskable"
         }
     ]

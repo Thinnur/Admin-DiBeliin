@@ -1,28 +1,18 @@
 // =============================================================================
-// DiBeliin Admin - Order Optimizer
+// DiBeliin Admin - Order Optimizer (Safe-Guarded Version)
 // =============================================================================
-// Exact replication of legacy Google Apps Script logic
-// Greedy bin-packing algorithm with 68k limit per group
+// Implements bin-packing strategies for Fore Coffee and Kopi Kenangan
 
-// -----------------------------------------------------------------------------
-// Types
-// -----------------------------------------------------------------------------
-
+// --- Types (Matching Calculator.tsx API) ---
 export interface CartItem {
     name: string;
     price: number;
     qty: number;
 }
 
-export interface FlatItem {
-    name: string;
-    price: number;
-    originalIndex?: number; // Optional for tracking
-}
-
 export interface OptimizedGroup {
-    id: number;
-    items: FlatItem[];
+    id: string;
+    items: { name: string; price: number }[];
     totalPrice: number;
     recommendedVoucher: 'nomin' | 'min50k';
     estimatedDiscount: number;
@@ -37,190 +27,284 @@ export interface OptimizationResult {
     accountsNeeded: number;
 }
 
-// -----------------------------------------------------------------------------
-// Constants (from GAS)
-// -----------------------------------------------------------------------------
+// --- HELPER: Discount Calculators ---
+const calcForeDisc = (price: number) => Math.min(price * 0.5, 35000);
+const calcKopKenDiscA = (price: number) => Math.min(price * 0.5, 35000); // No Min, Max 35k
+const calcKopKenDiscB = (price: number) => (price >= 50000 ? Math.min(price * 0.5, 30000) : 0); // Min 50k, Max 30k
 
-const MAX_GROUP_LIMIT = 70000; // Hard limit per group
+// --- Helper: Generate unique ID ---
+const generateId = () => Math.random().toString(36).substring(2, 11);
 
-// -----------------------------------------------------------------------------
-// Helper Functions
-// -----------------------------------------------------------------------------
-
-/**
- * Flatten cart items by quantity
- * e.g., { name: "Kopi", price: 18000, qty: 2 } → [{ name: "Kopi", price: 18000 }, { name: "Kopi", price: 18000 }]
- */
-export function flattenItems(items: CartItem[]): FlatItem[] {
-    const flattened: FlatItem[] = [];
-
+// --- Helper: Expand cart items (qty > 1 becomes multiple items) ---
+function expandCartItems(items: CartItem[]): { name: string; price: number }[] {
+    const expanded: { name: string; price: number }[] = [];
     for (const item of items) {
         for (let i = 0; i < item.qty; i++) {
-            flattened.push({
-                name: item.name,
-                price: item.price,
+            expanded.push({ name: item.name, price: item.price });
+        }
+    }
+    return expanded;
+}
+
+// ==========================================
+// LOGIC 1: FORE (Strict 74k Multiples)
+// ==========================================
+function optimizeFore(expandedItems: { name: string; price: number }[]): OptimizedGroup[] {
+    const groups: OptimizedGroup[] = [];
+    const sortedItems = [...expandedItems].sort((a, b) => b.price - a.price);
+
+    // STRICT LIMIT: 74,000. 
+    // We prefer filling up to 74k (paying 4k excess) over opening new account (5k cost).
+    const BASKET_LIMIT = 74000;
+
+    sortedItems.forEach(item => {
+        let placed = false;
+        for (const group of groups) {
+            if (group.totalPrice + item.price <= BASKET_LIMIT) {
+                group.items.push(item);
+                group.totalPrice += item.price;
+                group.estimatedDiscount = calcForeDisc(group.totalPrice);
+                placed = true;
+                break;
+            }
+        }
+        if (!placed) {
+            groups.push({
+                id: generateId(),
+                items: [item],
+                totalPrice: item.price,
+                recommendedVoucher: 'nomin', // Fore only has one voucher type
+                estimatedDiscount: calcForeDisc(item.price)
             });
+        }
+    });
+    return groups;
+}
+
+// ==========================================
+// LOGIC 2: KOPI KENANGAN (Safe-Guarded)
+// ==========================================
+function optimizeKopKen(expandedItems: { name: string; price: number }[]): OptimizedGroup[] {
+    // Strategy A: "All Min-50k" Check (Water Filling)
+    const attemptAllMin50 = (itemList: { name: string; price: number }[]): OptimizedGroup[] | null => {
+        if (itemList.length === 0) return [];
+        const sorted = [...itemList].sort((a, b) => b.price - a.price);
+        const total = sorted.reduce((a, b) => a + b.price, 0);
+
+        if (total === 0) return [];
+
+        const minBaskets = Math.ceil(total / 65000);
+        const maxBaskets = Math.floor(total / 50000);
+
+        for (let k = maxBaskets; k >= minBaskets; k--) {
+            if (k <= 0) continue;
+            const baskets: OptimizedGroup[] = Array(k).fill(null).map(() => ({
+                id: generateId(),
+                items: [],
+                totalPrice: 0,
+                recommendedVoucher: 'min50k' as const,
+                estimatedDiscount: 0
+            }));
+
+            for (const item of sorted) {
+                baskets.sort((a, b) => a.totalPrice - b.totalPrice);
+                baskets[0].items.push(item);
+                baskets[0].totalPrice += item.price;
+            }
+
+            if (baskets.every(b => b.totalPrice >= 50000)) {
+                baskets.forEach(b => b.estimatedDiscount = calcKopKenDiscB(b.totalPrice));
+                return baskets;
+            }
+        }
+        return null;
+    };
+
+    // Try Strategy A
+    const idealSplit = attemptAllMin50(expandedItems);
+    if (idealSplit) return idealSplit;
+
+    // Strategy B: Priority Fallback with LOOP GUARD
+    const groups: OptimizedGroup[] = [];
+    const remainingItems = [...expandedItems].sort((a, b) => b.price - a.price);
+
+    // --- HARD LOOP GUARD ---
+    let loopSafetyCounter = 0;
+    const MAX_LOOPS = 50;
+
+    while (remainingItems.length > 0) {
+        loopSafetyCounter++;
+
+        // EMERGENCY BREAK: If logic spins out of control, dump remaining items and exit.
+        if (loopSafetyCounter > MAX_LOOPS) {
+            console.error("Optimizer Infinite Loop Detected: Forcing exit.");
+            groups.push({
+                id: generateId(),
+                items: [...remainingItems],
+                totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
+                recommendedVoucher: 'nomin',
+                estimatedDiscount: 0
+            });
+            break;
+        }
+
+        const currentTotal = remainingItems.reduce((sum, i) => sum + i.price, 0);
+
+        // Condition 1: Exact Range 50k - 60k -> Use Voucher B (Min 50k)
+        if (currentTotal >= 50000 && currentTotal <= 60000) {
+            groups.push({
+                id: generateId(),
+                items: [...remainingItems],
+                totalPrice: currentTotal,
+                recommendedVoucher: 'min50k',
+                estimatedDiscount: calcKopKenDiscB(currentTotal)
+            });
+            break;
+        }
+
+        // Condition 2: < 50k OR 60k-70k -> Use Voucher A (No Min)
+        if (currentTotal < 50000 || (currentTotal > 60000 && currentTotal <= 70000)) {
+            groups.push({
+                id: generateId(),
+                items: [...remainingItems],
+                totalPrice: currentTotal,
+                recommendedVoucher: 'nomin',
+                estimatedDiscount: calcKopKenDiscA(currentTotal)
+            });
+            break;
+        }
+
+        // Condition 3: Split Strategy (>70k)
+        const subsetB: { name: string; price: number }[] = [];
+        let currentSubsetSum = 0;
+        const indicesToRemove: number[] = [];
+
+        // Search for 50k-60k chunk
+        for (let i = 0; i < remainingItems.length; i++) {
+            if (currentSubsetSum + remainingItems[i].price <= 60000) {
+                currentSubsetSum += remainingItems[i].price;
+                subsetB.push(remainingItems[i]);
+                indicesToRemove.push(i);
+            }
+        }
+
+        if (currentSubsetSum >= 50000) {
+            // Success: Min-50k Basket
+            groups.push({
+                id: generateId(),
+                items: subsetB,
+                totalPrice: currentSubsetSum,
+                recommendedVoucher: 'min50k',
+                estimatedDiscount: calcKopKenDiscB(currentSubsetSum)
+            });
+            indicesToRemove.sort((a, b) => b - a).forEach(idx => remainingItems.splice(idx, 1));
+        } else {
+            // Failure: Fill Voucher A (Max 70k)
+            const basketAItems: { name: string; price: number }[] = [];
+            let basketASum = 0;
+            const removeA: number[] = [];
+
+            for (let i = 0; i < remainingItems.length; i++) {
+                if (basketASum + remainingItems[i].price <= 70000) {
+                    basketASum += remainingItems[i].price;
+                    basketAItems.push(remainingItems[i]);
+                    removeA.push(i);
+                }
+            }
+
+            // --- SAFETY VALVE: Force Progress ---
+            if (basketAItems.length === 0 && remainingItems.length > 0) {
+                const forcedItem = remainingItems[0];
+                basketAItems.push(forcedItem);
+                basketASum += forcedItem.price;
+                removeA.push(0);
+            }
+
+            groups.push({
+                id: generateId(),
+                items: basketAItems,
+                totalPrice: basketASum,
+                recommendedVoucher: 'nomin',
+                estimatedDiscount: calcKopKenDiscA(basketASum)
+            });
+            removeA.sort((a, b) => b - a).forEach(idx => remainingItems.splice(idx, 1));
         }
     }
 
-    return flattened;
+    return groups;
 }
 
-// -----------------------------------------------------------------------------
-// Main Optimizer Function (Exact GAS Logic)
-// -----------------------------------------------------------------------------
-
-/**
- * Optimize order splitting across multiple accounts/vouchers
- * 
- * GAS Logic:
- * 1. Flatten & Sort by Price Descending (High to Low)
- * 2. Greedy grouping with 68k hard limit
- * 3. Voucher selection: if (50k <= total <= 60k) → min50k, else → nomin
- * 4. Discount: min50k = 50% max 30k, nomin = 50% max 35k
- * 5. Admin fee: Math.max(countNomin, countMin50k) * accountCost
- * 
- * @param items - List of cart items
- * @param brand - Brand (kopken or fore) - kept for compatibility but logic is unified
- * @param accountCost - Cost per account (admin fee)
- * @returns Optimization result with groups and totals
- */
+// --- MAIN EXPORT (Compatible with Calculator.tsx API) ---
 export function optimizeOrder(
     items: CartItem[],
-    brand: 'kopken' | 'fore',
-    accountCost: number = 5000
+    brand: 'fore' | 'kopken',
+    accountCost: number
 ): OptimizationResult {
-    // Handle empty input
-    if (items.length === 0) {
+    // Safety check
+    if (!items || !Array.isArray(items) || items.length === 0) {
         return {
             groups: [],
             totalBill: 0,
             totalDiscount: 0,
             totalAdminCost: 0,
             finalPrice: 0,
-            accountsNeeded: 0,
+            accountsNeeded: 0
         };
     }
 
-    // 1. Flatten & Sort (High to Low)
-    let flatItems: FlatItem[] = [];
-    items.forEach(item => {
-        for (let i = 0; i < item.qty; i++) {
-            flatItems.push({
-                name: item.name,
-                price: item.price,
-                originalIndex: 0, // temp
-            });
-        }
-    });
+    try {
+        // Expand items (qty > 1 becomes multiple items)
+        const expandedItems = expandCartItems(items);
 
-    // Sort by Price Descending
-    flatItems.sort((a, b) => b.price - a.price);
+        // Run brand-specific optimization
+        const groups = brand === 'fore'
+            ? optimizeFore(expandedItems)
+            : optimizeKopKen(expandedItems);
 
-    const groups: OptimizedGroup[] = [];
-    const usedItems = new Set<number>();
-    let groupId = 1;
+        // Calculate totals
+        const totalBill = expandedItems.reduce((sum, i) => sum + i.price, 0);
+        const totalDiscount = groups.reduce((sum, g) => sum + g.estimatedDiscount, 0);
 
-    // 2. Grouping Logic (Greedy Fit with 68k Limit)
-    while (usedItems.size < flatItems.length) {
-        const currentGroupItems: FlatItem[] = [];
-        let currentTotal = 0;
-
-        for (let i = 0; i < flatItems.length; i++) {
-            if (usedItems.has(i)) continue;
-
-            const item = flatItems[i];
-            // Exact GAS Logic: Check strictly against 68000
-            if (currentTotal + item.price <= MAX_GROUP_LIMIT) {
-                currentGroupItems.push(item);
-                currentTotal += item.price;
-                usedItems.add(i);
-            }
-        }
-
-        if (currentGroupItems.length > 0) {
-            // 3. Voucher Strategy & 4. Discount Calculation
-            // BRAND SPECIFIC LOGIC
-            let recommendedVoucher: 'nomin' | 'min50k' = 'nomin';
-            let discount = 0;
-
-            if (brand === 'fore') {
-                // FORE: Always 'nomin' - only has No Minimum vouchers
-                recommendedVoucher = 'nomin';
-                discount = Math.min(currentTotal * 0.5, 35000);
-            } else {
-                // KOPKEN: Hybrid Logic (Min 50k vs No Min)
-                // GAS Logic: if (total >= 50k && total <= 60k) use Min50, else NoMin
-                if (currentTotal >= 50000 && currentTotal <= 60000) {
-                    recommendedVoucher = 'min50k';
-                    discount = Math.min(currentTotal * 0.5, 30000);
-                } else {
-                    recommendedVoucher = 'nomin';
-                    discount = Math.min(currentTotal * 0.5, 35000);
-                }
-            }
-
-            groups.push({
-                id: groupId++,
-                items: currentGroupItems,
-                totalPrice: currentTotal,
-                recommendedVoucher,
-                estimatedDiscount: discount,
-            });
+        // Admin cost calculation (Combo Pricing for KopKen)
+        let accountsNeeded: number;
+        if (brand === 'kopken') {
+            // Combo Pricing: Max of nomin count vs min50k count
+            const nominCount = groups.filter(g => g.recommendedVoucher === 'nomin').length;
+            const min50kCount = groups.filter(g => g.recommendedVoucher === 'min50k').length;
+            accountsNeeded = Math.max(nominCount, min50kCount);
         } else {
-            break; // Safety: if no items could be added, exit to prevent infinite loop
+            // Fore: 1 account per group
+            accountsNeeded = groups.length;
         }
+
+        const totalAdminCost = accountsNeeded * accountCost;
+        const finalPrice = totalBill - totalDiscount + totalAdminCost;
+
+        return {
+            groups,
+            totalBill,
+            totalDiscount,
+            totalAdminCost,
+            finalPrice,
+            accountsNeeded
+        };
+    } catch (error) {
+        console.error("Optimization Critical Error:", error);
+        // Fallback to prevent crash
+        const totalBill = items.reduce((s, i) => s + (i.price * i.qty), 0);
+        return {
+            groups: [{
+                id: generateId(),
+                items: items.map(i => ({ name: i.name, price: i.price * i.qty })),
+                totalPrice: totalBill,
+                recommendedVoucher: 'nomin',
+                estimatedDiscount: 0
+            }],
+            totalBill,
+            totalDiscount: 0,
+            totalAdminCost: accountCost,
+            finalPrice: totalBill + accountCost,
+            accountsNeeded: 1
+        };
     }
-
-    // 5. Calculate totals
-    const totalBill = groups.reduce((sum, g) => sum + g.totalPrice, 0);
-    const totalDiscount = groups.reduce((sum, g) => sum + g.estimatedDiscount, 0);
-
-    // Calculate Admin Fees (Combo Logic)
-    // Rule: Pair of (NoMin + Min50k) counts as 1 fee
-    const countNomin = groups.filter(g => g.recommendedVoucher === 'nomin').length;
-    const countMin50k = groups.filter(g => g.recommendedVoucher === 'min50k').length;
-    const totalAdminCost = Math.max(countNomin, countMin50k) * accountCost;
-
-    const finalPrice = totalBill - totalDiscount + totalAdminCost;
-
-    return {
-        groups,
-        totalBill,
-        totalDiscount,
-        totalAdminCost,
-        finalPrice,
-        accountsNeeded: groups.length,
-    };
-}
-
-// -----------------------------------------------------------------------------
-// Utility: Single Order Analysis (for comparison)
-// -----------------------------------------------------------------------------
-
-/**
- * Analyze a single order without splitting
- * Useful for comparison
- */
-export function analyzeSingleOrder(
-    items: CartItem[],
-    _brand: 'kopken' | 'fore' // kept for compatibility
-): { total: number; discount: number; voucher: 'nomin' | 'min50k' } {
-    const total = items.reduce((sum, item) => sum + item.price * item.qty, 0);
-
-    // Apply same voucher logic
-    let voucher: 'nomin' | 'min50k' = 'nomin';
-    if (total >= 50000 && total <= 60000) {
-        voucher = 'min50k';
-    }
-
-    // Calculate discount with same rules
-    let discount = 0;
-    if (voucher === 'min50k') {
-        discount = Math.min(total * 0.5, 30000);
-    } else {
-        discount = Math.min(total * 0.5, 35000);
-    }
-
-    return { total, discount, voucher };
 }

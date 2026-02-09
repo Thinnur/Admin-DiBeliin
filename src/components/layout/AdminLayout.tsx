@@ -13,7 +13,6 @@ import {
     MapPin,
     Menu,
     X,
-    Coffee,
     ChevronRight,
     LogOut,
     User,
@@ -131,13 +130,19 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
                     'flex flex-col',
                     isOpen ? 'translate-x-0' : '-translate-x-full'
                 )}
+                style={{
+                    // Extend sidebar to include notch area
+                    paddingTop: 'env(safe-area-inset-top, 0px)',
+                }}
             >
                 {/* Logo */}
                 <div className="flex items-center justify-between h-16 px-5 border-b border-slate-800">
                     <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl shadow-lg shadow-amber-500/20">
-                            <Coffee className="h-5 w-5 text-white" strokeWidth={2} />
-                        </div>
+                        <img
+                            src="/Logo DiBeliin Admin.png"
+                            alt="DiBeliin Admin"
+                            className="h-10 w-auto"
+                        />
                         <div>
                             <h1 className="font-bold text-lg tracking-tight">DiBeliin</h1>
                             <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider">
@@ -278,11 +283,13 @@ function Header({ onMenuClick, pageInfo }: HeaderProps) {
                     </div>
                 </div>
 
-                {/* Right Side - can add notifications, profile, etc. */}
+                {/* Right Side - Logo */}
                 <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
-                        <span className="text-white font-bold text-sm">A</span>
-                    </div>
+                    <img
+                        src="/Logo DiBeliin Admin.png"
+                        alt="DiBeliin Admin"
+                        className="h-9 w-auto"
+                    />
                 </div>
             </div>
         </header>
