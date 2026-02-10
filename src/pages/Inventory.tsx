@@ -8,6 +8,15 @@ import { Package, Coffee, Ticket, Plus } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import {
     Card,
     CardContent,
@@ -90,6 +99,11 @@ export default function InventoryPage() {
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
+    // "In Use By" dialog state
+    const [inUseAccount, setInUseAccount] = useState<Account | null>(null);
+    const [isInUseDialogOpen, setIsInUseDialogOpen] = useState(false);
+    const [inUseByName, setInUseByName] = useState('');
+
     // Fetch ALL accounts (no server-side filtering, we filter client-side now)
     const {
         data: allAccounts,
@@ -108,7 +122,17 @@ export default function InventoryPage() {
         [allAccounts]
     );
 
-    // Smart Filtered Accounts Logic
+    // -------------------------------------------------------------------------
+    // Value Priority Sorting Helper
+    // -------------------------------------------------------------------------
+    const getVoucherPriority = (account: Account): number => {
+        if (account.is_nomin_ready && account.is_min50k_ready) return 0; // Complete
+        if (account.is_nomin_ready) return 1;  // NoMin only
+        if (account.is_min50k_ready) return 2; // Min50k only
+        return 3; // Empty
+    };
+
+    // Smart Filtered & Sorted Accounts Logic
     const filteredAccounts = useMemo(() => {
         if (!allAccounts) return [];
 
@@ -119,14 +143,16 @@ export default function InventoryPage() {
 
         // Rule 2 (Visibility / Smart Filtering):
         // IF searchQuery is empty AND filterStatus is 'all' (default):
-        //   ONLY show accounts where status === 'ready' (Hide sold/expired/issue)
+        //   Show 'ready' and 'in_use' accounts (Hide sold/expired/issue)
         // ELSE (If user searches OR explicitly selects a status filter):
         //   Show matching accounts regardless of status
         const isDefaultState = searchQuery.trim() === '' && statusFilter === 'all';
 
         if (isDefaultState) {
-            // Default: Only show ready accounts
-            result = result.filter((account) => account.status === 'ready');
+            // Default: Show ready + in_use accounts
+            result = result.filter(
+                (account) => account.status === 'ready' || account.status === 'in_use'
+            );
         } else {
             // User is searching or filtering explicitly
             if (statusFilter !== 'all') {
@@ -134,6 +160,25 @@ export default function InventoryPage() {
             }
             // Search is handled by DataTable's internal filter
         }
+
+        // Rule 3: Priority Sort
+        // - 'in_use' accounts float to top (admin needs quick access)
+        // - 'ready' accounts sorted by voucher value priority
+        // - Within each group, sub-sort by expiry_date ascending (closest first)
+        result = [...result].sort((a, b) => {
+            // in_use always on top
+            if (a.status === 'in_use' && b.status !== 'in_use') return -1;
+            if (a.status !== 'in_use' && b.status === 'in_use') return 1;
+
+            // For ready accounts, sort by voucher value priority
+            if (a.status === 'ready' && b.status === 'ready') {
+                const priorityDiff = getVoucherPriority(a) - getVoucherPriority(b);
+                if (priorityDiff !== 0) return priorityDiff;
+            }
+
+            // Sub-sort by expiry_date ascending (closest first)
+            return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
+        });
 
         return result;
     }, [allAccounts, activeTab, searchQuery, statusFilter]);
@@ -156,9 +201,43 @@ export default function InventoryPage() {
     };
 
     const handleMarkAsSold = (account: Account) => {
-        updateStatus.mutate({
+        // Clear in_use_by when moving away from in_use
+        if (account.status === 'in_use') {
+            updateAccount.mutate({
+                id: account.id,
+                updates: { status: 'sold', in_use_by: null },
+            });
+        } else {
+            updateStatus.mutate({
+                id: account.id,
+                status: 'sold',
+            });
+        }
+    };
+
+    const handleMarkAsInUse = (account: Account) => {
+        // Open dialog to ask who is using this account
+        setInUseAccount(account);
+        setInUseByName('');
+        setIsInUseDialogOpen(true);
+    };
+
+    const handleConfirmInUse = () => {
+        if (!inUseAccount || !inUseByName.trim()) return;
+        updateAccount.mutate({
+            id: inUseAccount.id,
+            updates: { status: 'in_use', in_use_by: inUseByName.trim() },
+        });
+        setIsInUseDialogOpen(false);
+        setInUseAccount(null);
+        setInUseByName('');
+    };
+
+    const handleMarkAsReady = (account: Account) => {
+        // Clear in_use_by when returning to ready
+        updateAccount.mutate({
             id: account.id,
-            status: 'sold',
+            updates: { status: 'ready', in_use_by: null },
         });
     };
 
@@ -186,6 +265,8 @@ export default function InventoryPage() {
             onEdit: handleEdit,
             onDelete: handleDelete,
             onMarkAsSold: handleMarkAsSold,
+            onMarkAsInUse: handleMarkAsInUse,
+            onMarkAsReady: handleMarkAsReady,
             onToggleVoucher: handleToggleVoucher,
         };
         return createAccountColumns(columnActions);
@@ -214,6 +295,56 @@ export default function InventoryPage() {
                 onOpenChange={handleDialogOpenChange}
                 accountToEdit={editingAccount}
             />
+
+            {/* "In Use By" Confirmation Dialog */}
+            <Dialog open={isInUseDialogOpen} onOpenChange={(open) => {
+                setIsInUseDialogOpen(open);
+                if (!open) {
+                    setInUseAccount(null);
+                    setInUseByName('');
+                }
+            }}>
+                <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                        <DialogTitle>Tandai Sedang Digunakan</DialogTitle>
+                        <DialogDescription>
+                            Siapa yang menggunakan akun{' '}
+                            <span className="font-semibold text-foreground">
+                                {inUseAccount?.phone_number}
+                            </span>
+                            ?
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                        <Input
+                            placeholder="Nama pengguna (contoh: Thinnur)"
+                            value={inUseByName}
+                            onChange={(e) => setInUseByName(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (e.key === 'Enter' && inUseByName.trim()) {
+                                    handleConfirmInUse();
+                                }
+                            }}
+                            autoFocus
+                        />
+                    </div>
+                    <DialogFooter>
+                        <Button
+                            variant="outline"
+                            onClick={() => setIsInUseDialogOpen(false)}
+                        >
+                            Batal
+                        </Button>
+                        <Button
+                            onClick={handleConfirmInUse}
+                            disabled={!inUseByName.trim()}
+                            className="bg-violet-600 hover:bg-violet-700"
+                        >
+                            Konfirmasi
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             {/* Summary Stats Cards - Ready Stock */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -303,6 +434,7 @@ export default function InventoryPage() {
                                 <SelectContent>
                                     <SelectItem value="all">All Status</SelectItem>
                                     <SelectItem value="ready">Ready</SelectItem>
+                                    <SelectItem value="in_use">Sedang Digunakan</SelectItem>
                                     <SelectItem value="booked">Booked</SelectItem>
                                     <SelectItem value="sold">Sold</SelectItem>
                                     <SelectItem value="expired">Expired</SelectItem>

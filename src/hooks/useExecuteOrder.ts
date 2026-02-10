@@ -21,7 +21,7 @@ import type { OptimizedGroup } from '@/lib/logic/optimizer';
 // -----------------------------------------------------------------------------
 
 export interface AssignedAccount {
-    groupId: number;
+    groupId: string;
     account: Account;
     voucherType: 'nomin' | 'min50k';
     groupTotal: number;
@@ -31,7 +31,7 @@ export interface AssignedAccount {
 export interface ExecutionResult {
     success: boolean;
     assignedAccounts: AssignedAccount[];
-    errors: { groupId: number; message: string }[];
+    errors: { groupId: string; message: string }[];
     summary: {
         totalGroups: number;
         successfulGroups: number;
@@ -76,7 +76,7 @@ async function executeOrderStrategy(
     const { groups, brand } = input;
 
     const assignedAccounts: AssignedAccount[] = [];
-    const errors: { groupId: number; message: string }[] = [];
+    const errors: { groupId: string; message: string }[] = [];
     const usedAccountIds = new Set<string>();
     const voucherUpdates: VoucherUpdate[] = [];
     const accountsToCheckForSold: Account[] = [];

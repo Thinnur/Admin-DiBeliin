@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 export interface MenuItem {
     id: number;
     brand: 'fore' | 'kenangan';
-    category: string;
+    categories: string[];
     name: string;
     description: string | null;
     image_url: string | null;
@@ -26,6 +26,9 @@ export interface MenuItem {
 }
 
 export interface MenuItemUpdate {
+    name?: string;
+    brand?: 'fore' | 'kenangan';
+    categories?: string[];
     regular_price?: number | null;
     large_price?: number | null;
     regular_discount_price?: number | null;
@@ -77,7 +80,7 @@ export async function createMenuItem(item: Omit<MenuItem, 'id' | 'created_at'>):
 /**
  * Update a menu item by ID
  * @param id - Menu item ID
- * @param data - Fields to update (prices, availability)
+ * @param data - Fields to update (name, brand, categories, prices, availability)
  */
 export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<MenuItem> {
     // Ensure ID is a number
@@ -89,6 +92,15 @@ export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<
     // Build a clean payload - only include defined fields
     const cleanPayload: Record<string, unknown> = {};
 
+    if (data.name !== undefined) {
+        cleanPayload.name = data.name;
+    }
+    if (data.brand !== undefined) {
+        cleanPayload.brand = data.brand;
+    }
+    if (data.categories !== undefined) {
+        cleanPayload.categories = data.categories;
+    }
     if (data.regular_price !== undefined) {
         cleanPayload.regular_price = data.regular_price;
     }

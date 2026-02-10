@@ -8,7 +8,7 @@
 // -----------------------------------------------------------------------------
 export type AccountBrand = 'kopken' | 'fore';
 
-export type AccountStatus = 'ready' | 'booked' | 'sold' | 'expired' | 'issue';
+export type AccountStatus = 'ready' | 'booked' | 'sold' | 'expired' | 'issue' | 'in_use';
 
 export type TransactionType = 'income' | 'expense';
 
@@ -30,6 +30,7 @@ export interface Account {
   is_nomin_ready: boolean; // Voucher No Min availability
   is_min50k_ready: boolean; // Voucher Min 50k availability (KopKen only, always false for Fore)
   purchase_price: number;
+  in_use_by: string | null; // Who is currently using this account
   notes: string | null;
   created_at: string; // ISO timestamp
 }

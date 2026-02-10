@@ -123,6 +123,7 @@ export async function fetchAccountStatistics(): Promise<AccountStatistics> {
             sold: 0,
             expired: 0,
             issue: 0,
+            in_use: 0,
         },
         by_brand: {
             kopken: 0,

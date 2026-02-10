@@ -58,14 +58,16 @@ function BrandBadge({ brand }: { brand: AccountBrand }) {
 
 /**
  * Status badge with premium colors (Global Health Status)
+ * Shows operator name when status is 'in_use' and in_use_by is provided
  */
-function StatusBadge({ status }: { status: AccountStatus }) {
+function StatusBadge({ status, inUseBy }: { status: AccountStatus; inUseBy?: string | null }) {
     const styles: Record<AccountStatus, string> = {
         ready: 'bg-emerald-50 text-emerald-700 border-emerald-200 ring-1 ring-emerald-600/10',
         booked: 'bg-blue-50 text-blue-700 border-blue-200 ring-1 ring-blue-600/10',
         sold: 'bg-slate-100 text-slate-600 border-slate-200 ring-1 ring-slate-600/10',
         expired: 'bg-red-50 text-red-700 border-red-200 ring-1 ring-red-600/10',
         issue: 'bg-orange-50 text-orange-700 border-orange-200 ring-1 ring-orange-600/10',
+        in_use: 'bg-violet-50 text-violet-700 border-violet-200 ring-1 ring-violet-600/10',
     };
 
     const icons: Record<AccountStatus, string> = {
@@ -74,14 +76,19 @@ function StatusBadge({ status }: { status: AccountStatus }) {
         sold: '✓',
         expired: '✕',
         issue: '!',
+        in_use: '◉',
     };
+
+    const label = status === 'in_use'
+        ? (inUseBy ? `In Use: ${inUseBy}` : 'In Use')
+        : status;
 
     return (
         <span
             className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all hover-lift ${styles[status]}`}
         >
             <span className="text-[10px]">{icons[status]}</span>
-            <span className="capitalize">{status}</span>
+            <span className="capitalize">{label}</span>
         </span>
     );
 }
@@ -234,6 +241,7 @@ function ActionsCell({
 }) {
     const [isOpen, setIsOpen] = useState(false);
     const isReady = account.status === 'ready';
+    const isInUse = account.status === 'in_use';
 
     return (
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -302,6 +310,34 @@ function ActionsCell({
                     >
                         <Edit className="w-4 h-4 mr-2" />
                         Edit Account
+                    </DropdownMenuItem>
+                )}
+
+                {/* Mark as In Use - only for ready accounts */}
+                {isReady && actions?.onMarkAsInUse && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions.onMarkAsInUse?.(account);
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer text-violet-600"
+                    >
+                        <span className="w-4 h-4 mr-2 text-center text-sm leading-4">◉</span>
+                        Tandai Digunakan
+                    </DropdownMenuItem>
+                )}
+
+                {/* Return to Ready - only for in_use accounts */}
+                {isInUse && actions?.onMarkAsReady && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions.onMarkAsReady?.(account);
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer text-emerald-600"
+                    >
+                        <Check className="w-4 h-4 mr-2" />
+                        Kembalikan ke Ready
                     </DropdownMenuItem>
                 )}
 
@@ -377,7 +413,7 @@ function MobileInfoCell({ account }: { account: Account }) {
                         </span>
                     </div>
                 )}
-                <StatusBadge status={account.status} />
+                <StatusBadge status={account.status} inUseBy={account.in_use_by} />
             </div>
 
             {/* Line 3: Voucher & Expiry (The Value) */}
@@ -402,6 +438,8 @@ export interface AccountColumnActions {
     onEdit?: (account: Account) => void;
     onDelete?: (account: Account) => void;
     onMarkAsSold?: (account: Account) => void;
+    onMarkAsInUse?: (account: Account) => void;
+    onMarkAsReady?: (account: Account) => void;
     onToggleVoucher?: (account: Account, voucher: 'nomin' | 'min50k', newValue: boolean) => void;
 }
 
@@ -472,7 +510,7 @@ export function createAccountColumns(
         {
             accessorKey: 'status',
             header: 'Health',
-            cell: ({ row }) => <StatusBadge status={row.getValue('status')} />,
+            cell: ({ row }) => <StatusBadge status={row.getValue('status')} inUseBy={row.original.in_use_by} />,
             filterFn: (row, id, value) => {
                 return value.includes(row.getValue(id));
             },
