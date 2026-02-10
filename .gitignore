@@ -19,7 +19,11 @@ pnpm-debug.log*
 
 # OS files
 .DS_Store
+Thumbs.db
 
 # IDE
 .vscode/
 .idea/
+
+# Data files (production voucher data)
+*.csv
