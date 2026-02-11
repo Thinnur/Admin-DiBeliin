@@ -233,68 +233,124 @@ function OutletTable({ outlets, onEdit, onDelete, isDeleting }: OutletTableProps
     }
 
     return (
-        <div className="overflow-x-auto">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Name</TableHead>
-                        <TableHead>Brand</TableHead>
-                        <TableHead>City</TableHead>
-                        <TableHead>Premium</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-[100px]">Actions</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {outlets.map((outlet) => (
-                        <TableRow key={outlet.id}>
-                            <TableCell className="font-medium">{outlet.name}</TableCell>
-                            <TableCell>{getBrandBadge(outlet.brand)}</TableCell>
-                            <TableCell className="text-slate-600">{outlet.city || '—'}</TableCell>
-                            <TableCell>
-                                {outlet.is_premium ? (
-                                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">
-                                        Premium
-                                    </Badge>
-                                ) : (
-                                    <span className="text-slate-400">—</span>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                {outlet.is_active ? (
-                                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                                        Active
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="secondary">Inactive</Badge>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                <div className="flex gap-1">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-slate-400 hover:text-blue-500 hover:bg-blue-50"
-                                        onClick={() => onEdit(outlet)}
-                                    >
-                                        <Pencil className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
-                                        onClick={() => onDelete(outlet.id)}
-                                        disabled={isDeleting === outlet.id}
-                                    >
-                                        <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                </div>
-                            </TableCell>
+        <>
+            {/* Desktop: Table */}
+            <div className="hidden md:block overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Name</TableHead>
+                            <TableHead>Brand</TableHead>
+                            <TableHead>City</TableHead>
+                            <TableHead>Premium</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="w-[100px]">Actions</TableHead>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
+                    </TableHeader>
+                    <TableBody>
+                        {outlets.map((outlet) => (
+                            <TableRow key={outlet.id}>
+                                <TableCell className="font-medium">{outlet.name}</TableCell>
+                                <TableCell>{getBrandBadge(outlet.brand)}</TableCell>
+                                <TableCell className="text-slate-600">{outlet.city || '—'}</TableCell>
+                                <TableCell>
+                                    {outlet.is_premium ? (
+                                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100">
+                                            Premium
+                                        </Badge>
+                                    ) : (
+                                        <span className="text-slate-400">—</span>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    {outlet.is_active ? (
+                                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                                            Active
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="secondary">Inactive</Badge>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <div className="flex gap-1">
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-slate-400 hover:text-blue-500 hover:bg-blue-50"
+                                            onClick={() => onEdit(outlet)}
+                                        >
+                                            <Pencil className="h-4 w-4" />
+                                        </Button>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                            onClick={() => onDelete(outlet.id)}
+                                            disabled={isDeleting === outlet.id}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+
+            {/* Mobile: Card List */}
+            <div className="md:hidden space-y-2">
+                {outlets.map((outlet) => (
+                    <div
+                        key={outlet.id}
+                        className="p-3 rounded-xl border border-slate-100 bg-white"
+                    >
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-semibold text-sm text-slate-900 truncate">{outlet.name}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                    {getBrandBadge(outlet.brand)}
+                                    {outlet.city && (
+                                        <span className="text-[10px] text-slate-500">{outlet.city}</span>
+                                    )}
+                                    {outlet.is_premium && (
+                                        <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 text-[10px] px-1.5 py-0">
+                                            Premium
+                                        </Badge>
+                                    )}
+                                    {outlet.is_active ? (
+                                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                                    ) : (
+                                        <span className="inline-block w-2 h-2 rounded-full bg-slate-300" />
+                                    )}
+                                </div>
+                            </div>
+                            <div className="flex gap-0.5 shrink-0">
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-slate-400 hover:text-blue-500 hover:bg-blue-50"
+                                    onClick={() => onEdit(outlet)}
+                                >
+                                    <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                    onClick={() => onDelete(outlet.id)}
+                                    disabled={isDeleting === outlet.id}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </>
     );
 }
 
@@ -426,29 +482,29 @@ export default function OutletManagement() {
     return (
         <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                 <Card className="border-0 shadow-md bg-gradient-to-br from-white to-slate-50">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-sm text-slate-500">Total Outlets</p>
-                        <p className="text-2xl font-bold text-slate-900">{stats.total}</p>
+                    <CardContent className="pt-3 pb-3 md:pt-4 md:pb-4 px-3 md:px-6">
+                        <p className="text-xs md:text-sm text-slate-500">Total Outlets</p>
+                        <p className="text-xl md:text-2xl font-bold text-slate-900">{stats.total}</p>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-md bg-gradient-to-br from-blue-50 to-white">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-sm text-blue-600">Fore Coffee</p>
-                        <p className="text-2xl font-bold text-blue-700">{stats.fore}</p>
+                    <CardContent className="pt-3 pb-3 md:pt-4 md:pb-4 px-3 md:px-6">
+                        <p className="text-xs md:text-sm text-blue-600">Fore Coffee</p>
+                        <p className="text-xl md:text-2xl font-bold text-blue-700">{stats.fore}</p>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-md bg-gradient-to-br from-amber-50 to-white">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-sm text-amber-600">Kopi Kenangan</p>
-                        <p className="text-2xl font-bold text-amber-700">{stats.kenangan}</p>
+                    <CardContent className="pt-3 pb-3 md:pt-4 md:pb-4 px-3 md:px-6">
+                        <p className="text-xs md:text-sm text-amber-600">Kopi Kenangan</p>
+                        <p className="text-xl md:text-2xl font-bold text-amber-700">{stats.kenangan}</p>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-md bg-gradient-to-br from-purple-50 to-white">
-                    <CardContent className="pt-4 pb-4">
-                        <p className="text-sm text-purple-600">Premium</p>
-                        <p className="text-2xl font-bold text-purple-700">{stats.premium}</p>
+                    <CardContent className="pt-3 pb-3 md:pt-4 md:pb-4 px-3 md:px-6">
+                        <p className="text-xs md:text-sm text-purple-600">Premium</p>
+                        <p className="text-xl md:text-2xl font-bold text-purple-700">{stats.premium}</p>
                     </CardContent>
                 </Card>
             </div>

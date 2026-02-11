@@ -90,7 +90,7 @@ function ItemRow({
     onDelete: (id: string) => void;
 }) {
     return (
-        <tr className="border-b border-slate-100 hover:bg-slate-50/50">
+        <tr className="border-b border-slate-100 hover:bg-slate-50/50 hidden md:table-row">
             <td className="py-2 px-2">
                 <Input
                     value={item.name}
@@ -131,6 +131,62 @@ function ItemRow({
                 </button>
             </td>
         </tr>
+    );
+}
+
+/** Mobile-only item card */
+function ItemCard({
+    item,
+    onUpdate,
+    onDelete,
+}: {
+    item: EditableItem;
+    onUpdate: (id: string, updates: Partial<EditableItem>) => void;
+    onDelete: (id: string) => void;
+}) {
+    return (
+        <div className={`md:hidden p-3 rounded-xl border bg-white space-y-2 ${item.hasError ? 'border-amber-300 bg-amber-50/30' : 'border-slate-100'}`}>
+            <div className="flex items-center gap-2">
+                <Input
+                    value={item.name}
+                    onChange={(e) => onUpdate(item.id, { name: e.target.value })}
+                    className="h-8 text-sm flex-1"
+                    placeholder="Item name"
+                />
+                <button
+                    onClick={() => onDelete(item.id)}
+                    className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors shrink-0"
+                >
+                    <Trash2 className="w-4 h-4" />
+                </button>
+            </div>
+            <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1 flex-1">
+                    <span className="text-xs text-slate-400 w-7">Qty</span>
+                    <Input
+                        type="number"
+                        min="1"
+                        value={item.qty}
+                        onChange={(e) => onUpdate(item.id, { qty: parseInt(e.target.value) || 1 })}
+                        className="h-7 text-sm text-center w-14"
+                    />
+                </div>
+                <div className="flex items-center gap-1 flex-1">
+                    <span className="text-xs text-slate-400">×</span>
+                    <Input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={item.price}
+                        onChange={(e) => onUpdate(item.id, { price: parseInt(e.target.value) || 0 })}
+                        className={`h-7 text-sm text-right flex-1 ${item.hasError ? 'border-amber-400 bg-amber-50' : ''}`}
+                    />
+                </div>
+                <span className="text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
+                    {formatPrice(item.price * item.qty)}
+                </span>
+            </div>
+        </div>
     );
 }
 
@@ -504,7 +560,8 @@ Example:
                                 </div>
                             </CardHeader>
                             <CardContent>
-                                <div className="overflow-x-auto">
+                                {/* Desktop: Table */}
+                                <div className="hidden md:block overflow-x-auto">
                                     <table className="w-full">
                                         <thead>
                                             <tr className="text-xs text-slate-500 border-b">
@@ -537,6 +594,22 @@ Example:
                                             </tr>
                                         </tfoot>
                                     </table>
+                                </div>
+
+                                {/* Mobile: Card List */}
+                                <div className="md:hidden space-y-2">
+                                    {items.map((item) => (
+                                        <ItemCard
+                                            key={item.id}
+                                            item={item}
+                                            onUpdate={handleUpdateItem}
+                                            onDelete={handleDeleteItem}
+                                        />
+                                    ))}
+                                    <div className="flex items-center justify-between pt-3 border-t-2 border-slate-200">
+                                        <span className="text-sm font-medium text-slate-700">Grand Total</span>
+                                        <span className="text-lg font-bold text-slate-900">{formatPrice(totalPrice)}</span>
+                                    </div>
                                 </div>
 
                                 {/* Warnings */}
@@ -598,7 +671,7 @@ Example:
                 {/* Right Column - Results */}
                 <div className="space-y-4">
                     {!hasOptimized && items.length === 0 && (
-                        <div className="h-96 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl">
+                        <div className="hidden lg:flex h-96 flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl">
                             <Calculator className="w-12 h-12 text-slate-300 mb-4" />
                             <h3 className="text-lg font-medium text-slate-600 mb-2">
                                 No Order Yet
@@ -610,7 +683,7 @@ Example:
                     )}
 
                     {!hasOptimized && items.length > 0 && (
-                        <div className="h-96 flex flex-col items-center justify-center text-center p-6 border-2 border-dashed border-amber-200 rounded-xl bg-amber-50/30">
+                        <div className="hidden lg:flex h-96 flex-col items-center justify-center text-center p-6 border-2 border-dashed border-amber-200 rounded-xl bg-amber-50/30">
                             <Sparkles className="w-12 h-12 text-amber-400 mb-4" />
                             <h3 className="text-lg font-medium text-slate-700 mb-2">
                                 Ready to Optimize

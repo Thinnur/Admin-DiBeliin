@@ -18,14 +18,12 @@ import OperationalPage from '@/pages/Operational';
 import OutletManagementPage from '@/pages/OutletManagement';
 import MenuManagementPage from '@/pages/MenuManagement';
 
-import GoogleAnalytics from '@/components/GoogleAnalytics';
 import './App.css';
 
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
-        <GoogleAnalytics />
         <Routes>
           {/* Public Route */}
           <Route path="/login" element={<LoginPage />} />

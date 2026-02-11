@@ -65,21 +65,21 @@ function StoreStatusSection({ isOpen, isLoading, onToggle }: StoreStatusSectionP
                 </div>
             </CardHeader>
             <CardContent>
-                <div className="flex items-center justify-between p-6 rounded-xl bg-slate-50 border border-slate-200">
-                    <div className="flex items-center gap-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 md:p-6 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="flex items-center gap-3 md:gap-4">
                         <div
-                            className={`w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 ${isOpen
+                            className={`w-12 h-12 md:w-16 md:h-16 rounded-xl md:rounded-2xl flex items-center justify-center shadow-lg transition-all duration-300 ${isOpen
                                 ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 shadow-emerald-500/30'
                                 : 'bg-gradient-to-br from-red-400 to-red-600 shadow-red-500/30'
                                 }`}
                         >
-                            <Power className="h-8 w-8 text-white" strokeWidth={2.5} />
+                            <Power className="h-6 w-6 md:h-8 md:w-8 text-white" strokeWidth={2.5} />
                         </div>
                         <div>
-                            <p className="text-2xl font-bold text-slate-900">
+                            <p className="text-xl md:text-2xl font-bold text-slate-900">
                                 {isOpen ? 'OPEN' : 'CLOSED'}
                             </p>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-xs md:text-sm text-slate-500">
                                 {isOpen
                                     ? 'Toko menerima pesanan'
                                     : 'Toko tidak menerima pesanan'}
@@ -91,7 +91,7 @@ function StoreStatusSection({ isOpen, isLoading, onToggle }: StoreStatusSectionP
                         variant={isOpen ? 'destructive' : 'default'}
                         onClick={onToggle}
                         disabled={isLoading}
-                        className={`px-6 ${!isOpen
+                        className={`w-full sm:w-auto px-6 ${!isOpen
                             ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700'
                             : ''
                             }`}
@@ -355,58 +355,102 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
     }
 
     return (
-        <div className="overflow-x-auto">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Code</TableHead>
-                        <TableHead>Discount</TableHead>
-                        <TableHead>Min Purchase</TableHead>
-                        <TableHead>Max Purchase</TableHead>
-                        <TableHead>Quota</TableHead>
-                        <TableHead>Brand</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead className="w-[60px]"></TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {vouchers.map((voucher) => (
-                        <TableRow key={voucher.id}>
-                            <TableCell className="font-mono font-semibold">{voucher.code}</TableCell>
-                            <TableCell className="text-emerald-600 font-medium">
-                                {formatCurrency(voucher.discount_amount)}
-                            </TableCell>
-                            <TableCell>{formatCurrency(voucher.min_purchase)}</TableCell>
-                            <TableCell>
-                                {voucher.max_purchase ? formatCurrency(voucher.max_purchase) : '—'}
-                            </TableCell>
-                            <TableCell>{voucher.quota}</TableCell>
-                            <TableCell>{getBrandBadge(voucher.valid_for)}</TableCell>
-                            <TableCell>
-                                {voucher.is_active ? (
-                                    <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
-                                        Active
-                                    </Badge>
-                                ) : (
-                                    <Badge variant="secondary">Inactive</Badge>
-                                )}
-                            </TableCell>
-                            <TableCell>
-                                <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
-                                    onClick={() => onDelete(voucher.id)}
-                                    disabled={isDeleting === voucher.id}
-                                >
-                                    <Trash2 className="h-4 w-4" />
-                                </Button>
-                            </TableCell>
+        <>
+            {/* Desktop: Table */}
+            <div className="hidden md:block overflow-x-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Code</TableHead>
+                            <TableHead>Discount</TableHead>
+                            <TableHead>Min Purchase</TableHead>
+                            <TableHead>Max Purchase</TableHead>
+                            <TableHead>Quota</TableHead>
+                            <TableHead>Brand</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="w-[60px]"></TableHead>
                         </TableRow>
-                    ))}
-                </TableBody>
-            </Table>
-        </div>
+                    </TableHeader>
+                    <TableBody>
+                        {vouchers.map((voucher) => (
+                            <TableRow key={voucher.id}>
+                                <TableCell className="font-mono font-semibold">{voucher.code}</TableCell>
+                                <TableCell className="text-emerald-600 font-medium">
+                                    {formatCurrency(voucher.discount_amount)}
+                                </TableCell>
+                                <TableCell>{formatCurrency(voucher.min_purchase)}</TableCell>
+                                <TableCell>
+                                    {voucher.max_purchase ? formatCurrency(voucher.max_purchase) : '—'}
+                                </TableCell>
+                                <TableCell>{voucher.quota}</TableCell>
+                                <TableCell>{getBrandBadge(voucher.valid_for)}</TableCell>
+                                <TableCell>
+                                    {voucher.is_active ? (
+                                        <Badge className="bg-emerald-100 text-emerald-700 hover:bg-emerald-100">
+                                            Active
+                                        </Badge>
+                                    ) : (
+                                        <Badge variant="secondary">Inactive</Badge>
+                                    )}
+                                </TableCell>
+                                <TableCell>
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                        onClick={() => onDelete(voucher.id)}
+                                        disabled={isDeleting === voucher.id}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                </TableCell>
+                            </TableRow>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
+
+            {/* Mobile: Card List */}
+            <div className="md:hidden space-y-2">
+                {vouchers.map((voucher) => (
+                    <div
+                        key={voucher.id}
+                        className="p-3 rounded-xl border border-slate-100 bg-white"
+                    >
+                        <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-mono font-bold text-sm text-slate-900">{voucher.code}</span>
+                                    {getBrandBadge(voucher.valid_for)}
+                                    {voucher.is_active ? (
+                                        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+                                    ) : (
+                                        <span className="inline-block w-2 h-2 rounded-full bg-slate-300" />
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    Diskon <span className="text-emerald-600 font-semibold">{formatCurrency(voucher.discount_amount)}</span>
+                                    {' · '}
+                                    Min {formatCurrency(voucher.min_purchase)}
+                                    {voucher.max_purchase ? ` · Max ${formatCurrency(voucher.max_purchase)}` : ''}
+                                    {' · '}
+                                    Quota: {voucher.quota}
+                                </p>
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50 shrink-0"
+                                onClick={() => onDelete(voucher.id)}
+                                disabled={isDeleting === voucher.id}
+                            >
+                                <Trash2 className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </>
     );
 }
 

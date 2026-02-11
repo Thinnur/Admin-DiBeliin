@@ -21,6 +21,7 @@ export interface MenuItem {
     regular_discount_price: number | null;
     large_discount_price: number | null;
     badge: string | null;
+    category_sort: number | null;
     is_available: boolean;
     created_at: string;
 }
@@ -29,10 +30,14 @@ export interface MenuItemUpdate {
     name?: string;
     brand?: 'fore' | 'kenangan';
     categories?: string[];
+    description?: string | null;
+    image_url?: string | null;
     regular_price?: number | null;
     large_price?: number | null;
     regular_discount_price?: number | null;
     large_discount_price?: number | null;
+    badge?: string | null;
+    category_sort?: number | null;
     is_available?: boolean;
 }
 
@@ -107,11 +112,23 @@ export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<
     if (data.large_price !== undefined) {
         cleanPayload.large_price = data.large_price;
     }
+    if (data.description !== undefined) {
+        cleanPayload.description = data.description;
+    }
+    if (data.image_url !== undefined) {
+        cleanPayload.image_url = data.image_url;
+    }
     if (data.regular_discount_price !== undefined) {
         cleanPayload.regular_discount_price = data.regular_discount_price;
     }
     if (data.large_discount_price !== undefined) {
         cleanPayload.large_discount_price = data.large_discount_price;
+    }
+    if (data.badge !== undefined) {
+        cleanPayload.badge = data.badge;
+    }
+    if (data.category_sort !== undefined) {
+        cleanPayload.category_sort = data.category_sort;
     }
     if (data.is_available !== undefined) {
         cleanPayload.is_available = data.is_available;
@@ -154,4 +171,57 @@ export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<
     }
 
     return updatedRows[0] as MenuItem;
+}
+
+/**
+ * Batch update category_sort for all items within a brand.
+ * Each item's sort value is determined by its FIRST category's position
+ * in the ordered list. This avoids multi-category items being overwritten.
+ * @param brand - Brand to filter
+ * @param categoryOrder - Array of category names in desired display order
+ */
+export async function updateCategorySortOrder(
+    brand: 'fore' | 'kenangan',
+    categoryOrder: string[]
+): Promise<void> {
+    // Build a map: category name → sort position
+    const sortMap = new Map<string, number>();
+    categoryOrder.forEach((cat, index) => {
+        sortMap.set(cat, index + 1);
+    });
+
+    // Fetch all items for this brand
+    const { data: brandItems, error: fetchError } = await supabase
+        .from('menu_items')
+        .select('id, categories, category_sort')
+        .eq('brand', brand);
+
+    if (fetchError || !brandItems) {
+        console.error('Error fetching items for sort update:', fetchError);
+        throw new Error('Gagal mengambil data menu');
+    }
+
+    // For each item, determine sort value from its first category
+    const updates = brandItems
+        .map((item) => {
+            const firstCat = (item.categories as string[])?.[0];
+            const newSort = firstCat ? (sortMap.get(firstCat) ?? 9999) : 9999;
+            // Only update if the value actually changed
+            if (item.category_sort === newSort) return null;
+            return supabase
+                .from('menu_items')
+                .update({ category_sort: newSort })
+                .eq('id', item.id);
+        })
+        .filter(Boolean);
+
+    if (updates.length === 0) return;
+
+    const results = await Promise.all(updates);
+
+    const errors = results.filter((r) => r && r.error);
+    if (errors.length > 0) {
+        console.error('Errors updating category sort:', errors.map((e) => e!.error));
+        throw new Error('Gagal menyimpan urutan kategori');
+    }
 }

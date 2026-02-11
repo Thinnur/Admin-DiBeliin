@@ -244,6 +244,54 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
 }
 
 // -----------------------------------------------------------------------------
+// Mobile Bottom Navigation
+// -----------------------------------------------------------------------------
+
+function MobileBottomNav() {
+    const location = useLocation();
+
+    return (
+        <nav
+            className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/90 backdrop-blur-xl border-t border-slate-200/80"
+            style={{
+                paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+            }}
+        >
+            <div className="grid grid-cols-6 h-14">
+                {navItems.map((item) => {
+                    const isActive = location.pathname === item.path;
+                    const Icon = item.icon;
+
+                    return (
+                        <NavLink
+                            key={item.path}
+                            to={item.path}
+                            className={cn(
+                                'flex flex-col items-center justify-center gap-0.5 transition-colors',
+                                isActive
+                                    ? 'text-amber-600'
+                                    : 'text-slate-400 active:text-slate-600'
+                            )}
+                        >
+                            <Icon className={cn('h-5 w-5', isActive && 'drop-shadow-sm')} />
+                            <span className={cn(
+                                'text-[10px] leading-tight',
+                                isActive ? 'font-semibold' : 'font-medium'
+                            )}>
+                                {item.label}
+                            </span>
+                            {isActive && (
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
+                            )}
+                        </NavLink>
+                    );
+                })}
+            </div>
+        </nav>
+    );
+}
+
+// -----------------------------------------------------------------------------
 // Header Component
 // -----------------------------------------------------------------------------
 
@@ -255,26 +303,34 @@ interface HeaderProps {
 function Header({ onMenuClick, pageInfo }: HeaderProps) {
     return (
         <header
-            className="sticky z-30 h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/80"
+            className="sticky z-30 h-14 md:h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/80"
             style={{
                 top: 'env(safe-area-inset-top, 0px)',
                 paddingTop: 'env(safe-area-inset-top, 0px)'
             }}
         >
             <div className="flex items-center justify-between h-full px-4 md:px-6">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-3 md:gap-4">
+                    {/* Hamburger — desktop only (mobile uses bottom nav) */}
                     <Button
                         variant="ghost"
                         size="icon"
-                        className="md:hidden hover:bg-slate-100"
+                        className="hidden md:hidden hover:bg-slate-100"
                         onClick={onMenuClick}
                     >
                         <Menu className="h-5 w-5 text-slate-600" />
                     </Button>
 
+                    {/* Mobile: small logo + title */}
+                    <img
+                        src="/Logo DiBeliin Admin.png"
+                        alt="DiBeliin Admin"
+                        className="h-7 w-auto md:hidden"
+                    />
+
                     {/* Page Title */}
                     <div className="animate-fade-in">
-                        <h2 className="text-lg font-semibold text-slate-900">
+                        <h2 className="text-base md:text-lg font-semibold text-slate-900">
                             {pageInfo.title}
                         </h2>
                         <p className="text-sm text-slate-500 hidden sm:block">
@@ -283,8 +339,8 @@ function Header({ onMenuClick, pageInfo }: HeaderProps) {
                     </div>
                 </div>
 
-                {/* Right Side - Logo */}
-                <div className="flex items-center gap-3">
+                {/* Right Side - Logo (desktop only) */}
+                <div className="hidden md:flex items-center gap-3">
                     <img
                         src="/Logo DiBeliin Admin.png"
                         alt="DiBeliin Admin"
@@ -349,12 +405,15 @@ export default function AdminLayout() {
                 />
 
                 {/* Page Content */}
-                <main className="flex-1 p-4 md:p-6 overflow-auto">
+                <main className="flex-1 p-3 md:p-6 pb-20 md:pb-6 overflow-auto">
                     <div className="animate-fade-in">
                         <Outlet />
                     </div>
                 </main>
             </div>
+
+            {/* Mobile Bottom Navigation */}
+            <MobileBottomNav />
         </div>
     );
 }

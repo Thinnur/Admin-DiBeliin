@@ -347,64 +347,67 @@ export default function InventoryPage() {
             </Dialog>
 
             {/* Summary Stats Cards - Ready Stock */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2 md:gap-4">
                 {/* Sisa Voucher Fore */}
                 <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
-                    <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-amber-100 rounded-xl">
-                                <Coffee className="h-5 w-5 text-amber-600" />
+                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
+                        <div className="flex items-center gap-2 md:gap-3">
+                            <div className="p-1.5 md:p-2.5 bg-amber-100 rounded-lg md:rounded-xl">
+                                <Coffee className="h-4 w-4 md:h-5 md:w-5 text-amber-600" />
                             </div>
-                            <CardTitle className="text-base font-medium text-slate-700">
-                                Sisa Voucher Fore
+                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
+                                Fore
+                                <span className="hidden md:inline"> Voucher</span>
                             </CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-4xl font-bold text-amber-600 tabular-nums">
+                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+                        <p className="text-2xl md:text-4xl font-bold text-amber-600 tabular-nums">
                             {voucherStats.foreNomin}
                         </p>
-                        <p className="text-sm text-slate-500 mt-1">Voucher No Minimum</p>
+                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">No Minimum</p>
                     </CardContent>
                 </Card>
 
                 {/* Sisa KopKen No Min */}
                 <Card className="shadow-sm bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
-                    <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-emerald-100 rounded-xl">
-                                <Ticket className="h-5 w-5 text-emerald-600" />
+                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
+                        <div className="flex items-center gap-2 md:gap-3">
+                            <div className="p-1.5 md:p-2.5 bg-emerald-100 rounded-lg md:rounded-xl">
+                                <Ticket className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
                             </div>
-                            <CardTitle className="text-base font-medium text-slate-700">
-                                Sisa KopKen No Min
+                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
+                                KopKen
+                                <span className="hidden md:inline"> No Min</span>
                             </CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-4xl font-bold text-emerald-600 tabular-nums">
+                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+                        <p className="text-2xl md:text-4xl font-bold text-emerald-600 tabular-nums">
                             {voucherStats.kopkenNomin}
                         </p>
-                        <p className="text-sm text-slate-500 mt-1">Voucher No Minimum</p>
+                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">No Minimum</p>
                     </CardContent>
                 </Card>
 
                 {/* Sisa KopKen Min 50k */}
                 <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-white border-blue-100">
-                    <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                            <div className="p-2.5 bg-blue-100 rounded-xl">
-                                <Package className="h-5 w-5 text-blue-600" />
+                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
+                        <div className="flex items-center gap-2 md:gap-3">
+                            <div className="p-1.5 md:p-2.5 bg-blue-100 rounded-lg md:rounded-xl">
+                                <Package className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
                             </div>
-                            <CardTitle className="text-base font-medium text-slate-700">
-                                Sisa KopKen Min 50k
+                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
+                                KopKen
+                                <span className="hidden md:inline"> Min 50k</span>
                             </CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent>
-                        <p className="text-4xl font-bold text-blue-600 tabular-nums">
+                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+                        <p className="text-2xl md:text-4xl font-bold text-blue-600 tabular-nums">
                             {voucherStats.kopkenMin50k}
                         </p>
-                        <p className="text-sm text-slate-500 mt-1">Voucher Min. Belanja 50rb</p>
+                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Min. 50rb</p>
                     </CardContent>
                 </Card>
             </div>
