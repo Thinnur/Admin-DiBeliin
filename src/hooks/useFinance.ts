@@ -13,7 +13,7 @@ import {
     createTransaction,
     deleteTransaction,
 } from '@/services/apiTransactions';
-import type { TransactionFilters } from '@/services/apiTransactions';
+import type { TransactionFilters, SummaryDateRange } from '@/services/apiTransactions';
 import type { Transaction, TransactionInsert } from '@/types/database';
 import { queryKeys } from '@/lib/queryClient';
 
@@ -40,17 +40,60 @@ export function useTransactions(
 }
 
 // -----------------------------------------------------------------------------
-// Query: Financial Summary
+// Query: Financial Summary (with optional date range)
 // -----------------------------------------------------------------------------
 
 export function useFinancialSummary(
+    dateRange?: SummaryDateRange,
     options?: Omit<UseQueryOptions<FinancialSummary, Error>, 'queryKey' | 'queryFn'>
 ) {
     return useQuery({
-        queryKey: queryKeys.transactions.summary(),
-        queryFn: fetchFinancialSummary,
+        queryKey: queryKeys.transactions.summary(dateRange as Record<string, unknown> | undefined),
+        queryFn: () => fetchFinancialSummary(dateRange),
         ...options,
     });
+}
+
+// -----------------------------------------------------------------------------
+// Query: Profit Comparison (current period vs previous period)
+// -----------------------------------------------------------------------------
+
+export interface ProfitComparisonResult {
+    current: FinancialSummary;
+    previous: FinancialSummary;
+    profitDiff: number;        // absolute difference
+    profitPercentage: number;  // percentage change
+    isPositive: boolean;       // current >= previous
+}
+
+export function useProfitComparison(
+    currentRange: SummaryDateRange,
+    previousRange: SummaryDateRange,
+) {
+    const currentQuery = useFinancialSummary(currentRange);
+    const previousQuery = useFinancialSummary(previousRange);
+
+    const isLoading = currentQuery.isLoading || previousQuery.isLoading;
+
+    let result: ProfitComparisonResult | undefined;
+    if (currentQuery.data && previousQuery.data) {
+        const currentProfit = currentQuery.data.net_profit;
+        const previousProfit = previousQuery.data.net_profit;
+        const diff = currentProfit - previousProfit;
+        const pct = previousProfit !== 0
+            ? Math.round((diff / Math.abs(previousProfit)) * 100)
+            : currentProfit > 0 ? 100 : 0;
+
+        result = {
+            current: currentQuery.data,
+            previous: previousQuery.data,
+            profitDiff: diff,
+            profitPercentage: pct,
+            isPositive: diff >= 0,
+        };
+    }
+
+    return { data: result, isLoading };
 }
 
 // -----------------------------------------------------------------------------
@@ -120,3 +163,4 @@ export function useDeleteTransaction() {
         },
     });
 }
+

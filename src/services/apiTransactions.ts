@@ -74,29 +74,51 @@ interface FinancialSummaryResult {
     net_profit: number;
 }
 
-export async function fetchFinancialSummary(): Promise<FinancialSummaryResult> {
-    // Get current month boundaries
-    const now = new Date();
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+export interface SummaryDateRange {
+    startDate?: string; // ISO string
+    endDate?: string;   // ISO string
+}
 
-    const { data, error } = await supabase
-        .from('transactions')
-        .select('transaction_type, amount')
-        .gte('created_at', startOfMonth.toISOString())
-        .lte('created_at', endOfMonth.toISOString());
+export async function fetchFinancialSummary(
+    dateRange?: SummaryDateRange
+): Promise<FinancialSummaryResult> {
+    // Supabase returns max 1000 rows per request by default.
+    // Paginate to fetch transactions for accurate totals.
+    const PAGE_SIZE = 1000;
+    let allTransactions: { transaction_type: string; amount: number }[] = [];
+    let from = 0;
+    let hasMore = true;
 
-    if (error) {
-        throw new Error(`Failed to fetch financial summary: ${error.message}`);
+    while (hasMore) {
+        let query = supabase
+            .from('transactions')
+            .select('transaction_type, amount')
+            .range(from, from + PAGE_SIZE - 1);
+
+        if (dateRange?.startDate) {
+            query = query.gte('created_at', dateRange.startDate);
+        }
+        if (dateRange?.endDate) {
+            query = query.lte('created_at', dateRange.endDate);
+        }
+
+        const { data, error } = await query;
+
+        if (error) {
+            throw new Error(`Failed to fetch financial summary: ${error.message}`);
+        }
+
+        const batch = data || [];
+        allTransactions = [...allTransactions, ...batch];
+        hasMore = batch.length === PAGE_SIZE;
+        from += PAGE_SIZE;
     }
 
-    const transactions = data || [];
-
-    const totalIncome = transactions
+    const totalIncome = allTransactions
         .filter((t) => t.transaction_type === 'income')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 
-    const totalExpense = transactions
+    const totalExpense = allTransactions
         .filter((t) => t.transaction_type === 'expense')
         .reduce((sum, t) => sum + (t.amount || 0), 0);
 

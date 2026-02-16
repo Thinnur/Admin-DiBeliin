@@ -63,21 +63,21 @@ type StatusFilter = 'all' | AccountStatus;
 
 interface VoucherStats {
     foreNomin: number;
+    foreTotal: number;
     kopkenNomin: number;
     kopkenMin50k: number;
+    kopkenTotal: number;
 }
 
 function calculateVoucherStats(accounts: Account[]): VoucherStats {
+    const foreAccounts = accounts.filter((a) => a.brand === 'fore');
+    const kopkenAccounts = accounts.filter((a) => a.brand === 'kopken');
     return {
-        foreNomin: accounts.filter(
-            (a) => a.brand === 'fore' && a.is_nomin_ready === true
-        ).length,
-        kopkenNomin: accounts.filter(
-            (a) => a.brand === 'kopken' && a.is_nomin_ready === true
-        ).length,
-        kopkenMin50k: accounts.filter(
-            (a) => a.brand === 'kopken' && a.is_min50k_ready === true
-        ).length,
+        foreNomin: foreAccounts.filter((a) => a.is_nomin_ready === true).length,
+        foreTotal: foreAccounts.length,
+        kopkenNomin: kopkenAccounts.filter((a) => a.is_nomin_ready === true).length,
+        kopkenMin50k: kopkenAccounts.filter((a) => a.is_min50k_ready === true).length,
+        kopkenTotal: kopkenAccounts.length,
     };
 }
 
@@ -362,8 +362,9 @@ export default function InventoryPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                        <p className="text-2xl md:text-4xl font-bold text-amber-600 tabular-nums">
-                            {voucherStats.foreNomin}
+                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
+                            <span className="text-amber-600">{voucherStats.foreNomin}</span>
+                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
                         </p>
                         <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">No Minimum</p>
                     </CardContent>
@@ -383,8 +384,9 @@ export default function InventoryPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                        <p className="text-2xl md:text-4xl font-bold text-emerald-600 tabular-nums">
-                            {voucherStats.kopkenNomin}
+                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
+                            <span className="text-emerald-600">{voucherStats.kopkenNomin}</span>
+                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
                         </p>
                         <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">No Minimum</p>
                     </CardContent>
@@ -404,8 +406,9 @@ export default function InventoryPage() {
                         </div>
                     </CardHeader>
                     <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                        <p className="text-2xl md:text-4xl font-bold text-blue-600 tabular-nums">
-                            {voucherStats.kopkenMin50k}
+                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
+                            <span className="text-blue-600">{voucherStats.kopkenMin50k}</span>
+                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
                         </p>
                         <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Min. 50rb</p>
                     </CardContent>
@@ -420,6 +423,9 @@ export default function InventoryPage() {
                             <CardTitle className="text-lg">Account Inventory</CardTitle>
                             <CardDescription>
                                 Your coffee shop account collection
+                                <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                                    Total: {voucherStats.foreNomin + voucherStats.kopkenNomin + voucherStats.kopkenMin50k} akun siap
+                                </span>
                             </CardDescription>
                         </div>
 

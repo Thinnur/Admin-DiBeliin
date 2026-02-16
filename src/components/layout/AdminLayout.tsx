@@ -303,13 +303,12 @@ interface HeaderProps {
 function Header({ onMenuClick, pageInfo }: HeaderProps) {
     return (
         <header
-            className="sticky z-30 h-14 md:h-16 bg-white/80 backdrop-blur-xl border-b border-slate-200/80"
+            className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/80"
             style={{
-                top: 'env(safe-area-inset-top, 0px)',
-                paddingTop: 'env(safe-area-inset-top, 0px)'
+                paddingTop: 'env(safe-area-inset-top, 0px)',
             }}
         >
-            <div className="flex items-center justify-between h-full px-4 md:px-6">
+            <div className="flex items-center justify-between h-14 md:h-16 px-4 md:px-6">
                 <div className="flex items-center gap-3 md:gap-4">
                     {/* Hamburger — desktop only (mobile uses bottom nav) */}
                     <Button

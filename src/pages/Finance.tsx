@@ -1,11 +1,23 @@
 // =============================================================================
 // DiBeliin Admin - Finance Page
 // =============================================================================
-// Premium financial dashboard with KPI cards and transaction history
+// Premium financial dashboard with KPI cards, period filtering, and profit comparison
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { format } from 'date-fns';
+import {
+    format,
+    startOfDay,
+    endOfDay,
+    startOfMonth,
+    endOfMonth,
+    subDays,
+    subMonths,
+    addDays,
+    addMonths,
+    differenceInDays,
+} from 'date-fns';
+import { id as localeID } from 'date-fns/locale';
 import {
     TrendingUp,
     TrendingDown,
@@ -18,6 +30,11 @@ import {
     Camera,
     Loader2,
     Plus,
+    ChevronLeft,
+    ChevronRight,
+    Calendar,
+    CalendarDays,
+    CalendarRange,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
@@ -49,9 +66,16 @@ import {
     useTransactions,
     useFinancialSummary,
     useDeleteTransaction,
+    useProfitComparison,
 } from '@/hooks/useFinance';
 import { analyzeReceipt, type ReceiptAnalysisResult } from '@/services/aiService';
 import type { Transaction, TransactionType } from '@/types/database';
+
+// -----------------------------------------------------------------------------
+// Types
+// -----------------------------------------------------------------------------
+
+type PeriodMode = 'daily' | 'monthly' | 'range';
 
 // -----------------------------------------------------------------------------
 // Currency Formatter
@@ -66,13 +90,6 @@ const formatCurrency = (amount: number) => {
     }).format(amount);
 };
 
-// Compact format helper (available for future use)
-// const formatCompact = (amount: number) => {
-//     if (amount >= 1000000) return `Rp ${(amount / 1000000).toFixed(1)}jt`;
-//     if (amount >= 1000) return `Rp ${(amount / 1000).toFixed(0)}rb`;
-//     return `Rp ${amount}`;
-// };
-
 // -----------------------------------------------------------------------------
 // KPI Card Component
 // -----------------------------------------------------------------------------
@@ -82,10 +99,6 @@ interface KPICardProps {
     value: number;
     icon: React.ReactNode;
     iconBg: string;
-    trend?: {
-        value: number;
-        isPositive: boolean;
-    };
     isLoading?: boolean;
 }
 
@@ -94,7 +107,6 @@ function KPICard({
     value,
     icon,
     iconBg,
-    trend,
     isLoading,
 }: KPICardProps) {
     return (
@@ -105,35 +117,232 @@ function KPICard({
                     {isLoading ? (
                         <Skeleton className="h-7 md:h-10 w-24 md:w-36 mt-1 md:mt-2" />
                     ) : (
-                        <p className="text-lg md:text-3xl font-bold text-slate-900 mt-1 md:mt-2 tabular-nums">
+                        <p className="text-base md:text-3xl font-bold text-slate-900 mt-1 md:mt-2 tabular-nums">
                             {formatCurrency(value)}
                         </p>
-                    )}
-
-                    {/* Trend Indicator - hidden on mobile for space */}
-                    {trend && !isLoading && (
-                        <div className="hidden md:flex items-center gap-1.5 mt-3">
-                            <div
-                                className={`flex items-center gap-0.5 text-xs font-semibold px-2 py-1 rounded-full ${trend.isPositive
-                                    ? 'bg-emerald-50 text-emerald-600'
-                                    : 'bg-red-50 text-red-600'
-                                    }`}
-                            >
-                                {trend.isPositive ? (
-                                    <ArrowUpRight className="h-3 w-3" />
-                                ) : (
-                                    <ArrowDownRight className="h-3 w-3" />
-                                )}
-                                <span>{trend.value}%</span>
-                            </div>
-                            <span className="text-xs text-slate-400">vs last month</span>
-                        </div>
                     )}
                 </div>
 
                 {/* Icon */}
                 <div className={`p-2 md:p-3 rounded-lg md:rounded-xl ${iconBg}`}>{icon}</div>
             </div>
+        </div>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Profit Comparison Card
+// -----------------------------------------------------------------------------
+
+interface ProfitComparisonCardProps {
+    currentProfit: number;
+    previousProfit: number;
+    diff: number;
+    percentage: number;
+    isPositive: boolean;
+    currentLabel: string;
+    previousLabel: string;
+    isLoading: boolean;
+}
+
+function ProfitComparisonCard({
+    currentProfit,
+    previousProfit,
+    diff,
+    percentage,
+    isPositive,
+    currentLabel,
+    previousLabel,
+    isLoading,
+}: ProfitComparisonCardProps) {
+    return (
+        <div className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl md:rounded-2xl p-3 md:p-6 shadow-lg text-white">
+            <div className="flex items-center gap-2 mb-2 md:mb-3">
+                <TrendingUp className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-400" />
+                <h3 className="text-xs md:text-sm font-semibold text-slate-300">Perbandingan Keuntungan</h3>
+            </div>
+
+            {isLoading ? (
+                <div className="space-y-2">
+                    <Skeleton className="h-6 w-28 bg-slate-700" />
+                    <Skeleton className="h-4 w-40 bg-slate-700" />
+                </div>
+            ) : (
+                <>
+                    {/* Diff highlight */}
+                    <div className="flex items-center gap-2 md:gap-3 mb-2.5 md:mb-4">
+                        <div
+                            className={`flex items-center gap-1 px-2 py-1 md:px-3 md:py-1.5 rounded-full text-xs md:text-sm font-bold ${isPositive
+                                ? 'bg-emerald-500/20 text-emerald-400'
+                                : 'bg-red-500/20 text-red-400'
+                                }`}
+                        >
+                            {isPositive ? (
+                                <ArrowUpRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                            ) : (
+                                <ArrowDownRight className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                            )}
+                            <span>{isPositive ? '+' : ''}{percentage}%</span>
+                        </div>
+                        <span className="text-xs md:text-sm text-slate-400">
+                            {isPositive ? '+' : ''}{formatCurrency(diff)}
+                        </span>
+                    </div>
+
+                    {/* Period details */}
+                    <div className="grid grid-cols-2 gap-2 md:gap-3">
+                        <div className="bg-white/5 rounded-lg p-2 md:p-3">
+                            <p className="text-[10px] md:text-xs text-slate-400 mb-0.5 md:mb-1">{currentLabel}</p>
+                            <p className={`text-xs md:text-lg font-bold tabular-nums ${currentProfit >= 0 ? 'text-emerald-400' : 'text-red-400'
+                                }`}>
+                                {formatCurrency(currentProfit)}
+                            </p>
+                        </div>
+                        <div className="bg-white/5 rounded-lg p-2 md:p-3">
+                            <p className="text-[10px] md:text-xs text-slate-400 mb-0.5 md:mb-1">{previousLabel}</p>
+                            <p className={`text-xs md:text-lg font-bold tabular-nums ${previousProfit >= 0 ? 'text-emerald-400' : 'text-red-400'
+                                }`}>
+                                {formatCurrency(previousProfit)}
+                            </p>
+                        </div>
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Period Selector Component
+// -----------------------------------------------------------------------------
+
+interface PeriodSelectorProps {
+    mode: PeriodMode;
+    selectedDate: Date;
+    rangeStart: Date;
+    rangeEnd: Date;
+    onModeChange: (mode: PeriodMode) => void;
+    onDateChange: (date: Date) => void;
+    onRangeStartChange: (date: Date) => void;
+    onRangeEndChange: (date: Date) => void;
+}
+
+function PeriodSelector({
+    mode,
+    selectedDate,
+    rangeStart,
+    rangeEnd,
+    onModeChange,
+    onDateChange,
+    onRangeStartChange,
+    onRangeEndChange,
+}: PeriodSelectorProps) {
+    const handlePrev = () => {
+        onDateChange(mode === 'daily' ? subDays(selectedDate, 1) : subMonths(selectedDate, 1));
+    };
+    const handleNext = () => {
+        const next = mode === 'daily' ? addDays(selectedDate, 1) : addMonths(selectedDate, 1);
+        if (next <= new Date()) {
+            onDateChange(next);
+        }
+    };
+
+    const dateLabel =
+        mode === 'daily'
+            ? format(selectedDate, 'dd MMMM yyyy', { locale: localeID })
+            : format(selectedDate, 'MMMM yyyy', { locale: localeID });
+
+    return (
+        <div className="space-y-2">
+            {/* Row 1: Mode toggle + date nav inline */}
+            <div className="flex items-center gap-2 flex-wrap">
+                {/* Mode toggle */}
+                <div className="inline-flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+                    <button
+                        onClick={() => onModeChange('daily')}
+                        className={`flex items-center gap-1 px-2 py-1 md:px-3 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${mode === 'daily'
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <Calendar className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                        Harian
+                    </button>
+                    <button
+                        onClick={() => onModeChange('monthly')}
+                        className={`flex items-center gap-1 px-2 py-1 md:px-3 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${mode === 'monthly'
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <CalendarDays className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                        Bulanan
+                    </button>
+                    <button
+                        onClick={() => onModeChange('range')}
+                        className={`flex items-center gap-1 px-2 py-1 md:px-3 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${mode === 'range'
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        <CalendarRange className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                        Rentang
+                    </button>
+                </div>
+
+                {/* Date navigator (daily/monthly) - inline with tabs */}
+                {mode !== 'range' && (
+                    <div className="inline-flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-0.5 py-0.5">
+                        <button
+                            onClick={handlePrev}
+                            className="p-1 md:p-1.5 rounded-md hover:bg-slate-100 transition-colors"
+                            title="Sebelumnya"
+                        >
+                            <ChevronLeft className="h-3.5 w-3.5 md:h-4 md:w-4 text-slate-500" />
+                        </button>
+                        <span className="text-xs md:text-sm font-medium text-slate-700 min-w-[110px] md:min-w-[140px] text-center tabular-nums">
+                            {dateLabel}
+                        </span>
+                        <button
+                            onClick={handleNext}
+                            className="p-1 md:p-1.5 rounded-md hover:bg-slate-100 transition-colors"
+                            title="Berikutnya"
+                        >
+                            <ChevronRight className="h-3.5 w-3.5 md:h-4 md:w-4 text-slate-500" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Date range pickers (range mode) - separate row */}
+            {mode === 'range' && (
+                <div className="flex items-center gap-2 flex-wrap">
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-slate-500 font-medium">Dari</span>
+                        <input
+                            type="date"
+                            value={format(rangeStart, 'yyyy-MM-dd')}
+                            onChange={(e) => {
+                                const d = new Date(e.target.value + 'T00:00:00');
+                                if (!isNaN(d.getTime())) onRangeStartChange(d);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs md:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                        />
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                        <span className="text-xs text-slate-500 font-medium">Sampai</span>
+                        <input
+                            type="date"
+                            value={format(rangeEnd, 'yyyy-MM-dd')}
+                            onChange={(e) => {
+                                const d = new Date(e.target.value + 'T00:00:00');
+                                if (!isNaN(d.getTime())) onRangeEndChange(d);
+                            }}
+                            className="px-2 py-1 border border-slate-200 rounded-lg text-xs md:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                        />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
@@ -288,6 +497,12 @@ function getTransactionColumns(
 // -----------------------------------------------------------------------------
 
 export default function FinancePage() {
+    // Period state
+    const [periodMode, setPeriodMode] = useState<PeriodMode>('daily');
+    const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+    const [rangeStart, setRangeStart] = useState<Date>(subDays(new Date(), 6)); // default: last 7 days
+    const [rangeEnd, setRangeEnd] = useState<Date>(new Date());
+
     const [typeFilter, setTypeFilter] = useState<TransactionType | 'all'>('all');
 
     // AI Scanning State
@@ -299,13 +514,86 @@ export default function FinancePage() {
     // FAB Dialog State (for mobile)
     const [fabDialogOpen, setFabDialogOpen] = useState(false);
 
+    // -------------------------------------------------------------------------
+    // Compute date ranges
+    // -------------------------------------------------------------------------
+
+    const { currentRange, previousRange, currentLabel, previousLabel } = useMemo(() => {
+        if (periodMode === 'daily') {
+            const dayStart = startOfDay(selectedDate).toISOString();
+            const dayEnd = endOfDay(selectedDate).toISOString();
+
+            const yesterday = subDays(selectedDate, 1);
+            const prevStart = startOfDay(yesterday).toISOString();
+            const prevEnd = endOfDay(yesterday).toISOString();
+
+            return {
+                currentRange: { startDate: dayStart, endDate: dayEnd },
+                previousRange: { startDate: prevStart, endDate: prevEnd },
+                currentLabel: format(selectedDate, 'dd MMM', { locale: localeID }),
+                previousLabel: format(yesterday, 'dd MMM', { locale: localeID }),
+            };
+        } else if (periodMode === 'monthly') {
+            const monthStart = startOfMonth(selectedDate).toISOString();
+            const monthEnd = endOfMonth(selectedDate).toISOString();
+
+            const lastMonth = subMonths(selectedDate, 1);
+            const prevStart = startOfMonth(lastMonth).toISOString();
+            const prevEnd = endOfMonth(lastMonth).toISOString();
+
+            return {
+                currentRange: { startDate: monthStart, endDate: monthEnd },
+                previousRange: { startDate: prevStart, endDate: prevEnd },
+                currentLabel: format(selectedDate, 'MMM yy', { locale: localeID }),
+                previousLabel: format(lastMonth, 'MMM yy', { locale: localeID }),
+            };
+        } else {
+            // Range mode: custom from-to
+            const rStart = startOfDay(rangeStart).toISOString();
+            const rEnd = endOfDay(rangeEnd).toISOString();
+
+            // Previous period = same duration right before rangeStart
+            const days = differenceInDays(rangeEnd, rangeStart) + 1;
+            const prevEnd = subDays(rangeStart, 1);
+            const prevStart = subDays(rangeStart, days);
+
+            return {
+                currentRange: { startDate: rStart, endDate: rEnd },
+                previousRange: { startDate: startOfDay(prevStart).toISOString(), endDate: endOfDay(prevEnd).toISOString() },
+                currentLabel: `${format(rangeStart, 'dd MMM', { locale: localeID })} - ${format(rangeEnd, 'dd MMM', { locale: localeID })}`,
+                previousLabel: `${format(prevStart, 'dd MMM', { locale: localeID })} - ${format(prevEnd, 'dd MMM', { locale: localeID })}`,
+            };
+        }
+    }, [periodMode, selectedDate, rangeStart, rangeEnd]);
+
+    // -------------------------------------------------------------------------
     // Queries
+    // -------------------------------------------------------------------------
+
+    const transactionFilters = useMemo(() => {
+        const filters: Record<string, string | undefined> = {
+            startDate: currentRange.startDate,
+            endDate: currentRange.endDate,
+        };
+        if (typeFilter !== 'all') {
+            filters.type = typeFilter;
+        }
+        return filters;
+    }, [currentRange, typeFilter]);
+
     const { data: transactions = [], isLoading: transactionsLoading } =
-        useTransactions(typeFilter === 'all' ? undefined : { type: typeFilter });
-    const { data: summary, isLoading: summaryLoading } = useFinancialSummary();
+        useTransactions(transactionFilters as any);
+    const { data: summary, isLoading: summaryLoading } = useFinancialSummary(currentRange);
+    const { data: comparison, isLoading: comparisonLoading } = useProfitComparison(
+        currentRange,
+        previousRange,
+    );
     const deleteTransaction = useDeleteTransaction();
 
+    // -------------------------------------------------------------------------
     // Handlers
+    // -------------------------------------------------------------------------
+
     const handleDelete = (id: string) => {
         deleteTransaction.mutate(id);
     };
@@ -350,7 +638,7 @@ export default function FinancePage() {
     const columns = getTransactionColumns(handleDelete);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-4 md:space-y-6">
             {/* Hidden File Input for AI Scanning */}
             <input
                 ref={fileInputRef}
@@ -360,6 +648,18 @@ export default function FinancePage() {
                 onChange={handleFileSelect}
             />
 
+            {/* Period Selector */}
+            <PeriodSelector
+                mode={periodMode}
+                selectedDate={selectedDate}
+                rangeStart={rangeStart}
+                rangeEnd={rangeEnd}
+                onModeChange={setPeriodMode}
+                onDateChange={setSelectedDate}
+                onRangeStartChange={setRangeStart}
+                onRangeEndChange={setRangeEnd}
+            />
+
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">
                 <KPICard
@@ -367,7 +667,6 @@ export default function FinancePage() {
                     value={summary?.total_income || 0}
                     icon={<Wallet className="h-5 w-5 md:h-6 md:w-6 text-emerald-600" />}
                     iconBg="bg-emerald-50"
-                    trend={{ value: 12, isPositive: true }}
                     isLoading={summaryLoading}
                 />
                 <KPICard
@@ -375,7 +674,6 @@ export default function FinancePage() {
                     value={summary?.total_expense || 0}
                     icon={<CreditCard className="h-5 w-5 md:h-6 md:w-6 text-red-500" />}
                     iconBg="bg-red-50"
-                    trend={{ value: 8, isPositive: false }}
                     isLoading={summaryLoading}
                 />
                 <div className="col-span-2 md:col-span-1">
@@ -384,32 +682,46 @@ export default function FinancePage() {
                         value={summary?.net_profit || 0}
                         icon={<Receipt className="h-5 w-5 md:h-6 md:w-6 text-amber-600" />}
                         iconBg="bg-amber-50"
-                        trend={{
-                            value: 18,
-                            isPositive: (summary?.net_profit || 0) >= 0,
-                        }}
                         isLoading={summaryLoading}
                     />
                 </div>
             </div>
 
+            {/* Profit Comparison Card */}
+            <ProfitComparisonCard
+                currentProfit={comparison?.current.net_profit || 0}
+                previousProfit={comparison?.previous.net_profit || 0}
+                diff={comparison?.profitDiff || 0}
+                percentage={comparison?.profitPercentage || 0}
+                isPositive={comparison?.isPositive ?? true}
+                currentLabel={currentLabel}
+                previousLabel={previousLabel}
+                isLoading={comparisonLoading}
+            />
+
             {/* Transaction Table Card */}
             <Card className="shadow-sm">
-                <CardHeader className="border-b border-slate-100 pb-4">
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <CardHeader className="border-b border-slate-100 pb-3 md:pb-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 md:gap-4">
                         <div>
-                            <CardTitle className="text-lg">Transaction History</CardTitle>
-                            <CardDescription>Recent financial activities</CardDescription>
+                            <CardTitle className="text-base md:text-lg">Transaction History</CardTitle>
+                            <CardDescription className="text-xs md:text-sm">
+                                {periodMode === 'daily'
+                                    ? format(selectedDate, 'dd MMMM yyyy', { locale: localeID })
+                                    : periodMode === 'monthly'
+                                        ? format(selectedDate, 'MMMM yyyy', { locale: localeID })
+                                        : `${format(rangeStart, 'dd MMM yyyy', { locale: localeID })} — ${format(rangeEnd, 'dd MMM yyyy', { locale: localeID })}`}
+                            </CardDescription>
                         </div>
 
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2 md:gap-3">
                             {/* Filter */}
                             <select
                                 value={typeFilter}
                                 onChange={(e) =>
                                     setTypeFilter(e.target.value as TransactionType | 'all')
                                 }
-                                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
+                                className="px-2 py-1.5 md:px-3 md:py-2 border border-slate-200 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
                             >
                                 <option value="all">All Transactions</option>
                                 <option value="income">Income Only</option>
@@ -421,16 +733,16 @@ export default function FinancePage() {
                                 variant="outline"
                                 onClick={handleScanClick}
                                 disabled={isAnalyzing}
-                                className="gap-2"
+                                className="gap-1.5 md:gap-2 text-xs md:text-sm h-7 md:h-9 px-2.5 md:px-4"
                             >
                                 {isAnalyzing ? (
                                     <>
-                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                        <Loader2 className="h-3.5 w-3.5 md:h-4 md:w-4 animate-spin" />
                                         Analyzing...
                                     </>
                                 ) : (
                                     <>
-                                        <Camera className="h-4 w-4" />
+                                        <Camera className="h-3.5 w-3.5 md:h-4 md:w-4" />
                                         Scan Bukti (AI)
                                     </>
                                 )}
