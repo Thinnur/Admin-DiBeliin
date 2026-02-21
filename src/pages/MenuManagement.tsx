@@ -177,6 +177,8 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
     const [largeDiscountPrice, setLargeDiscountPrice] = useState('');
     const [badge, setBadge] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
+    const [isSpecialFee, setIsSpecialFee] = useState(false);
+    const [selectedCustomizations, setSelectedCustomizations] = useState<string[]>([]);
 
     useEffect(() => {
         if (item) {
@@ -191,6 +193,8 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
             setLargeDiscountPrice(item.large_discount_price?.toString() || '');
             setBadge(item.badge || '');
             setIsAvailable(item.is_available);
+            setIsSpecialFee(item.is_special_fee ?? false);
+            setSelectedCustomizations(item.customizations || []);
         }
     }, [item]);
 
@@ -225,6 +229,8 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
             large_discount_price: largeDiscountPrice ? Number(largeDiscountPrice) : null,
             badge: badge.trim() || null,
             is_available: isAvailable,
+            is_special_fee: isSpecialFee,
+            customizations: selectedCustomizations,
         });
     };
 
@@ -372,6 +378,82 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                             onCheckedChange={setIsAvailable}
                         />
                     </div>
+
+                    {/* Special Fee */}
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200">
+                        <div>
+                            <Label htmlFor="edit-special-fee" className="font-medium">Biaya Admin Khusus</Label>
+                            <p className="text-sm text-slate-500">
+                                {isSpecialFee ? 'Dikenakan biaya admin khusus' : 'Biaya admin normal'}
+                            </p>
+                        </div>
+                        <Switch
+                            id="edit-special-fee"
+                            checked={isSpecialFee}
+                            onCheckedChange={setIsSpecialFee}
+                        />
+                    </div>
+
+                    {/* Customizations */}
+                    <div className="space-y-2">
+                        <Label className="font-medium">Opsi Kustomisasi</Label>
+                        <div className="p-4 rounded-lg bg-slate-50 border space-y-4">
+                            {/* Sugar Group */}
+                            <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Gula / Manis</p>
+                                <div className="space-y-2">
+                                    {[
+                                        { value: 'less_sugar', label: 'Less Sugar' },
+                                        { value: 'no_sugar', label: 'No Sugar' },
+                                        { value: 'less_sweet', label: 'Less Sweet' },
+                                    ].map(({ value, label }) => (
+                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
+                                                checked={selectedCustomizations.includes(value)}
+                                                onChange={(e) => {
+                                                    setSelectedCustomizations(prev =>
+                                                        e.target.checked
+                                                            ? [...prev, value]
+                                                            : prev.filter(c => c !== value)
+                                                    );
+                                                }}
+                                            />
+                                            <span className="text-sm">{label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            {/* Ice Group */}
+                            <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Es</p>
+                                <div className="space-y-2">
+                                    {[
+                                        { value: 'less_ice', label: 'Less Ice' },
+                                        { value: 'no_ice', label: 'No Ice' },
+                                        { value: 'more_ice', label: 'More Ice' },
+                                    ].map(({ value, label }) => (
+                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
+                                                checked={selectedCustomizations.includes(value)}
+                                                onChange={(e) => {
+                                                    setSelectedCustomizations(prev =>
+                                                        e.target.checked
+                                                            ? [...prev, value]
+                                                            : prev.filter(c => c !== value)
+                                                    );
+                                                }}
+                                            />
+                                            <span className="text-sm">{label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 <DialogFooter>
                     <Button variant="outline" onClick={onClose} disabled={isSaving}>
@@ -412,6 +494,8 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
     const [badge, setBadge] = useState('');
     const [imageUrl, setImageUrl] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
+    const [isSpecialFee, setIsSpecialFee] = useState(false);
+    const [selectedCustomizations, setSelectedCustomizations] = useState<string[]>([]);
 
     const resetForm = () => {
         setName('');
@@ -425,6 +509,8 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
         setBadge('');
         setImageUrl('');
         setIsAvailable(true);
+        setIsSpecialFee(false);
+        setSelectedCustomizations([]);
     };
 
     const handleClose = () => {
@@ -458,6 +544,8 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
             badge: badge.trim() || null,
             category_sort: null,
             is_available: isAvailable,
+            is_special_fee: isSpecialFee,
+            customizations: selectedCustomizations,
         };
 
         await onSave(newItem);
@@ -605,6 +693,82 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                             checked={isAvailable}
                             onCheckedChange={setIsAvailable}
                         />
+                    </div>
+
+                    {/* Special Fee */}
+                    <div className="flex items-center justify-between p-4 rounded-lg bg-amber-50 border border-amber-200">
+                        <div>
+                            <Label htmlFor="special-fee-new" className="font-medium">Biaya Admin Khusus</Label>
+                            <p className="text-sm text-slate-500">
+                                {isSpecialFee ? 'Dikenakan biaya admin khusus' : 'Biaya admin normal'}
+                            </p>
+                        </div>
+                        <Switch
+                            id="special-fee-new"
+                            checked={isSpecialFee}
+                            onCheckedChange={setIsSpecialFee}
+                        />
+                    </div>
+
+                    {/* Customizations */}
+                    <div className="space-y-2">
+                        <Label className="font-medium">Opsi Kustomisasi</Label>
+                        <div className="p-4 rounded-lg bg-slate-50 border space-y-4">
+                            {/* Sugar Group */}
+                            <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Gula / Manis</p>
+                                <div className="space-y-2">
+                                    {[
+                                        { value: 'less_sugar', label: 'Less Sugar' },
+                                        { value: 'no_sugar', label: 'No Sugar' },
+                                        { value: 'less_sweet', label: 'Less Sweet' },
+                                    ].map(({ value, label }) => (
+                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
+                                                checked={selectedCustomizations.includes(value)}
+                                                onChange={(e) => {
+                                                    setSelectedCustomizations(prev =>
+                                                        e.target.checked
+                                                            ? [...prev, value]
+                                                            : prev.filter(c => c !== value)
+                                                    );
+                                                }}
+                                            />
+                                            <span className="text-sm">{label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                            {/* Ice Group */}
+                            <div>
+                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Es</p>
+                                <div className="space-y-2">
+                                    {[
+                                        { value: 'less_ice', label: 'Less Ice' },
+                                        { value: 'no_ice', label: 'No Ice' },
+                                        { value: 'more_ice', label: 'More Ice' },
+                                    ].map(({ value, label }) => (
+                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
+                                                checked={selectedCustomizations.includes(value)}
+                                                onChange={(e) => {
+                                                    setSelectedCustomizations(prev =>
+                                                        e.target.checked
+                                                            ? [...prev, value]
+                                                            : prev.filter(c => c !== value)
+                                                    );
+                                                }}
+                                            />
+                                            <span className="text-sm">{label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <DialogFooter>
@@ -1081,6 +1245,8 @@ export default function MenuManagement() {
                 large_discount_price: largeDiscountPrice,
                 badge: data.badge,
                 is_available: data.is_available ?? true,
+                is_special_fee: data.is_special_fee,
+                customizations: data.customizations,
             };
 
             console.log('Updating menu item ID:', id);

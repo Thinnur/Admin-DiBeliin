@@ -23,6 +23,8 @@ export interface MenuItem {
     badge: string | null;
     category_sort: number | null;
     is_available: boolean;
+    is_special_fee: boolean;
+    customizations: string[];
     created_at: string;
 }
 
@@ -39,6 +41,8 @@ export interface MenuItemUpdate {
     badge?: string | null;
     category_sort?: number | null;
     is_available?: boolean;
+    is_special_fee?: boolean;
+    customizations?: string[];
 }
 
 // -----------------------------------------------------------------------------
@@ -133,9 +137,15 @@ export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<
     if (data.is_available !== undefined) {
         cleanPayload.is_available = data.is_available;
     }
+    if (data.is_special_fee !== undefined) {
+        cleanPayload.is_special_fee = data.is_special_fee;
+    }
+    if (data.customizations !== undefined) {
+        cleanPayload.customizations = data.customizations;
+    }
 
     console.log('menuService.updateMenuItem - ID:', numericId, 'Type:', typeof numericId);
-    console.log('Clean payload:', cleanPayload);
+    console.log('FINAL PAYLOAD TO SUPABASE:', cleanPayload);
 
     // First, check if the item exists (helps debug RLS issues)
     const { data: existingItem, error: fetchError } = await supabase
