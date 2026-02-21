@@ -17,6 +17,9 @@ import {
     LogOut,
     User,
     UtensilsCrossed,
+    MonitorPlay,
+    CalendarClock,
+    Layers,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -66,6 +69,24 @@ const navItems = [
         icon: UtensilsCrossed,
         description: 'Kelola menu & harga',
     },
+    {
+        label: 'Katalog Digital',
+        path: '/digital-products',
+        icon: MonitorPlay,
+        description: 'Netflix, Spotify, dll.',
+    },
+    {
+        label: 'Tracking Langganan',
+        path: '/digital-tracking',
+        icon: CalendarClock,
+        description: 'Masa aktif pelanggan',
+    },
+    {
+        label: 'Kelola Provider',
+        path: '/digital-providers',
+        icon: Layers,
+        description: 'Provider & logo',
+    },
 ];
 
 // -----------------------------------------------------------------------------
@@ -96,6 +117,18 @@ const pageTitles: Record<string, { title: string; description: string }> = {
     '/menus': {
         title: 'Daftar Menu',
         description: 'Kelola harga dan ketersediaan menu',
+    },
+    '/digital-products': {
+        title: 'Katalog Digital',
+        description: 'Kelola produk digital (Netflix, Spotify, dll.)',
+    },
+    '/digital-tracking': {
+        title: 'Tracking Langganan',
+        description: 'Pantau masa aktif langganan pelanggan',
+    },
+    '/digital-providers': {
+        title: 'Kelola Provider',
+        description: 'Tambah dan kelola provider digital beserta logo',
     },
 };
 
@@ -257,7 +290,7 @@ function MobileBottomNav() {
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)',
             }}
         >
-            <div className="grid grid-cols-6 h-14">
+            <div className="grid grid-cols-9 h-14">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     const Icon = item.icon;

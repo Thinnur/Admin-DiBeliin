@@ -17,6 +17,9 @@ import CalculatorPage from '@/pages/Calculator';
 import OperationalPage from '@/pages/Operational';
 import OutletManagementPage from '@/pages/OutletManagement';
 import MenuManagementPage from '@/pages/MenuManagement';
+import DigitalProductsPage from '@/pages/DigitalProducts';
+import DigitalTrackingPage from '@/pages/DigitalTracking';
+import DigitalProvidersPage from '@/pages/DigitalProviders';
 
 import './App.css';
 
@@ -37,6 +40,9 @@ function App() {
               <Route path="/operational" element={<OperationalPage />} />
               <Route path="/outlets" element={<OutletManagementPage />} />
               <Route path="/menus" element={<MenuManagementPage />} />
+              <Route path="/digital-products" element={<DigitalProductsPage />} />
+              <Route path="/digital-tracking" element={<DigitalTrackingPage />} />
+              <Route path="/digital-providers" element={<DigitalProvidersPage />} />
             </Route>
           </Route>
 
