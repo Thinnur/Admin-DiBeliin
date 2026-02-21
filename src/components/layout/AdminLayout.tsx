@@ -290,7 +290,7 @@ function MobileBottomNav() {
                 paddingBottom: 'env(safe-area-inset-bottom, 0px)',
             }}
         >
-            <div className="grid grid-cols-9 h-14">
+            <div className="flex h-14 overflow-x-auto overflow-y-hidden scrollbar-none">
                 {navItems.map((item) => {
                     const isActive = location.pathname === item.path;
                     const Icon = item.icon;
@@ -300,22 +300,23 @@ function MobileBottomNav() {
                             key={item.path}
                             to={item.path}
                             className={cn(
-                                'flex flex-col items-center justify-center gap-0.5 transition-colors',
+                                'relative flex flex-col items-center justify-center gap-0.5 transition-colors flex-shrink-0 px-3',
+                                'min-w-[64px]',
                                 isActive
                                     ? 'text-amber-600'
                                     : 'text-slate-400 active:text-slate-600'
                             )}
                         >
-                            <Icon className={cn('h-5 w-5', isActive && 'drop-shadow-sm')} />
+                            {isActive && (
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
+                            )}
+                            <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'drop-shadow-sm')} />
                             <span className={cn(
-                                'text-[10px] leading-tight',
+                                'text-[9px] leading-tight text-center whitespace-nowrap',
                                 isActive ? 'font-semibold' : 'font-medium'
                             )}>
                                 {item.label}
                             </span>
-                            {isActive && (
-                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
-                            )}
                         </NavLink>
                     );
                 })}
