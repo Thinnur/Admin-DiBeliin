@@ -136,9 +136,20 @@ export async function fetchFinancialSummary(
 export async function createTransaction(
     transaction: TransactionInsert
 ): Promise<Transaction> {
+    // Extract the optional date field — it's not a real DB column.
+    // We use it to override created_at so the user-selected date is saved.
+    const { date, ...rest } = transaction;
+
+    const payload: Record<string, unknown> = { ...rest };
+    if (date) {
+        // Supabase allows inserting created_at when it's not protected.
+        // Use end-of-day time (23:59:59) to keep it within the chosen day.
+        payload.created_at = `${date}T23:59:59+07:00`;
+    }
+
     const { data, error } = await supabase
         .from('transactions')
-        .insert(transaction)
+        .insert(payload)
         .select()
         .single();
 

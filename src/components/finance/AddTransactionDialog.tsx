@@ -193,6 +193,7 @@ export function AddTransactionDialog({
                 category,
                 description: description || '',
                 related_account_id: null,
+                date: date,
             });
 
             resetForm();
@@ -216,6 +217,7 @@ export function AddTransactionDialog({
                     category: bulkCategory,
                     description: txn.description || '',
                     related_account_id: null,
+                    date: bulkDate,
                 });
             }
 
@@ -423,8 +425,8 @@ export function AddTransactionDialog({
             {/* Preview Summary */}
             {parseResult && parseResult.detectedCount > 0 && (
                 <div className={`p-3 border rounded-lg space-y-2 ${bulkType === 'income'
-                        ? 'bg-emerald-50 border-emerald-200'
-                        : 'bg-red-50 border-red-200'
+                    ? 'bg-emerald-50 border-emerald-200'
+                    : 'bg-red-50 border-red-200'
                     }`}>
                     <p className={`text-sm font-semibold ${bulkType === 'income' ? 'text-emerald-800' : 'text-red-800'
                         }`}>

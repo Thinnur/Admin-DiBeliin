@@ -55,7 +55,10 @@ export interface Transaction {
 export type AccountInsert = Omit<Account, 'id' | 'created_at'>;
 export type AccountUpdate = Partial<AccountInsert>;
 
-export type TransactionInsert = Omit<Transaction, 'id' | 'created_at'>;
+export type TransactionInsert = Omit<Transaction, 'id' | 'created_at'> & {
+  /** Optional transaction date (YYYY-MM-DD). If provided, overrides created_at in DB. */
+  date?: string;
+};
 export type TransactionUpdate = Partial<TransactionInsert>;
 
 // -----------------------------------------------------------------------------
