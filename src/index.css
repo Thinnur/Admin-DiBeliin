@@ -79,6 +79,13 @@
     /* Offset from bottom for home indicator */
     bottom: calc(env(safe-area-inset-bottom) + 16px) !important;
   }
+
+  /* Prevent iOS Safari auto-zoom on input focus (triggered when font-size < 16px) */
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1em);
+  }
 }
 
 /* -----------------------------------------------------------------------------

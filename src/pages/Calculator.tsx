@@ -58,6 +58,7 @@ import {
 } from '@/lib/logic/orderParser';
 import {
     optimizeOrder,
+    isForeDeli,
     type CartItem,
     type OptimizationResult,
 } from '@/lib/logic/optimizer';
@@ -74,6 +75,10 @@ import type { AccountBrand } from '@/types/database';
 
 interface EditableItem extends ParsedItem {
     id: string;
+    /** Fore Coffee only: harga Regular menu (untuk BOGO discount) */
+    basePrice?: number;
+    /** Fore Coffee only: apakah ini item Fore Deli (bukan minuman)? */
+    isForeDeli?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -84,10 +89,12 @@ function ItemRow({
     item,
     onUpdate,
     onDelete,
+    isFore,
 }: {
     item: EditableItem;
     onUpdate: (id: string, updates: Partial<EditableItem>) => void;
     onDelete: (id: string) => void;
+    isFore?: boolean;
 }) {
     return (
         <tr className="border-b border-slate-100 hover:bg-slate-50/50 hidden md:table-row">
@@ -117,6 +124,33 @@ function ItemRow({
                     className={`h-8 text-sm text-right ${item.hasError ? 'border-amber-400 bg-amber-50' : ''}`}
                 />
             </td>
+            {isFore && (
+                <td className="py-2 px-2 w-28">
+                    <Input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={item.basePrice ?? item.price}
+                        onChange={(e) => onUpdate(item.id, { basePrice: parseInt(e.target.value) || 0 })}
+                        className="h-8 text-sm text-right"
+                        title="Harga Regular (basePrice untuk BOGO)"
+                    />
+                </td>
+            )}
+            {isFore && (
+                <td className="py-2 px-2 w-20 text-center">
+                    <button
+                        onClick={() => onUpdate(item.id, { isForeDeli: !item.isForeDeli })}
+                        className={`px-2 py-1 rounded-full text-xs font-medium border transition-colors ${item.isForeDeli
+                                ? 'bg-orange-100 text-orange-700 border-orange-300'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                        title="Klik untuk toggle Fore Deli"
+                    >
+                        {item.isForeDeli ? 'Deli' : 'Minum'}
+                    </button>
+                </td>
+            )}
             <td className="py-2 px-2 w-24 text-right">
                 <span className="text-sm font-medium text-slate-700">
                     {formatPrice(item.price * item.qty)}
@@ -139,10 +173,12 @@ function ItemCard({
     item,
     onUpdate,
     onDelete,
+    isFore,
 }: {
     item: EditableItem;
     onUpdate: (id: string, updates: Partial<EditableItem>) => void;
     onDelete: (id: string) => void;
+    isFore?: boolean;
 }) {
     return (
         <div className={`md:hidden p-3 rounded-xl border bg-white space-y-2 ${item.hasError ? 'border-amber-300 bg-amber-50/30' : 'border-slate-100'}`}>
@@ -153,6 +189,17 @@ function ItemCard({
                     className="h-8 text-sm flex-1"
                     placeholder="Item name"
                 />
+                {isFore && (
+                    <button
+                        onClick={() => onUpdate(item.id, { isForeDeli: !item.isForeDeli })}
+                        className={`px-2 py-1 rounded-full text-xs font-medium border shrink-0 transition-colors ${item.isForeDeli
+                                ? 'bg-orange-100 text-orange-700 border-orange-300'
+                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                            }`}
+                    >
+                        {item.isForeDeli ? 'Deli' : 'Minum'}
+                    </button>
+                )}
                 <button
                     onClick={() => onDelete(item.id)}
                     className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors shrink-0"
@@ -186,6 +233,20 @@ function ItemCard({
                     {formatPrice(item.price * item.qty)}
                 </span>
             </div>
+            {isFore && (
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-400 w-20">Base Price</span>
+                    <Input
+                        type="number"
+                        min="0"
+                        step="1000"
+                        value={item.basePrice ?? item.price}
+                        onChange={(e) => onUpdate(item.id, { basePrice: parseInt(e.target.value) || 0 })}
+                        className="h-7 text-sm text-right flex-1"
+                        placeholder="Harga Regular"
+                    />
+                </div>
+            )}
         </div>
     );
 }
@@ -201,17 +262,21 @@ function StrategyCard({
     group: OptimizationResult['groups'][0];
     index: number;
 }) {
-    const voucherLabel = group.recommendedVoucher === 'nomin' ? 'No Min' : 'Min 50k';
-    const voucherColor = group.recommendedVoucher === 'nomin'
-        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-        : 'bg-blue-50 text-blue-700 border-blue-200';
+    const voucherMeta = {
+        nomin: { label: 'No Min', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
+        min50k: { label: 'Min 50k', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+        fore_35pct: { label: 'Diskon 35%', color: 'bg-violet-50 text-violet-700 border-violet-200' },
+        fore_bogo: { label: 'BOGO', color: 'bg-amber-50 text-amber-700 border-amber-300' },
+    };
+    const { label: voucherLabel, color: voucherColor } = voucherMeta[group.recommendedVoucher] ?? voucherMeta.nomin;
+    const isBogo = group.recommendedVoucher === 'fore_bogo';
 
     return (
         <Card className="shadow-sm">
             <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-base">
-                        Group {index + 1}
+                        Akun {index + 1}
                     </CardTitle>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${voucherColor}`}>
                         {voucherLabel}
@@ -222,8 +287,17 @@ function StrategyCard({
                 <div className="space-y-1.5">
                     {group.items.map((item, i) => (
                         <div key={i} className="flex justify-between text-sm">
-                            <span className="text-slate-600 truncate pr-2">{item.name}</span>
-                            <span className="text-slate-900 font-medium tabular-nums">
+                            <div className="flex items-center gap-1.5 truncate pr-2">
+                                {isBogo && item.isBogoDFree && (
+                                    <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">GRATIS</span>
+                                )}
+                                {isBogo && item.isForeDeli && (
+                                    <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">Deli</span>
+                                )}
+                                <span className="text-slate-600 truncate">{item.name}</span>
+                            </div>
+                            <span className={`font-medium tabular-nums shrink-0 ${isBogo && item.isBogoDFree ? 'line-through text-slate-400' : 'text-slate-900'
+                                }`}>
                                 {formatPrice(item.price)}
                             </span>
                         </div>
@@ -234,10 +308,18 @@ function StrategyCard({
                         <span className="text-slate-500">Subtotal</span>
                         <span className="font-medium">{formatPrice(group.totalPrice)}</span>
                     </div>
-                    <div className="flex justify-between text-sm text-emerald-600">
-                        <span>Discount</span>
-                        <span className="font-semibold">-{formatPrice(group.estimatedDiscount)}</span>
-                    </div>
+                    {group.estimatedDiscount > 0 && (
+                        <div className="flex justify-between text-sm text-emerald-600">
+                            <span>Diskon {isBogo ? `(basePrice gratis)` : '(35%)'}</span>
+                            <span className="font-semibold">-{formatPrice(group.estimatedDiscount)}</span>
+                        </div>
+                    )}
+                    {group.estimatedDiscount === 0 && (
+                        <div className="flex justify-between text-sm text-slate-400">
+                            <span>Diskon</span>
+                            <span className="text-xs italic">Tidak pakai voucher</span>
+                        </div>
+                    )}
                 </div>
             </CardContent>
         </Card>
@@ -345,6 +427,9 @@ export default function CalculatorPage() {
         const editableItems: EditableItem[] = parsed.items.map((item) => ({
             ...item,
             id: generateId(),
+            // Auto-detect Fore Deli & set basePrice = price by default
+            isForeDeli: isForeDeli(item.name),
+            basePrice: item.price,
         }));
 
         setItems(editableItems);
@@ -388,6 +473,8 @@ export default function CalculatorPage() {
             name: 'New Item',
             price: 0,
             qty: 1,
+            basePrice: 0,
+            isForeDeli: false,
             rawLine: '',
             hasError: true,
             errorMessage: 'Please fill in details',
@@ -422,13 +509,18 @@ export default function CalculatorPage() {
             name: item.name,
             price: item.price,
             qty: item.qty,
+            ...(brand === 'fore' ? {
+                basePrice: item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price,
+                isForeDeli: item.isForeDeli ?? isForeDeli(item.name),
+            } : {}),
         }));
 
         const optimizationResult = optimizeOrder(cartItems, brand, adminCost);
         setResult(optimizationResult);
         setHasOptimized(true);
 
-        toast.success(`Optimized into ${optimizationResult.accountsNeeded} group(s)!`);
+        const groupLabel = brand === 'fore' ? 'akun' : 'group';
+        toast.success(`Dioptimasi menjadi ${optimizationResult.groups.length} ${groupLabel}!`);
     };
 
     // Execute strategy
@@ -565,9 +657,18 @@ Example:
                                     <table className="w-full">
                                         <thead>
                                             <tr className="text-xs text-slate-500 border-b">
-                                                <th className="text-left py-2 px-2 font-medium">Name</th>
+                                                <th className="text-left py-2 px-2 font-medium">Nama</th>
                                                 <th className="text-center py-2 px-2 font-medium w-20">Qty</th>
-                                                <th className="text-right py-2 px-2 font-medium w-28">Price</th>
+                                                <th className="text-right py-2 px-2 font-medium w-28">Harga Bayar</th>
+                                                {brand === 'fore' && (
+                                                    <th className="text-right py-2 px-2 font-medium w-28">
+                                                        Base Price
+                                                        <span className="block font-normal text-slate-400">(harga Regular)</span>
+                                                    </th>
+                                                )}
+                                                {brand === 'fore' && (
+                                                    <th className="text-center py-2 px-2 font-medium w-20">Jenis</th>
+                                                )}
                                                 <th className="text-right py-2 px-2 font-medium w-24">Total</th>
                                                 <th className="w-12"></th>
                                             </tr>
@@ -579,6 +680,7 @@ Example:
                                                     item={item}
                                                     onUpdate={handleUpdateItem}
                                                     onDelete={handleDeleteItem}
+                                                    isFore={brand === 'fore'}
                                                 />
                                             ))}
                                         </tbody>
@@ -604,6 +706,7 @@ Example:
                                             item={item}
                                             onUpdate={handleUpdateItem}
                                             onDelete={handleDeleteItem}
+                                            isFore={brand === 'fore'}
                                         />
                                     ))}
                                     <div className="flex items-center justify-between pt-3 border-t-2 border-slate-200">
