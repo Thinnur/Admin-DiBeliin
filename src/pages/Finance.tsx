@@ -75,7 +75,7 @@ import type { Transaction, TransactionType } from '@/types/database';
 // Types
 // -----------------------------------------------------------------------------
 
-type PeriodMode = 'daily' | 'monthly' | 'range';
+type PeriodMode = 'daily' | 'monthly' | 'range' | 'all_time';
 
 // -----------------------------------------------------------------------------
 // Currency Formatter
@@ -288,10 +288,19 @@ function PeriodSelector({
                         <CalendarRange className="h-3 w-3 md:h-3.5 md:w-3.5" />
                         Rentang
                     </button>
+                    <button
+                        onClick={() => onModeChange('all_time')}
+                        className={`flex items-center gap-1 px-2 py-1 md:px-3 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${mode === 'all_time'
+                            ? 'bg-white text-slate-900 shadow-sm'
+                            : 'text-slate-500 hover:text-slate-700'
+                            }`}
+                    >
+                        Semua Waktu
+                    </button>
                 </div>
 
-                {/* Date navigator (daily/monthly) - inline with tabs */}
-                {mode !== 'range' && (
+                {/* Date navigator (daily/monthly) - hidden in range and all_time mode */}
+                {mode !== 'range' && mode !== 'all_time' && (
                     <div className="inline-flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-0.5 py-0.5">
                         <button
                             onClick={handlePrev}
@@ -314,7 +323,7 @@ function PeriodSelector({
                 )}
             </div>
 
-            {/* Date range pickers (range mode) - separate row */}
+            {/* Date range pickers (range mode only) - hidden in all_time */}
             {mode === 'range' && (
                 <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5">
@@ -547,6 +556,14 @@ export default function FinancePage() {
                 currentLabel: format(selectedDate, 'MMM yy', { locale: localeID }),
                 previousLabel: format(lastMonth, 'MMM yy', { locale: localeID }),
             };
+        } else if (periodMode === 'all_time') {
+            // All time: no date filter
+            return {
+                currentRange: { startDate: undefined, endDate: undefined },
+                previousRange: { startDate: undefined, endDate: undefined },
+                currentLabel: 'Semua Waktu',
+                previousLabel: '-',
+            };
         } else {
             // Range mode: custom from-to
             const rStart = startOfDay(rangeStart).toISOString();
@@ -710,7 +727,9 @@ export default function FinancePage() {
                                     ? format(selectedDate, 'dd MMMM yyyy', { locale: localeID })
                                     : periodMode === 'monthly'
                                         ? format(selectedDate, 'MMMM yyyy', { locale: localeID })
-                                        : `${format(rangeStart, 'dd MMM yyyy', { locale: localeID })} — ${format(rangeEnd, 'dd MMM yyyy', { locale: localeID })}`}
+                                        : periodMode === 'all_time'
+                                            ? 'Semua transaksi'
+                                            : `${format(rangeStart, 'dd MMM yyyy', { locale: localeID })} — ${format(rangeEnd, 'dd MMM yyyy', { locale: localeID })}`}
                             </CardDescription>
                         </div>
 

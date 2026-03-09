@@ -29,6 +29,8 @@ export interface Account {
   status: AccountStatus; // Global health status (e.g., 'issue' if password wrong, 'expired' if expired)
   is_nomin_ready: boolean; // Voucher No Min availability
   is_min50k_ready: boolean; // Voucher Min 50k availability (KopKen only, always false for Fore)
+  is_bogo_ready?: boolean; // Voucher BOGO availability (Fore only)
+  is_discount35_ready?: boolean; // Voucher Diskon 35% availability (Fore only)
   purchase_price: number;
   in_use_by: string | null; // Who is currently using this account
   notes: string | null;

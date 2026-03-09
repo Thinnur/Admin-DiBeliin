@@ -178,43 +178,60 @@ export async function createAccount(account: AccountInsert): Promise<Account> {
 
 /**
  * Update an existing account
- * Auto-sets status to 'sold' if all vouchers are exhausted
+ * Auto-sets status to 'sold' if all vouchers are exhausted (brand-aware)
  */
 export async function updateAccount(
     id: string,
     updates: AccountUpdate
 ): Promise<Account> {
-    // If updating voucher flags, check if we need to auto-set status to 'sold'
-    const isVoucherUpdate = 'is_nomin_ready' in updates || 'is_min50k_ready' in updates;
-
     let finalUpdates = { ...updates };
 
-    if (isVoucherUpdate && !('status' in updates)) {
-        // Fetch current account to merge with updates
-        const currentAccount = await fetchAccountById(id);
+    // If explicitly setting status to 'sold', force all voucher flags to false
+    if (updates.status === 'sold') {
+        finalUpdates.is_nomin_ready = false;
+        finalUpdates.is_min50k_ready = false;
+        finalUpdates.is_bogo_ready = false;
+        finalUpdates.is_discount35_ready = false;
+    } else {
+        // Check if this is a voucher update that might trigger auto-sold
+        const isVoucherUpdate =
+            'is_nomin_ready' in updates ||
+            'is_min50k_ready' in updates ||
+            'is_bogo_ready' in updates ||
+            'is_discount35_ready' in updates;
 
-        if (currentAccount && currentAccount.status === 'ready') {
-            // Determine final voucher states after update
-            const finalNomin = 'is_nomin_ready' in updates
-                ? updates.is_nomin_ready!
-                : currentAccount.is_nomin_ready;
-            const finalMin50k = 'is_min50k_ready' in updates
-                ? updates.is_min50k_ready!
-                : currentAccount.is_min50k_ready;
+        if (isVoucherUpdate && !('status' in updates)) {
+            // Fetch current account to merge with updates
+            const currentAccount = await fetchAccountById(id);
 
-            // Check if account should be marked as sold
-            let shouldSell = false;
+            if (currentAccount && currentAccount.status === 'ready') {
+                let shouldSell = false;
 
-            if (currentAccount.brand === 'fore') {
-                // Fore only has nomin
-                shouldSell = !finalNomin;
-            } else {
-                // KopKen has both vouchers
-                shouldSell = !finalNomin && !finalMin50k;
-            }
+                if (currentAccount.brand === 'fore') {
+                    // Fore: sold if both BOGO and discount35 are false
+                    const finalBogo = 'is_bogo_ready' in updates
+                        ? updates.is_bogo_ready!
+                        : (currentAccount.is_bogo_ready ?? false);
+                    const finalDisc35 = 'is_discount35_ready' in updates
+                        ? updates.is_discount35_ready!
+                        : (currentAccount.is_discount35_ready ?? false);
 
-            if (shouldSell) {
-                finalUpdates.status = 'sold';
+                    shouldSell = !finalBogo && !finalDisc35;
+                } else {
+                    // KopKen: sold if both nomin and min50k are false
+                    const finalNomin = 'is_nomin_ready' in updates
+                        ? updates.is_nomin_ready!
+                        : currentAccount.is_nomin_ready;
+                    const finalMin50k = 'is_min50k_ready' in updates
+                        ? updates.is_min50k_ready!
+                        : currentAccount.is_min50k_ready;
+
+                    shouldSell = !finalNomin && !finalMin50k;
+                }
+
+                if (shouldSell) {
+                    finalUpdates.status = 'sold';
+                }
             }
         }
     }
@@ -368,14 +385,14 @@ export async function batchUpdateVouchers(
 
 /**
  * Check if an account should be marked as sold
- * (when all vouchers are exhausted)
+ * (when all vouchers are exhausted - brand-aware)
  */
 export function shouldMarkAsSold(account: Account): boolean {
-    // Fore only has nomin, so if nomin is false, it's sold
     if (account.brand === 'fore') {
-        return !account.is_nomin_ready;
+        // Fore: sold if both BOGO and discount35 are gone
+        return !(account.is_bogo_ready ?? false) && !(account.is_discount35_ready ?? false);
     }
 
-    // KopKen has both, so if both are false, it's sold
+    // KopKen: sold if both nomin and min50k are gone
     return !account.is_nomin_ready && !account.is_min50k_ready;
 }

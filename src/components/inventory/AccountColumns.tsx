@@ -95,9 +95,10 @@ function StatusBadge({ status, inUseBy }: { status: AccountStatus; inUseBy?: str
 
 /**
  * Voucher status badges - shows individual voucher availability
+ * Brand-aware: BOGO & 35% for Fore, NoMin & 50k for KopKen
  */
 function VoucherStatusBadges({ account }: { account: Account }) {
-    const { brand, is_nomin_ready, is_min50k_ready } = account;
+    const { brand } = account;
 
     const getBadgeStyle = (isReady: boolean) => {
         if (isReady) {
@@ -106,33 +107,61 @@ function VoucherStatusBadges({ account }: { account: Account }) {
         return 'bg-slate-100 text-slate-500 border-slate-200';
     };
 
+    if (brand === 'fore') {
+        // Fore Coffee: show BOGO and 35% badges
+        const isBogoReady = account.is_bogo_ready ?? false;
+        const isDisc35Ready = account.is_discount35_ready ?? false;
+        return (
+            <div className="flex flex-wrap gap-1.5">
+                <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(isBogoReady)}`}
+                >
+                    {isBogoReady ? (
+                        <Check className="w-3 h-3" />
+                    ) : (
+                        <X className="w-3 h-3" />
+                    )}
+                    BOGO
+                </span>
+                <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(isDisc35Ready)}`}
+                >
+                    {isDisc35Ready ? (
+                        <Check className="w-3 h-3" />
+                    ) : (
+                        <X className="w-3 h-3" />
+                    )}
+                    35%
+                </span>
+            </div>
+        );
+    }
+
+    // KopKen: show NoMin and 50k badges
+    const isNominReady = account.is_nomin_ready;
+    const isMin50kReady = account.is_min50k_ready;
     return (
         <div className="flex flex-wrap gap-1.5">
-            {/* No Min Badge - always shown */}
             <span
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(is_nomin_ready)}`}
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(isNominReady)}`}
             >
-                {is_nomin_ready ? (
+                {isNominReady ? (
                     <Check className="w-3 h-3" />
                 ) : (
                     <X className="w-3 h-3" />
                 )}
                 NoMin
             </span>
-
-            {/* Min 50k Badge - only for KopKen */}
-            {brand === 'kopken' && (
-                <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(is_min50k_ready)}`}
-                >
-                    {is_min50k_ready ? (
-                        <Check className="w-3 h-3" />
-                    ) : (
-                        <X className="w-3 h-3" />
-                    )}
-                    50k
-                </span>
-            )}
+            <span
+                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(isMin50kReady)}`}
+            >
+                {isMin50kReady ? (
+                    <Check className="w-3 h-3" />
+                ) : (
+                    <X className="w-3 h-3" />
+                )}
+                50k
+            </span>
         </div>
     );
 }
@@ -257,42 +286,83 @@ function ActionsCell({
                 <DropdownMenuLabel>Voucher Status</DropdownMenuLabel>
                 <DropdownMenuSeparator />
 
-                {/* Toggle No Min */}
-                <DropdownMenuItem
-                    onClick={() => {
-                        actions?.onToggleVoucher?.(account, 'nomin', !account.is_nomin_ready);
-                        setIsOpen(false);
-                    }}
-                    className="cursor-pointer"
-                >
-                    <span className="flex items-center gap-2">
-                        {account.is_nomin_ready ? (
-                            <Check className="w-4 h-4 text-emerald-600" />
-                        ) : (
-                            <X className="w-4 h-4 text-slate-400" />
-                        )}
-                        NoMin: {account.is_nomin_ready ? 'Ready' : 'Used'}
-                    </span>
-                </DropdownMenuItem>
+                {/* Toggle Vouchers - brand-aware */}
+                {account.brand === 'fore' ? (
+                    <>
+                        {/* Fore: BOGO toggle */}
+                        <DropdownMenuItem
+                            onClick={() => {
+                                actions?.onToggleVoucher?.(account, 'bogo', !(account.is_bogo_ready ?? false));
+                                setIsOpen(false);
+                            }}
+                            className="cursor-pointer"
+                        >
+                            <span className="flex items-center gap-2">
+                                {(account.is_bogo_ready ?? false) ? (
+                                    <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                    <X className="w-4 h-4 text-slate-400" />
+                                )}
+                                BOGO: {(account.is_bogo_ready ?? false) ? 'Ready' : 'Used'}
+                            </span>
+                        </DropdownMenuItem>
 
-                {/* Toggle Min 50k - only for KopKen */}
-                {account.brand === 'kopken' && (
-                    <DropdownMenuItem
-                        onClick={() => {
-                            actions?.onToggleVoucher?.(account, 'min50k', !account.is_min50k_ready);
-                            setIsOpen(false);
-                        }}
-                        className="cursor-pointer"
-                    >
-                        <span className="flex items-center gap-2">
-                            {account.is_min50k_ready ? (
-                                <Check className="w-4 h-4 text-emerald-600" />
-                            ) : (
-                                <X className="w-4 h-4 text-slate-400" />
-                            )}
-                            50k: {account.is_min50k_ready ? 'Ready' : 'Used'}
-                        </span>
-                    </DropdownMenuItem>
+                        {/* Fore: 35% toggle */}
+                        <DropdownMenuItem
+                            onClick={() => {
+                                actions?.onToggleVoucher?.(account, 'disc35', !(account.is_discount35_ready ?? false));
+                                setIsOpen(false);
+                            }}
+                            className="cursor-pointer"
+                        >
+                            <span className="flex items-center gap-2">
+                                {(account.is_discount35_ready ?? false) ? (
+                                    <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                    <X className="w-4 h-4 text-slate-400" />
+                                )}
+                                35%: {(account.is_discount35_ready ?? false) ? 'Ready' : 'Used'}
+                            </span>
+                        </DropdownMenuItem>
+                    </>
+                ) : (
+                    <>
+                        {/* KopKen: NoMin toggle */}
+                        <DropdownMenuItem
+                            onClick={() => {
+                                actions?.onToggleVoucher?.(account, 'nomin', !account.is_nomin_ready);
+                                setIsOpen(false);
+                            }}
+                            className="cursor-pointer"
+                        >
+                            <span className="flex items-center gap-2">
+                                {account.is_nomin_ready ? (
+                                    <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                    <X className="w-4 h-4 text-slate-400" />
+                                )}
+                                NoMin: {account.is_nomin_ready ? 'Ready' : 'Used'}
+                            </span>
+                        </DropdownMenuItem>
+
+                        {/* KopKen: 50k toggle */}
+                        <DropdownMenuItem
+                            onClick={() => {
+                                actions?.onToggleVoucher?.(account, 'min50k', !account.is_min50k_ready);
+                                setIsOpen(false);
+                            }}
+                            className="cursor-pointer"
+                        >
+                            <span className="flex items-center gap-2">
+                                {account.is_min50k_ready ? (
+                                    <Check className="w-4 h-4 text-emerald-600" />
+                                ) : (
+                                    <X className="w-4 h-4 text-slate-400" />
+                                )}
+                                50k: {account.is_min50k_ready ? 'Ready' : 'Used'}
+                            </span>
+                        </DropdownMenuItem>
+                    </>
                 )}
 
                 <DropdownMenuSeparator />
@@ -440,7 +510,7 @@ export interface AccountColumnActions {
     onMarkAsSold?: (account: Account) => void;
     onMarkAsInUse?: (account: Account) => void;
     onMarkAsReady?: (account: Account) => void;
-    onToggleVoucher?: (account: Account, voucher: 'nomin' | 'min50k', newValue: boolean) => void;
+    onToggleVoucher?: (account: Account, voucher: 'nomin' | 'min50k' | 'bogo' | 'disc35', newValue: boolean) => void;
 }
 
 /**

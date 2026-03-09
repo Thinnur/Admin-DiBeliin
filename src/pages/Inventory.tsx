@@ -62,7 +62,8 @@ type StatusFilter = 'all' | AccountStatus;
 // -----------------------------------------------------------------------------
 
 interface VoucherStats {
-    foreNomin: number;
+    foreBogo: number;
+    foreDisc35: number;
     foreTotal: number;
     kopkenNomin: number;
     kopkenMin50k: number;
@@ -73,7 +74,8 @@ function calculateVoucherStats(accounts: Account[]): VoucherStats {
     const foreAccounts = accounts.filter((a) => a.brand === 'fore');
     const kopkenAccounts = accounts.filter((a) => a.brand === 'kopken');
     return {
-        foreNomin: foreAccounts.filter((a) => a.is_nomin_ready === true).length,
+        foreBogo: foreAccounts.filter((a) => a.is_bogo_ready === true).length,
+        foreDisc35: foreAccounts.filter((a) => a.is_discount35_ready === true).length,
         foreTotal: foreAccounts.length,
         kopkenNomin: kopkenAccounts.filter((a) => a.is_nomin_ready === true).length,
         kopkenMin50k: kopkenAccounts.filter((a) => a.is_min50k_ready === true).length,
@@ -241,10 +243,12 @@ export default function InventoryPage() {
         });
     };
 
-    const handleToggleVoucher = (account: Account, voucher: 'nomin' | 'min50k', newValue: boolean) => {
-        const updates = voucher === 'nomin'
-            ? { is_nomin_ready: newValue }
-            : { is_min50k_ready: newValue };
+    const handleToggleVoucher = (account: Account, voucher: 'nomin' | 'min50k' | 'bogo' | 'disc35', newValue: boolean) => {
+        const updates =
+            voucher === 'nomin' ? { is_nomin_ready: newValue }
+                : voucher === 'min50k' ? { is_min50k_ready: newValue }
+                    : voucher === 'bogo' ? { is_bogo_ready: newValue }
+                        : { is_discount35_ready: newValue };
 
         updateAccount.mutate({
             id: account.id,
@@ -347,8 +351,8 @@ export default function InventoryPage() {
             </Dialog>
 
             {/* Summary Stats Cards - Ready Stock */}
-            <div className="grid grid-cols-3 gap-2 md:gap-4">
-                {/* Sisa Voucher Fore */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+                {/* Fore BOGO */}
                 <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
                     <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
                         <div className="flex items-center gap-2 md:gap-3">
@@ -356,17 +360,37 @@ export default function InventoryPage() {
                                 <Coffee className="h-4 w-4 md:h-5 md:w-5 text-amber-600" />
                             </div>
                             <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
-                                Fore
-                                <span className="hidden md:inline"> Voucher</span>
+                                Fore BOGO
                             </CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
                         <p className="text-2xl md:text-4xl font-bold tabular-nums">
-                            <span className="text-amber-600">{voucherStats.foreNomin}</span>
+                            <span className="text-amber-600">{voucherStats.foreBogo}</span>
                             <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
                         </p>
-                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">No Minimum</p>
+                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Buy 1 Get 1</p>
+                    </CardContent>
+                </Card>
+
+                {/* Fore 35% */}
+                <Card className="shadow-sm bg-gradient-to-br from-orange-50 to-white border-orange-100">
+                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
+                        <div className="flex items-center gap-2 md:gap-3">
+                            <div className="p-1.5 md:p-2.5 bg-orange-100 rounded-lg md:rounded-xl">
+                                <Ticket className="h-4 w-4 md:h-5 md:w-5 text-orange-500" />
+                            </div>
+                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
+                                Fore 35%
+                            </CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
+                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
+                            <span className="text-orange-500">{voucherStats.foreDisc35}</span>
+                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
+                        </p>
+                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Diskon 35%</p>
                     </CardContent>
                 </Card>
 
@@ -375,7 +399,7 @@ export default function InventoryPage() {
                     <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
                         <div className="flex items-center gap-2 md:gap-3">
                             <div className="p-1.5 md:p-2.5 bg-emerald-100 rounded-lg md:rounded-xl">
-                                <Ticket className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
+                                <Package className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
                             </div>
                             <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
                                 KopKen
@@ -424,7 +448,7 @@ export default function InventoryPage() {
                             <CardDescription>
                                 Your coffee shop account collection
                                 <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                                    Total: {voucherStats.foreNomin + voucherStats.kopkenNomin + voucherStats.kopkenMin50k} akun siap
+                                    Total: {voucherStats.foreBogo + voucherStats.foreDisc35 + voucherStats.kopkenNomin + voucherStats.kopkenMin50k} akun siap
                                 </span>
                             </CardDescription>
                         </div>

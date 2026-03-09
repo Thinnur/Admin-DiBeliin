@@ -89,6 +89,8 @@ export function AddAccountDialog({
     const [password, setPassword] = useState('');
     const [isNominReady, setIsNominReady] = useState(true);
     const [isMin50kReady, setIsMin50kReady] = useState(true);
+    const [isBogoReady, setIsBogoReady] = useState(true);
+    const [isDiscount35Ready, setIsDiscount35Ready] = useState(true);
     const [expiryDate, setExpiryDate] = useState('');
     const [purchasePrice, setPurchasePrice] = useState('');
     const [notes, setNotes] = useState('');
@@ -122,6 +124,8 @@ export function AddAccountDialog({
             setPassword(accountToEdit.password || '');
             setIsNominReady(accountToEdit.is_nomin_ready);
             setIsMin50kReady(accountToEdit.is_min50k_ready);
+            setIsBogoReady(accountToEdit.is_bogo_ready ?? true);
+            setIsDiscount35Ready(accountToEdit.is_discount35_ready ?? true);
             setExpiryDate(accountToEdit.expiry_date);
             setPurchasePrice(accountToEdit.purchase_price?.toString() || '');
             setNotes(accountToEdit.notes || '');
@@ -131,13 +135,21 @@ export function AddAccountDialog({
         }
     }, [accountToEdit]);
 
-    // When brand changes, update Min 50k checkbox (only for new accounts)
+    // When brand changes, update voucher defaults (only for new accounts)
     useEffect(() => {
         if (!isEditMode) {
             if (brand === 'fore') {
-                setIsMin50kReady(false); // Fore doesn't have Min 50k
+                // Fore uses BOGO & 35%, not NoMin/50k
+                setIsMin50kReady(false);
+                setIsNominReady(false);
+                setIsBogoReady(true);
+                setIsDiscount35Ready(true);
             } else {
-                setIsMin50kReady(true); // Reset to true for KopKen
+                // KopKen uses NoMin & 50k
+                setIsNominReady(true);
+                setIsMin50kReady(true);
+                setIsBogoReady(false);
+                setIsDiscount35Ready(false);
             }
         }
     }, [brand, isEditMode]);
@@ -148,6 +160,8 @@ export function AddAccountDialog({
         setPassword('');
         setIsNominReady(true);
         setIsMin50kReady(true);
+        setIsBogoReady(true);
+        setIsDiscount35Ready(true);
         setExpiryDate('');
         setPurchasePrice('');
         setNotes('');
@@ -197,8 +211,11 @@ export function AddAccountDialog({
                         password,
                         expiry_date: expiryDate,
                         purchase_price: Number(purchasePrice) || 0,
-                        is_nomin_ready: isNominReady,
-                        is_min50k_ready: brand === 'kopken' ? isMin50kReady : false,
+                        // Brand-aware voucher payload
+                        is_nomin_ready: brand === 'fore' ? false : isNominReady,
+                        is_min50k_ready: brand === 'fore' ? false : isMin50kReady,
+                        is_bogo_ready: brand === 'fore' ? isBogoReady : false,
+                        is_discount35_ready: brand === 'fore' ? isDiscount35Ready : false,
                         notes: notes || null,
                     },
                 });
@@ -212,8 +229,11 @@ export function AddAccountDialog({
                     expiry_date: expiryDate,
                     purchase_price: Number(purchasePrice) || 0,
                     status: 'ready',
-                    is_nomin_ready: isNominReady,
-                    is_min50k_ready: brand === 'kopken' ? isMin50kReady : false,
+                    // Brand-aware voucher payload
+                    is_nomin_ready: brand === 'fore' ? false : isNominReady,
+                    is_min50k_ready: brand === 'fore' ? false : isMin50kReady,
+                    is_bogo_ready: brand === 'fore' ? isBogoReady : false,
+                    is_discount35_ready: brand === 'fore' ? isDiscount35Ready : false,
                     notes: notes || null,
                     in_use_by: null,
                 });
@@ -245,8 +265,11 @@ export function AddAccountDialog({
                     expiry_date: bulkExpiryDate,
                     purchase_price: price,
                     status: 'ready',
-                    is_nomin_ready: true,
-                    is_min50k_ready: bulkBrand === 'kopken',
+                    // Brand-aware voucher payload
+                    is_nomin_ready: bulkBrand === 'fore' ? false : true,
+                    is_min50k_ready: bulkBrand === 'fore' ? false : true,
+                    is_bogo_ready: bulkBrand === 'fore' ? true : false,
+                    is_discount35_ready: bulkBrand === 'fore' ? true : false,
                     notes: null,
                     in_use_by: null,
                 });
@@ -325,43 +348,66 @@ export function AddAccountDialog({
             <div className="space-y-3">
                 <Label>Available Vouchers</Label>
                 <div className="flex flex-col gap-2">
-                    {/* No Min Checkbox */}
-                    <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                        <input
-                            type="checkbox"
-                            checked={isNominReady}
-                            onChange={(e) => setIsNominReady(e.target.checked)}
-                            className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                        />
-                        <div className="flex flex-col">
-                            <span className="text-sm font-medium text-slate-900">Voucher No Min</span>
-                            <span className="text-xs text-slate-500">No minimum purchase required</span>
-                        </div>
-                    </label>
+                    {brand === 'fore' ? (
+                        <>
+                            {/* BOGO Checkbox - Fore only */}
+                            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isBogoReady}
+                                    onChange={(e) => setIsBogoReady(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-900">Voucher BOGO</span>
+                                    <span className="text-xs text-slate-500">Buy 1 Get 1 Free</span>
+                                </div>
+                            </label>
 
-                    {/* Min 50k Checkbox - Only for KopKen */}
-                    {brand === 'kopken' && (
-                        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                            <input
-                                type="checkbox"
-                                checked={isMin50kReady}
-                                onChange={(e) => setIsMin50kReady(e.target.checked)}
-                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                            />
-                            <div className="flex flex-col">
-                                <span className="text-sm font-medium text-slate-900">Voucher Min 50k</span>
-                                <span className="text-xs text-slate-500">Minimum purchase Rp 50.000</span>
-                            </div>
-                        </label>
-                    )}
+                            {/* 35% Discount Checkbox - Fore only */}
+                            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isDiscount35Ready}
+                                    onChange={(e) => setIsDiscount35Ready(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-900">Voucher Diskon 35%</span>
+                                    <span className="text-xs text-slate-500">Diskon 35% untuk semua menu</span>
+                                </div>
+                            </label>
+                        </>
+                    ) : (
+                        <>
+                            {/* No Min Checkbox - KopKen */}
+                            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isNominReady}
+                                    onChange={(e) => setIsNominReady(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-900">Voucher No Min</span>
+                                    <span className="text-xs text-slate-500">No minimum purchase required</span>
+                                </div>
+                            </label>
 
-                    {/* Info for Fore */}
-                    {brand === 'fore' && (
-                        <div className="p-3 bg-slate-50 border border-dashed rounded-lg">
-                            <p className="text-xs text-slate-500">
-                                Fore Coffee accounts only have the No Min voucher.
-                            </p>
-                        </div>
+                            {/* Min 50k Checkbox - KopKen */}
+                            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                <input
+                                    type="checkbox"
+                                    checked={isMin50kReady}
+                                    onChange={(e) => setIsMin50kReady(e.target.checked)}
+                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                />
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-medium text-slate-900">Voucher Min 50k</span>
+                                    <span className="text-xs text-slate-500">Minimum purchase Rp 50.000</span>
+                                </div>
+                            </label>
+                        </>
                     )}
                 </div>
             </div>
