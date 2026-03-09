@@ -1,7 +1,7 @@
 // =============================================================================
 // DiBeliin Admin - Operational Page
 // =============================================================================
-// Store status control, service toggles, and voucher management
+// Store status control, service toggles, voucher management, and banner management
 
 import { useState, useEffect } from 'react';
 import { Trash2, Plus, Store, Power, Tag, Coffee } from 'lucide-react';
@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 import {
     getStoreStatus,
@@ -39,6 +40,7 @@ import {
     updateServiceStatus,
     type Voucher,
 } from '@/services/operationalService';
+import BannerManagement from '@/components/inventory/BannerManagement';
 
 // -----------------------------------------------------------------------------
 // Store Status Section
@@ -579,57 +581,75 @@ export default function Operational() {
     };
 
     return (
-        <div className="space-y-6">
-            {/* Store Status (Global) */}
-            <StoreStatusSection
-                isOpen={isStoreOpen}
-                isLoading={isStatusLoading}
-                onToggle={handleToggleStore}
-            />
+        <Tabs defaultValue="operational" className="space-y-6">
+            {/* Tab Navigation */}
+            <TabsList className="w-full sm:w-auto">
+                <TabsTrigger value="operational" className="flex-1 sm:flex-none">
+                    Operasional
+                </TabsTrigger>
+                <TabsTrigger value="banner" className="flex-1 sm:flex-none">
+                    Banner
+                </TabsTrigger>
+            </TabsList>
 
-            {/* Service Status (Brand-specific) */}
-            <ServiceStatusSection
-                isForeOpen={isForeOpen}
-                isKenanganOpen={isKenanganOpen}
-                isLoading={isServiceLoading}
-                onToggleFore={handleToggleFore}
-                onToggleKenangan={handleToggleKenangan}
-            />
+            {/* ── Tab: Operasional ─────────────────────────────────────── */}
+            <TabsContent value="operational" className="space-y-6 mt-0">
+                {/* Store Status (Global) */}
+                <StoreStatusSection
+                    isOpen={isStoreOpen}
+                    isLoading={isStatusLoading}
+                    onToggle={handleToggleStore}
+                />
 
-            {/* Voucher Management */}
-            <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
-                <CardHeader className="pb-4">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2.5 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl shadow-lg shadow-amber-500/20">
-                            <Tag className="h-5 w-5 text-white" />
+                {/* Service Status (Brand-specific) */}
+                <ServiceStatusSection
+                    isForeOpen={isForeOpen}
+                    isKenanganOpen={isKenanganOpen}
+                    isLoading={isServiceLoading}
+                    onToggleFore={handleToggleFore}
+                    onToggleKenangan={handleToggleKenangan}
+                />
+
+                {/* Voucher Management */}
+                <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
+                    <CardHeader className="pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2.5 bg-gradient-to-br from-amber-400 to-amber-600 rounded-xl shadow-lg shadow-amber-500/20">
+                                <Tag className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <CardTitle className="text-lg">Voucher Management</CardTitle>
+                                <CardDescription>Create and manage discount vouchers</CardDescription>
+                            </div>
                         </div>
-                        <div>
-                            <CardTitle className="text-lg">Voucher Management</CardTitle>
-                            <CardDescription>Create and manage discount vouchers</CardDescription>
-                        </div>
-                    </div>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                    {/* Voucher Form */}
-                    <VoucherForm onSubmit={handleCreateVoucher} isLoading={isCreating} />
+                    </CardHeader>
+                    <CardContent className="space-y-6">
+                        {/* Voucher Form */}
+                        <VoucherForm onSubmit={handleCreateVoucher} isLoading={isCreating} />
 
-                    {/* Divider */}
-                    <div className="border-t border-slate-200" />
+                        {/* Divider */}
+                        <div className="border-t border-slate-200" />
 
-                    {/* Voucher List */}
-                    {isVouchersLoading ? (
-                        <div className="text-center py-12 text-slate-500">
-                            <div className="animate-pulse">Loading vouchers...</div>
-                        </div>
-                    ) : (
-                        <VoucherTable
-                            vouchers={vouchers}
-                            onDelete={handleDeleteVoucher}
-                            isDeleting={isDeletingId}
-                        />
-                    )}
-                </CardContent>
-            </Card>
-        </div>
+                        {/* Voucher List */}
+                        {isVouchersLoading ? (
+                            <div className="text-center py-12 text-slate-500">
+                                <div className="animate-pulse">Loading vouchers...</div>
+                            </div>
+                        ) : (
+                            <VoucherTable
+                                vouchers={vouchers}
+                                onDelete={handleDeleteVoucher}
+                                isDeleting={isDeletingId}
+                            />
+                        )}
+                    </CardContent>
+                </Card>
+            </TabsContent>
+
+            {/* ── Tab: Banner ──────────────────────────────────────────── */}
+            <TabsContent value="banner" className="mt-0">
+                <BannerManagement />
+            </TabsContent>
+        </Tabs>
     );
 }

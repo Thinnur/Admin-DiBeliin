@@ -135,3 +135,38 @@ export interface PaginatedResponse<T> {
   per_page: number;
   total_pages: number;
 }
+
+// -----------------------------------------------------------------------------
+// Food Menu Types
+// -----------------------------------------------------------------------------
+
+export interface AddonOption {
+  name: string;
+  price: number;
+}
+
+export interface AddonGroup {
+  groupName: string;
+  type: 'single' | 'multiple';
+  isRequired: boolean;
+  options: AddonOption[];
+}
+
+/**
+ * FoodMenu entity - Represents a fast-food item in food_menus table
+ */
+export interface FoodMenu {
+  id: string;
+  name: string;
+  brand: string;
+  description: string | null;
+  image_url: string | null;
+  original_price: number;
+  discount_price: number | null;
+  addons: AddonGroup[] | null; // Stored as JSON in Supabase
+  is_available: boolean;
+  created_at: string;
+}
+
+export type FoodMenuInsert = Omit<FoodMenu, 'id' | 'created_at'>;
+export type FoodMenuUpdate = Partial<FoodMenuInsert>;
