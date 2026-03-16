@@ -82,50 +82,29 @@ export interface SummaryDateRange {
 export async function fetchFinancialSummary(
     dateRange?: SummaryDateRange
 ): Promise<FinancialSummaryResult> {
-    // Supabase returns max 1000 rows per request by default.
-    // Paginate to fetch transactions for accurate totals.
-    const PAGE_SIZE = 1000;
-    let allTransactions: { transaction_type: string; amount: number }[] = [];
-    let from = 0;
-    let hasMore = true;
+    // ---------------------------------------------------------------------------
+    // REFACTORED: Kalkulasi agregat sekarang dilakukan di database via RPC.
+    // Sebelumnya menggunakan while-loop + reduce di sisi klien yang boros
+    // bandwidth dan CPU saat data membesar.
+    //
+    // Pastikan fungsi RPC `get_financial_summary` sudah di-deploy di Supabase.
+    // Lihat: supabase/migrations/get_financial_summary.sql
+    // ---------------------------------------------------------------------------
 
-    while (hasMore) {
-        let query = supabase
-            .from('transactions')
-            .select('transaction_type, amount')
-            .range(from, from + PAGE_SIZE - 1);
+    const { data, error } = await supabase.rpc('get_financial_summary', {
+        start_date: dateRange?.startDate ?? null,
+        end_date: dateRange?.endDate ?? null,
+    });
 
-        if (dateRange?.startDate) {
-            query = query.gte('created_at', dateRange.startDate);
-        }
-        if (dateRange?.endDate) {
-            query = query.lte('created_at', dateRange.endDate);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-            throw new Error(`Failed to fetch financial summary: ${error.message}`);
-        }
-
-        const batch = data || [];
-        allTransactions = [...allTransactions, ...batch];
-        hasMore = batch.length === PAGE_SIZE;
-        from += PAGE_SIZE;
+    if (error) {
+        throw new Error(`Failed to fetch financial summary: ${error.message}`);
     }
 
-    const totalIncome = allTransactions
-        .filter((t) => t.transaction_type === 'income')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
-
-    const totalExpense = allTransactions
-        .filter((t) => t.transaction_type === 'expense')
-        .reduce((sum, t) => sum + (t.amount || 0), 0);
-
+    // RPC mengembalikan JSON { total_income, total_expense, net_profit }
     return {
-        total_income: totalIncome,
-        total_expense: totalExpense,
-        net_profit: totalIncome - totalExpense,
+        total_income: data?.total_income ?? 0,
+        total_expense: data?.total_expense ?? 0,
+        net_profit: data?.net_profit ?? 0,
     };
 }
 

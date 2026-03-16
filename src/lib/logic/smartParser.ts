@@ -133,8 +133,31 @@ function parseIndonesianDate(text: string): string | null {
  * Berlaku sampai : 20 maret 2026
  * ```
  */
+// Batas maksimum panjang input untuk mencegah ReDoS pada regex parsing.
+// 10.000 karakter cukup untuk ~500 akun sekaligus (rata-rata ~20 char/baris).
+const MAX_INPUT_LENGTH = 10_000;
+
 export function parseBulkText(text: string): ParseResult {
-    const lines = text.split(/\r?\n/);
+    // -------------------------------------------------------------------------
+    // SECURITY: Validasi panjang input sebelum eksekusi RegEx.
+    // Mencegah ReDoS (Regular Expression Denial of Service) jika input
+    // sangat panjang — misalnya dari paste data yang tidak disengaja.
+    // -------------------------------------------------------------------------
+    const trimmedInput = text.trim();
+
+    if (trimmedInput.length === 0) {
+        return { accounts: [], globalExpiry: null, detectedCount: 0 };
+    }
+
+    if (trimmedInput.length > MAX_INPUT_LENGTH) {
+        throw new Error(
+            `Input terlalu panjang (${trimmedInput.length.toLocaleString()} karakter). ` +
+            `Maksimal ${MAX_INPUT_LENGTH.toLocaleString()} karakter per batch. ` +
+            `Silakan bagi input menjadi beberapa bagian.`
+        );
+    }
+
+    const lines = trimmedInput.split(/\r?\n/);
 
     const phones: string[] = [];
     let globalPassword: string | null = null;

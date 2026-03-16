@@ -14,6 +14,8 @@ import {
     Menu,
     X,
     ChevronRight,
+    ChevronsLeft,
+    ChevronsRight,
     LogOut,
     User,
     UtensilsCrossed,
@@ -138,12 +140,14 @@ const pageTitles: Record<string, { title: string; description: string }> = {
 
 interface SidebarProps {
     isOpen: boolean;
+    collapsed: boolean;
     onClose: () => void;
     onSignOut: () => void;
+    onToggleCollapse: () => void;
     user: SupabaseUser | null;
 }
 
-function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
+function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user }: SidebarProps) {
     const location = useLocation();
 
     return (
@@ -159,45 +163,66 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
             {/* Sidebar */}
             <aside
                 className={cn(
-                    'fixed inset-y-0 left-0 z-50 w-72 bg-slate-900 text-white transform transition-transform duration-300 ease-out md:translate-x-0 md:static md:z-auto',
-                    'flex flex-col',
+                    'fixed inset-y-0 left-0 z-50 bg-slate-900 text-white transform transition-all duration-300 ease-out',
+                    // Desktop: sticky full-height sidebar (not fixed)
+                    'md:translate-x-0 md:sticky md:top-0 md:h-screen md:z-auto',
+                    'flex flex-col overflow-hidden',
+                    // Desktop: collapsed = icon-only (72px), expanded = full (288px)
+                    collapsed ? 'md:w-[72px]' : 'md:w-72',
+                    // Mobile: always full width when open
+                    'w-72',
                     isOpen ? 'translate-x-0' : '-translate-x-full'
                 )}
                 style={{
-                    // Extend sidebar to include notch area
                     paddingTop: 'env(safe-area-inset-top, 0px)',
                 }}
             >
                 {/* Logo */}
-                <div className="flex items-center justify-between h-16 px-5 border-b border-slate-800">
-                    <div className="flex items-center gap-3">
+                <div className={cn(
+                    'flex items-center h-16 border-b border-slate-800 transition-all duration-300',
+                    collapsed ? 'justify-center px-2' : 'justify-between px-5'
+                )}>
+                    <div className={cn('flex items-center', collapsed ? 'gap-0' : 'gap-3')}>
                         <img
                             src="/Logo DiBeliin Admin.png"
                             alt="DiBeliin Admin"
-                            className="h-10 w-auto"
+                            className={cn(
+                                'w-auto transition-all duration-300',
+                                collapsed ? 'h-8' : 'h-10'
+                            )}
                         />
-                        <div>
-                            <h1 className="font-bold text-lg tracking-tight">DiBeliin</h1>
-                            <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider">
-                                Admin Panel
-                            </p>
-                        </div>
+                        {!collapsed && (
+                            <div className="animate-fade-in">
+                                <h1 className="font-bold text-lg tracking-tight">DiBeliin</h1>
+                                <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider">
+                                    Admin Panel
+                                </p>
+                            </div>
+                        )}
                     </div>
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="md:hidden text-slate-400 hover:text-white hover:bg-slate-800"
-                        onClick={onClose}
-                    >
-                        <X className="h-5 w-5" />
-                    </Button>
+                    {/* Mobile close button */}
+                    {!collapsed && (
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            className="md:hidden text-slate-400 hover:text-white hover:bg-slate-800"
+                            onClick={onClose}
+                        >
+                            <X className="h-5 w-5" />
+                        </Button>
+                    )}
                 </div>
 
                 {/* Navigation */}
-                <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
-                    <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider px-3 mb-3">
-                        Menu
-                    </p>
+                <nav className={cn(
+                    'flex-1 space-y-1.5 overflow-y-auto transition-all duration-300',
+                    collapsed ? 'p-2' : 'p-4'
+                )}>
+                    {!collapsed && (
+                        <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider px-3 mb-3">
+                            Menu
+                        </p>
+                    )}
                     {navItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
@@ -207,8 +232,12 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
                                 key={item.path}
                                 to={item.path}
                                 onClick={onClose}
+                                title={collapsed ? item.label : undefined}
                                 className={cn(
-                                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group',
+                                    'flex items-center rounded-xl transition-all duration-200 group relative',
+                                    collapsed
+                                        ? 'justify-center px-0 py-2.5'
+                                        : 'gap-3 px-4 py-3',
                                     isActive
                                         ? 'bg-amber-500/10 text-amber-400'
                                         : 'text-slate-400 hover:bg-slate-800/60 hover:text-white'
@@ -216,7 +245,7 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
                             >
                                 <div
                                     className={cn(
-                                        'p-2 rounded-lg transition-colors',
+                                        'p-2 rounded-lg transition-colors flex-shrink-0',
                                         isActive
                                             ? 'bg-amber-500/20'
                                             : 'bg-slate-800 group-hover:bg-slate-700'
@@ -224,52 +253,100 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
                                 >
                                     <Icon className="h-4 w-4" />
                                 </div>
-                                <div className="flex-1">
-                                    <span className="font-medium">{item.label}</span>
-                                    <p
-                                        className={cn(
-                                            'text-xs',
-                                            isActive ? 'text-amber-400/60' : 'text-slate-500'
+                                {!collapsed && (
+                                    <>
+                                        <div className="flex-1 min-w-0">
+                                            <span className="font-medium">{item.label}</span>
+                                            <p
+                                                className={cn(
+                                                    'text-xs truncate',
+                                                    isActive ? 'text-amber-400/60' : 'text-slate-500'
+                                                )}
+                                            >
+                                                {item.description}
+                                            </p>
+                                        </div>
+                                        {isActive && (
+                                            <ChevronRight className="h-4 w-4 text-amber-400 flex-shrink-0" />
                                         )}
-                                    >
-                                        {item.description}
-                                    </p>
-                                </div>
-                                {isActive && (
-                                    <ChevronRight className="h-4 w-4 text-amber-400" />
+                                    </>
                                 )}
+
+                                {/* Tooltip: gunakan title attribute (native) saat collapsed
+                                     untuk menghindari custom div yang overflow keluar sidebar */}
                             </NavLink>
                         );
                     })}
                 </nav>
 
                 {/* User Section */}
-                <div className="p-4 border-t border-slate-800">
-                    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50">
-                        <div className="p-2 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg">
-                            <User className="h-4 w-4 text-slate-300" />
+                <div className={cn(
+                    'border-t border-slate-800 transition-all duration-300',
+                    collapsed ? 'p-2' : 'p-4'
+                )}>
+                    {collapsed ? (
+                        // Collapsed: hanya ikon user + sign out
+                        <div className="flex flex-col items-center gap-2">
+                            <div className="p-2 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg" title={user?.email || 'Admin'}>
+                                <User className="h-4 w-4 text-slate-300" />
+                            </div>
+                            <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                                onClick={onSignOut}
+                                title="Sign Out"
+                            >
+                                <LogOut className="h-4 w-4" />
+                            </Button>
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-200 truncate">
-                                {user?.email || 'Admin'}
+                    ) : (
+                        // Expanded: full user section
+                        <>
+                            <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-800/50">
+                                <div className="p-2 bg-gradient-to-br from-slate-600 to-slate-700 rounded-lg">
+                                    <User className="h-4 w-4 text-slate-300" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-slate-200 truncate">
+                                        {user?.email || 'Admin'}
+                                    </p>
+                                    <p className="text-xs text-slate-500">Manager</p>
+                                </div>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/10"
+                                    onClick={onSignOut}
+                                    title="Sign Out"
+                                >
+                                    <LogOut className="h-4 w-4" />
+                                </Button>
+                            </div>
+                            <p className="text-center text-[10px] text-slate-600 mt-4">
+                                Jastip Management System • v1.0.0
                             </p>
-                            <p className="text-xs text-slate-500">Manager</p>
-                        </div>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8 text-slate-400 hover:text-red-400 hover:bg-red-500/10"
-                            onClick={onSignOut}
-                            title="Sign Out"
-                        >
-                            <LogOut className="h-4 w-4" />
-                        </Button>
-                    </div>
+                        </>
+                    )}
 
-                    {/* Version */}
-                    <p className="text-center text-[10px] text-slate-600 mt-4">
-                        Jastip Management System • v1.0.0
-                    </p>
+                    {/* Collapse / Expand toggle — desktop only */}
+                    <button
+                        onClick={onToggleCollapse}
+                        className={cn(
+                            'hidden md:flex items-center justify-center w-full rounded-lg text-slate-500 hover:text-slate-300 hover:bg-slate-800 transition-colors',
+                            collapsed ? 'mt-2 py-2' : 'mt-3 py-2 gap-2'
+                        )}
+                        title={collapsed ? 'Perlebar sidebar' : 'Perkecil sidebar'}
+                    >
+                        {collapsed ? (
+                            <ChevronsRight className="h-4 w-4" />
+                        ) : (
+                            <>
+                                <ChevronsLeft className="h-4 w-4" />
+                                <span className="text-xs font-medium">Perkecil</span>
+                            </>
+                        )}
+                    </button>
                 </div>
             </aside>
         </>
@@ -280,48 +357,189 @@ function Sidebar({ isOpen, onClose, onSignOut, user }: SidebarProps) {
 // Mobile Bottom Navigation
 // -----------------------------------------------------------------------------
 
+// Pisahkan menu menjadi primary (4 utama) dan secondary (sisanya)
+const primaryNavItems = navItems.filter((item) =>
+    ['/inventory', '/finance', '/calculator', '/outlets'].includes(item.path)
+);
+const secondaryNavItems = navItems.filter(
+    (item) => !['/inventory', '/finance', '/calculator', '/outlets'].includes(item.path)
+);
+
 function MobileBottomNav() {
     const location = useLocation();
+    const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+    const navigate = useNavigate();
+
+    // Cek apakah halaman aktif ada di secondary menu
+    const isSecondaryActive = secondaryNavItems.some(
+        (item) => location.pathname === item.path
+    );
 
     return (
-        <nav
-            className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/90 backdrop-blur-xl border-t border-slate-200/80"
-            style={{
-                paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-            }}
-        >
-            <div className="flex h-14 overflow-x-auto overflow-y-hidden scrollbar-none">
-                {navItems.map((item) => {
-                    const isActive = location.pathname === item.path;
-                    const Icon = item.icon;
+        <>
+            {/* ----------------------------------------------------------------- */}
+            {/* Bottom Sheet Drawer — muncul saat tombol "Lainnya" diklik         */}
+            {/* ----------------------------------------------------------------- */}
+            {moreMenuOpen && (
+                <>
+                    {/* Backdrop overlay */}
+                    <div
+                        className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm md:hidden transition-opacity"
+                        onClick={() => setMoreMenuOpen(false)}
+                    />
 
-                    return (
-                        <NavLink
-                            key={item.path}
-                            to={item.path}
-                            className={cn(
-                                'relative flex flex-col items-center justify-center gap-0.5 transition-colors flex-shrink-0 px-3',
-                                'min-w-[64px]',
-                                isActive
-                                    ? 'text-amber-600'
-                                    : 'text-slate-400 active:text-slate-600'
-                            )}
-                        >
-                            {isActive && (
-                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
-                            )}
-                            <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'drop-shadow-sm')} />
-                            <span className={cn(
-                                'text-[9px] leading-tight text-center whitespace-nowrap',
-                                isActive ? 'font-semibold' : 'font-medium'
-                            )}>
-                                {item.label}
-                            </span>
-                        </NavLink>
-                    );
-                })}
-            </div>
-        </nav>
+                    {/* Sheet content — slide up dari bawah */}
+                    <div
+                        className="fixed bottom-0 left-0 right-0 z-[70] md:hidden animate-slide-up"
+                        style={{
+                            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                        }}
+                    >
+                        <div className="bg-white rounded-t-2xl shadow-2xl border-t border-slate-200/80">
+                            {/* Handle bar */}
+                            <div className="flex justify-center pt-3 pb-1">
+                                <div className="w-10 h-1 bg-slate-300 rounded-full" />
+                            </div>
+
+                            {/* Header */}
+                            <div className="px-5 pb-3 border-b border-slate-100">
+                                <h3 className="text-sm font-semibold text-slate-800">
+                                    Menu Lainnya
+                                </h3>
+                            </div>
+
+                            {/* Menu items */}
+                            <nav className="p-3 space-y-1 max-h-[60vh] overflow-y-auto">
+                                {secondaryNavItems.map((item) => {
+                                    const isActive = location.pathname === item.path;
+                                    const Icon = item.icon;
+
+                                    return (
+                                        <button
+                                            key={item.path}
+                                            onClick={() => {
+                                                navigate(item.path);
+                                                setMoreMenuOpen(false);
+                                            }}
+                                            className={cn(
+                                                'flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all duration-200 text-left',
+                                                isActive
+                                                    ? 'bg-amber-50 text-amber-700'
+                                                    : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
+                                            )}
+                                        >
+                                            <div
+                                                className={cn(
+                                                    'p-2 rounded-lg',
+                                                    isActive
+                                                        ? 'bg-amber-100'
+                                                        : 'bg-slate-100'
+                                                )}
+                                            >
+                                                <Icon className="h-4 w-4" />
+                                            </div>
+                                            <div className="flex-1 min-w-0">
+                                                <span className="font-medium text-sm">
+                                                    {item.label}
+                                                </span>
+                                                <p className={cn(
+                                                    'text-xs truncate',
+                                                    isActive ? 'text-amber-500' : 'text-slate-400'
+                                                )}>
+                                                    {item.description}
+                                                </p>
+                                            </div>
+                                            {isActive && (
+                                                <ChevronRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                                            )}
+                                        </button>
+                                    );
+                                })}
+                            </nav>
+
+                            {/* Close button */}
+                            <div className="p-3 pt-1 border-t border-slate-100">
+                                <button
+                                    onClick={() => setMoreMenuOpen(false)}
+                                    className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 active:bg-slate-300 transition-colors"
+                                >
+                                    Tutup
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* ----------------------------------------------------------------- */}
+            {/* Bottom Navigation Bar — 4 menu utama + tombol "Lainnya"           */}
+            {/* ----------------------------------------------------------------- */}
+            <nav
+                className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/90 backdrop-blur-xl border-t border-slate-200/80"
+                style={{
+                    paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+                }}
+            >
+                <div className="flex h-14 items-center justify-around">
+                    {primaryNavItems.map((item) => {
+                        const isActive = location.pathname === item.path;
+                        const Icon = item.icon;
+
+                        return (
+                            <NavLink
+                                key={item.path}
+                                to={item.path}
+                                onClick={() => setMoreMenuOpen(false)}
+                                className={cn(
+                                    'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1',
+                                    'min-w-[60px]',
+                                    isActive
+                                        ? 'text-amber-600'
+                                        : 'text-slate-400 active:text-slate-600'
+                                )}
+                            >
+                                {isActive && (
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
+                                )}
+                                <Icon className={cn('h-5 w-5 flex-shrink-0', isActive && 'drop-shadow-sm')} />
+                                <span className={cn(
+                                    'text-[10px] leading-tight text-center whitespace-nowrap',
+                                    isActive ? 'font-semibold' : 'font-medium'
+                                )}>
+                                    {item.label}
+                                </span>
+                            </NavLink>
+                        );
+                    })}
+
+                    {/* Tombol "Lainnya" */}
+                    <button
+                        onClick={() => setMoreMenuOpen((prev) => !prev)}
+                        className={cn(
+                            'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1',
+                            'min-w-[60px]',
+                            moreMenuOpen || isSecondaryActive
+                                ? 'text-amber-600'
+                                : 'text-slate-400 active:text-slate-600'
+                        )}
+                    >
+                        {isSecondaryActive && !moreMenuOpen && (
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
+                        )}
+                        <Menu className={cn(
+                            'h-5 w-5 flex-shrink-0 transition-transform duration-200',
+                            moreMenuOpen && 'rotate-90'
+                        )} />
+                        <span className={cn(
+                            'text-[10px] leading-tight text-center whitespace-nowrap',
+                            (moreMenuOpen || isSecondaryActive) ? 'font-semibold' : 'font-medium'
+                        )}>
+                            Lainnya
+                        </span>
+                    </button>
+                </div>
+            </nav>
+        </>
     );
 }
 
@@ -330,11 +548,10 @@ function MobileBottomNav() {
 // -----------------------------------------------------------------------------
 
 interface HeaderProps {
-    onMenuClick: () => void;
     pageInfo: { title: string; description: string };
 }
 
-function Header({ onMenuClick, pageInfo }: HeaderProps) {
+function Header({ pageInfo }: HeaderProps) {
     return (
         <header
             className="sticky top-0 z-30 bg-white/80 backdrop-blur-xl border-b border-slate-200/80"
@@ -344,16 +561,6 @@ function Header({ onMenuClick, pageInfo }: HeaderProps) {
         >
             <div className="flex items-center justify-between h-14 md:h-16 px-4 md:px-6">
                 <div className="flex items-center gap-3 md:gap-4">
-                    {/* Hamburger — desktop only (mobile uses bottom nav) */}
-                    <Button
-                        variant="ghost"
-                        size="icon"
-                        className="hidden md:hidden hover:bg-slate-100"
-                        onClick={onMenuClick}
-                    >
-                        <Menu className="h-5 w-5 text-slate-600" />
-                    </Button>
-
                     {/* Mobile: small logo + title */}
                     <img
                         src="/Logo DiBeliin Admin.png"
@@ -389,8 +596,19 @@ function Header({ onMenuClick, pageInfo }: HeaderProps) {
 // Admin Layout Component
 // -----------------------------------------------------------------------------
 
+// Key untuk localStorage agar sidebar mengingat preferensi user
+const SIDEBAR_COLLAPSED_KEY = 'dibeliin_sidebar_collapsed';
+
 export default function AdminLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
+    const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+        // Baca preferensi dari localStorage saat pertama kali render
+        try {
+            return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === 'true';
+        } catch {
+            return false;
+        }
+    });
     const [user, setUser] = useState<SupabaseUser | null>(null);
     const navigate = useNavigate();
     const location = useLocation();
@@ -419,12 +637,24 @@ export default function AdminLayout() {
         }
     };
 
+    const handleToggleCollapse = () => {
+        setSidebarCollapsed((prev) => {
+            const next = !prev;
+            try {
+                localStorage.setItem(SIDEBAR_COLLAPSED_KEY, String(next));
+            } catch { /* ignore */ }
+            return next;
+        });
+    };
+
     return (
         <div className="min-h-screen bg-slate-50 flex">
             {/* Sidebar */}
             <Sidebar
                 isOpen={sidebarOpen}
+                collapsed={sidebarCollapsed}
                 onClose={() => setSidebarOpen(false)}
+                onToggleCollapse={handleToggleCollapse}
                 onSignOut={handleSignOut}
                 user={user}
             />
@@ -433,7 +663,6 @@ export default function AdminLayout() {
             <div className="flex-1 flex flex-col min-w-0">
                 {/* Header */}
                 <Header
-                    onMenuClick={() => setSidebarOpen(true)}
                     pageInfo={pageInfo}
                 />
 
