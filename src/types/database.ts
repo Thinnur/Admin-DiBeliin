@@ -145,6 +145,7 @@ export interface PaginatedResponse<T> {
 export interface AddonOption {
   name: string;
   price: number;
+  is_default?: boolean;
 }
 
 export interface AddonGroup {

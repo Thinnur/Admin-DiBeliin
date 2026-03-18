@@ -182,7 +182,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
     const [badge, setBadge] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
     const [isSpecialFee, setIsSpecialFee] = useState(false);
-    const [selectedCustomizations, setSelectedCustomizations] = useState<string[]>([]);
+    const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
 
     useEffect(() => {
         if (item) {
@@ -198,7 +198,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
             setBadge(item.badge || '');
             setIsAvailable(item.is_available);
             setIsSpecialFee(item.is_special_fee ?? false);
-            setSelectedCustomizations(item.customizations || []);
+            setAddonGroups(item.addons ? JSON.parse(JSON.stringify(item.addons)) : []);
         }
     }, [item]);
 
@@ -234,7 +234,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
             badge: badge.trim() || null,
             is_available: isAvailable,
             is_special_fee: isSpecialFee,
-            customizations: selectedCustomizations,
+            addons: addonGroups.length > 0 ? addonGroups : null,
         });
     };
 
@@ -244,7 +244,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Edit Menu</DialogTitle>
                 </DialogHeader>
@@ -398,65 +398,15 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                         />
                     </div>
 
-                    {/* Customizations */}
+                    {/* Add-on Groups */}
                     <div className="space-y-2">
-                        <Label className="font-medium">Opsi Kustomisasi</Label>
-                        <div className="p-4 rounded-lg bg-slate-50 border space-y-4">
-                            {/* Sugar Group */}
-                            <div>
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Gula / Manis</p>
-                                <div className="space-y-2">
-                                    {[
-                                        { value: 'less_sugar', label: 'Less Sugar' },
-                                        { value: 'no_sugar', label: 'No Sugar' },
-                                        { value: 'less_sweet', label: 'Less Sweet' },
-                                    ].map(({ value, label }) => (
-                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
-                                                checked={selectedCustomizations.includes(value)}
-                                                onChange={(e) => {
-                                                    setSelectedCustomizations(prev =>
-                                                        e.target.checked
-                                                            ? [...prev, value]
-                                                            : prev.filter(c => c !== value)
-                                                    );
-                                                }}
-                                            />
-                                            <span className="text-sm">{label}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                            {/* Ice Group */}
-                            <div>
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Es</p>
-                                <div className="space-y-2">
-                                    {[
-                                        { value: 'less_ice', label: 'Less Ice' },
-                                        { value: 'no_ice', label: 'No Ice' },
-                                        { value: 'more_ice', label: 'More Ice' },
-                                    ].map(({ value, label }) => (
-                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
-                                                checked={selectedCustomizations.includes(value)}
-                                                onChange={(e) => {
-                                                    setSelectedCustomizations(prev =>
-                                                        e.target.checked
-                                                            ? [...prev, value]
-                                                            : prev.filter(c => c !== value)
-                                                    );
-                                                }}
-                                            />
-                                            <span className="text-sm">{label}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
+                        <div className="flex items-center justify-between">
+                            <Label className="font-medium">Add-on / Pilihan Tambahan</Label>
+                            {addonGroups.length > 0 && (
+                                <span className="text-xs text-slate-500">{addonGroups.length} grup</span>
+                            )}
                         </div>
+                        <AddonGroupBuilder groups={addonGroups} onChange={setAddonGroups} />
                     </div>
                 </div>
                 <DialogFooter>
@@ -499,7 +449,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
     const [imageUrl, setImageUrl] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
     const [isSpecialFee, setIsSpecialFee] = useState(false);
-    const [selectedCustomizations, setSelectedCustomizations] = useState<string[]>([]);
+    const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
 
     const resetForm = () => {
         setName('');
@@ -514,7 +464,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
         setImageUrl('');
         setIsAvailable(true);
         setIsSpecialFee(false);
-        setSelectedCustomizations([]);
+        setAddonGroups([]);
     };
 
     const handleClose = () => {
@@ -549,7 +499,8 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
             category_sort: null,
             is_available: isAvailable,
             is_special_fee: isSpecialFee,
-            customizations: selectedCustomizations,
+            customizations: [],
+            addons: addonGroups.length > 0 ? addonGroups : null,
         };
 
         await onSave(newItem);
@@ -560,7 +511,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
 
     return (
         <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-            <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Tambah Menu Baru</DialogTitle>
                 </DialogHeader>
@@ -714,65 +665,15 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                         />
                     </div>
 
-                    {/* Customizations */}
+                    {/* Add-on Groups */}
                     <div className="space-y-2">
-                        <Label className="font-medium">Opsi Kustomisasi</Label>
-                        <div className="p-4 rounded-lg bg-slate-50 border space-y-4">
-                            {/* Sugar Group */}
-                            <div>
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Gula / Manis</p>
-                                <div className="space-y-2">
-                                    {[
-                                        { value: 'less_sugar', label: 'Less Sugar' },
-                                        { value: 'no_sugar', label: 'No Sugar' },
-                                        { value: 'less_sweet', label: 'Less Sweet' },
-                                    ].map(({ value, label }) => (
-                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
-                                                checked={selectedCustomizations.includes(value)}
-                                                onChange={(e) => {
-                                                    setSelectedCustomizations(prev =>
-                                                        e.target.checked
-                                                            ? [...prev, value]
-                                                            : prev.filter(c => c !== value)
-                                                    );
-                                                }}
-                                            />
-                                            <span className="text-sm">{label}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                            {/* Ice Group */}
-                            <div>
-                                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Es</p>
-                                <div className="space-y-2">
-                                    {[
-                                        { value: 'less_ice', label: 'Less Ice' },
-                                        { value: 'no_ice', label: 'No Ice' },
-                                        { value: 'more_ice', label: 'More Ice' },
-                                    ].map(({ value, label }) => (
-                                        <label key={value} className="flex items-center gap-3 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="h-4 w-4 rounded border-slate-300 accent-slate-700"
-                                                checked={selectedCustomizations.includes(value)}
-                                                onChange={(e) => {
-                                                    setSelectedCustomizations(prev =>
-                                                        e.target.checked
-                                                            ? [...prev, value]
-                                                            : prev.filter(c => c !== value)
-                                                    );
-                                                }}
-                                            />
-                                            <span className="text-sm">{label}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
+                        <div className="flex items-center justify-between">
+                            <Label className="font-medium">Add-on / Pilihan Tambahan</Label>
+                            {addonGroups.length > 0 && (
+                                <span className="text-xs text-slate-500">{addonGroups.length} grup</span>
+                            )}
                         </div>
+                        <AddonGroupBuilder groups={addonGroups} onChange={setAddonGroups} />
                     </div>
                 </div>
                 <DialogFooter>
@@ -1163,14 +1064,21 @@ function AddonGroupBuilder({ groups, onChange }: AddonGroupBuilderProps) {
     };
 
     const addOption = (groupIdx: number) => {
-        const newOption: AddonOption = { name: '', price: 0 };
+        const newOption: AddonOption = { name: '', price: 0, is_default: false };
         updateGroup(groupIdx, { options: [...groups[groupIdx].options, newOption] });
     };
 
     const updateOption = (groupIdx: number, optionIdx: number, updated: Partial<AddonOption>) => {
-        const newOptions = groups[groupIdx].options.map((o, i) =>
+        // Single-choice enforcement for is_default: when setting is_default: true,
+        // clear is_default from all other options in the same group first.
+        let newOptions = groups[groupIdx].options.map((o, i) =>
             i === optionIdx ? { ...o, ...updated } : o
         );
+        if (updated.is_default === true) {
+            newOptions = newOptions.map((o, i) =>
+                i === optionIdx ? o : { ...o, is_default: false }
+            );
+        }
         updateGroup(groupIdx, { options: newOptions });
     };
 
@@ -1259,6 +1167,14 @@ function AddonGroupBuilder({ groups, onChange }: AddonGroupBuilderProps) {
                                             className="w-28 h-8 text-sm pl-8"
                                         />
                                     </div>
+                                    <label className="flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer shrink-0 select-none">
+                                        <Switch
+                                            checked={opt.is_default ?? false}
+                                            onCheckedChange={(checked) => updateOption(gIdx, oIdx, { is_default: checked })}
+                                            className="scale-75 origin-left"
+                                        />
+                                        <span className="text-[11px] font-medium text-slate-500">Default</span>
+                                    </label>
                                     <button
                                         type="button"
                                         onClick={() => removeOption(gIdx, oIdx)}
@@ -1816,7 +1732,7 @@ export default function MenuManagement() {
                 badge: data.badge,
                 is_available: data.is_available ?? true,
                 is_special_fee: data.is_special_fee,
-                customizations: data.customizations,
+                addons: data.addons,
             };
 
             console.log('Updating menu item ID:', id);

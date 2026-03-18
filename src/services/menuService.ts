@@ -4,6 +4,7 @@
 // CRUD operations for menu items (prices, availability)
 
 import { supabase } from '@/lib/supabase';
+import type { AddonGroup } from '@/types/database';
 
 // -----------------------------------------------------------------------------
 // Types
@@ -25,6 +26,7 @@ export interface MenuItem {
     is_available: boolean;
     is_special_fee: boolean;
     customizations: string[];
+    addons: AddonGroup[] | null;
     created_at: string;
 }
 
@@ -43,6 +45,7 @@ export interface MenuItemUpdate {
     is_available?: boolean;
     is_special_fee?: boolean;
     customizations?: string[];
+    addons?: AddonGroup[] | null;
 }
 
 // -----------------------------------------------------------------------------
@@ -142,6 +145,9 @@ export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<
     }
     if (data.customizations !== undefined) {
         cleanPayload.customizations = data.customizations;
+    }
+    if (data.addons !== undefined) {
+        cleanPayload.addons = data.addons;
     }
 
     console.log('menuService.updateMenuItem - ID:', numericId, 'Type:', typeof numericId);

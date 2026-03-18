@@ -160,8 +160,8 @@ function simulateForeScenario(
     allItems: ForeItem[],
     k: number
 ): { groups: OptimizedGroup[]; netBenefit: number } {
-    // Sort ascending by actualPrice — cheapest items enter BOGO first (per system prompt)
-    const sorted = [...allItems].sort((a, b) => a.price - b.price);
+    // Sort ascending by basePrice — item dengan Regular price termurah yang gratis (BOGO rule)
+    const sorted = [...allItems].sort((a, b) => a.basePrice - b.basePrice);
 
     const groups: OptimizedGroup[] = [];
     let totalBogoDisc = 0;

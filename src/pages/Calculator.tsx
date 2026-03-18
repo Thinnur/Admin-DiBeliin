@@ -3,7 +3,7 @@
 // =============================================================================
 // Optimize order splitting across multiple accounts for maximum savings
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     Calculator,
     Sparkles,
@@ -56,6 +56,7 @@ import {
     getSampleOrderText,
     type ParsedItem,
 } from '@/lib/logic/orderParser';
+import { getMenuItems, type MenuItem } from '@/services/menuService';
 import {
     optimizeOrder,
     isForeDeli,
@@ -286,8 +287,8 @@ function StrategyCard({
             <CardContent className="space-y-3">
                 <div className="space-y-1.5">
                     {group.items.map((item, i) => (
-                        <div key={i} className="flex justify-between text-sm">
-                            <div className="flex items-center gap-1.5 truncate pr-2">
+                        <div key={i} className="flex justify-between text-sm min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0 pr-2">
                                 {isBogo && item.isBogoDFree && (
                                     <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">GRATIS</span>
                                 )}
@@ -412,6 +413,15 @@ export default function CalculatorPage() {
     const [showSuccessDialog, setShowSuccessDialog] = useState(false);
     const executeOrder = useExecuteOrder();
 
+    // Menu DB cache for auto-price matching
+    const [dbMenuItems, setDbMenuItems] = useState<MenuItem[]>([]);
+
+    useEffect(() => {
+        getMenuItems()
+            .then(setDbMenuItems)
+            .catch(() => toast.error('Gagal memuat database harga menu'));
+    }, []);
+
     // Generate unique ID
     const generateId = () => Math.random().toString(36).substring(2, 9);
 
@@ -424,13 +434,52 @@ export default function CalculatorPage() {
             return;
         }
 
-        const editableItems: EditableItem[] = parsed.items.map((item) => ({
-            ...item,
-            id: generateId(),
-            // Auto-detect Fore Deli & set basePrice = price by default
-            isForeDeli: isForeDeli(item.name),
-            basePrice: item.price,
-        }));
+        // Determine which DB brand to search against
+        const dbBrand = brand === 'kopken' ? 'kenangan' : 'fore';
+
+        const editableItems: EditableItem[] = parsed.items.map((item) => {
+            // Sanitize the parsed name: lowercase + strip size/temp modifiers
+            const sanitizedName = item.name
+                .toLowerCase()
+                .replace(/[-–]?\s*(regular|large|ice|hot)\b/gi, '')
+                .trim();
+
+            // Try to find a matching item in the DB
+            const matchedDbItem = dbMenuItems.find(
+                (dbItem) =>
+                    dbItem.brand === dbBrand &&
+                    (dbItem.name.toLowerCase().includes(sanitizedName) ||
+                        sanitizedName.includes(dbItem.name.toLowerCase()))
+            );
+
+            // Fallback values
+            let determinedBasePrice = item.price;
+            let determinedIsDeli = isForeDeli(item.name);
+
+            if (matchedDbItem) {
+                // Inject base price from DB for Fore BOGO calculation
+                if (brand === 'fore' && matchedDbItem.regular_price != null) {
+                    determinedBasePrice = matchedDbItem.regular_price;
+                }
+
+                // Detect Fore Deli from DB categories
+                const deliKeywords = ['food', 'deli', 'pastry', 'snack'];
+                const isDeliCategory = matchedDbItem.categories?.some((cat) =>
+                    deliKeywords.some((kw) => cat.toLowerCase().includes(kw))
+                ) ?? false;
+
+                if (isDeliCategory) {
+                    determinedIsDeli = true;
+                }
+            }
+
+            return {
+                ...item,
+                id: generateId(),
+                isForeDeli: determinedIsDeli,
+                basePrice: determinedBasePrice,
+            };
+        });
 
         setItems(editableItems);
         setResult(null);
@@ -597,9 +646,9 @@ export default function CalculatorPage() {
             </div>
 
             {/* Two Column Layout */}
-            <div className="grid lg:grid-cols-2 gap-6">
+            <div className="grid lg:grid-cols-2 gap-6 min-w-0">
                 {/* Left Column - Input */}
-                <div className="space-y-4">
+                <div className="space-y-4 min-w-0">
                     {/* Parse Section */}
                     <Card className="shadow-sm">
                         <CardHeader className="pb-3">
@@ -624,6 +673,18 @@ Example:
 3x Kopi Kenangan Mantan 18000"
                                     className="w-full h-32 p-3 text-sm border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="brand-input">Brand</Label>
+                                <Select value={brand} onValueChange={(v) => setBrand(v as AccountBrand)}>
+                                    <SelectTrigger id="brand-input">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="kopken">Kopi Kenangan</SelectItem>
+                                        <SelectItem value="fore">Fore Coffee</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                             <div className="flex gap-2">
                                 <Button onClick={handleParse} disabled={!orderText.trim()}>
@@ -732,30 +793,16 @@ Example:
                     {items.length > 0 && (
                         <Card className="shadow-sm">
                             <CardContent className="pt-4 space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-2">
-                                        <Label htmlFor="brand">Brand</Label>
-                                        <Select value={brand} onValueChange={(v) => setBrand(v as AccountBrand)}>
-                                            <SelectTrigger>
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="kopken">Kopi Kenangan</SelectItem>
-                                                <SelectItem value="fore">Fore Coffee</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                    <div className="space-y-2">
-                                        <Label htmlFor="adminCost">Admin Cost (per account)</Label>
-                                        <Input
-                                            id="adminCost"
-                                            type="number"
-                                            min="0"
-                                            step="1000"
-                                            value={adminCost}
-                                            onChange={(e) => setAdminCost(parseInt(e.target.value) || 0)}
-                                        />
-                                    </div>
+                                <div className="space-y-2">
+                                    <Label htmlFor="adminCost">Admin Cost (per account)</Label>
+                                    <Input
+                                        id="adminCost"
+                                        type="number"
+                                        min="0"
+                                        step="1000"
+                                        value={adminCost}
+                                        onChange={(e) => setAdminCost(parseInt(e.target.value) || 0)}
+                                    />
                                 </div>
 
                                 <Button
@@ -772,7 +819,7 @@ Example:
                 </div>
 
                 {/* Right Column - Results */}
-                <div className="space-y-4">
+                <div className="space-y-4 min-w-0">
                     {!hasOptimized && items.length === 0 && (
                         <div className="hidden lg:flex h-96 flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl">
                             <Calculator className="w-12 h-12 text-slate-300 mb-4" />

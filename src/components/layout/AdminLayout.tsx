@@ -3,7 +3,7 @@
 // =============================================================================
 // Premium admin shell with polished sidebar and header
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     Package,
@@ -367,110 +367,29 @@ const secondaryNavItems = navItems.filter(
 
 function MobileBottomNav() {
     const location = useLocation();
-    const [moreMenuOpen, setMoreMenuOpen] = useState(false);
     const navigate = useNavigate();
+    const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+    const popupRef = useRef<HTMLDivElement>(null);
 
     // Cek apakah halaman aktif ada di secondary menu
     const isSecondaryActive = secondaryNavItems.some(
         (item) => location.pathname === item.path
     );
 
+    // Tutup popup saat klik di luar
+    useEffect(() => {
+        if (!moreMenuOpen) return;
+        const handler = (e: MouseEvent) => {
+            if (popupRef.current && !popupRef.current.contains(e.target as Node)) {
+                setMoreMenuOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handler);
+        return () => document.removeEventListener('mousedown', handler);
+    }, [moreMenuOpen]);
+
     return (
         <>
-            {/* ----------------------------------------------------------------- */}
-            {/* Bottom Sheet Drawer — muncul saat tombol "Lainnya" diklik         */}
-            {/* ----------------------------------------------------------------- */}
-            {moreMenuOpen && (
-                <>
-                    {/* Backdrop overlay */}
-                    <div
-                        className="fixed inset-0 z-[60] bg-black/40 backdrop-blur-sm md:hidden transition-opacity"
-                        onClick={() => setMoreMenuOpen(false)}
-                    />
-
-                    {/* Sheet content — slide up dari bawah */}
-                    <div
-                        className="fixed bottom-0 left-0 right-0 z-[70] md:hidden animate-slide-up"
-                        style={{
-                            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-                        }}
-                    >
-                        <div className="bg-white rounded-t-2xl shadow-2xl border-t border-slate-200/80">
-                            {/* Handle bar */}
-                            <div className="flex justify-center pt-3 pb-1">
-                                <div className="w-10 h-1 bg-slate-300 rounded-full" />
-                            </div>
-
-                            {/* Header */}
-                            <div className="px-5 pb-3 border-b border-slate-100">
-                                <h3 className="text-sm font-semibold text-slate-800">
-                                    Menu Lainnya
-                                </h3>
-                            </div>
-
-                            {/* Menu items */}
-                            <nav className="p-3 space-y-1 max-h-[60vh] overflow-y-auto">
-                                {secondaryNavItems.map((item) => {
-                                    const isActive = location.pathname === item.path;
-                                    const Icon = item.icon;
-
-                                    return (
-                                        <button
-                                            key={item.path}
-                                            onClick={() => {
-                                                navigate(item.path);
-                                                setMoreMenuOpen(false);
-                                            }}
-                                            className={cn(
-                                                'flex items-center gap-3 w-full px-4 py-3 rounded-xl transition-all duration-200 text-left',
-                                                isActive
-                                                    ? 'bg-amber-50 text-amber-700'
-                                                    : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
-                                            )}
-                                        >
-                                            <div
-                                                className={cn(
-                                                    'p-2 rounded-lg',
-                                                    isActive
-                                                        ? 'bg-amber-100'
-                                                        : 'bg-slate-100'
-                                                )}
-                                            >
-                                                <Icon className="h-4 w-4" />
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <span className="font-medium text-sm">
-                                                    {item.label}
-                                                </span>
-                                                <p className={cn(
-                                                    'text-xs truncate',
-                                                    isActive ? 'text-amber-500' : 'text-slate-400'
-                                                )}>
-                                                    {item.description}
-                                                </p>
-                                            </div>
-                                            {isActive && (
-                                                <ChevronRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                                            )}
-                                        </button>
-                                    );
-                                })}
-                            </nav>
-
-                            {/* Close button */}
-                            <div className="p-3 pt-1 border-t border-slate-100">
-                                <button
-                                    onClick={() => setMoreMenuOpen(false)}
-                                    className="w-full py-2.5 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 active:bg-slate-300 transition-colors"
-                                >
-                                    Tutup
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </>
-            )}
-
             {/* ----------------------------------------------------------------- */}
             {/* Bottom Navigation Bar — 4 menu utama + tombol "Lainnya"           */}
             {/* ----------------------------------------------------------------- */}
@@ -512,31 +431,87 @@ function MobileBottomNav() {
                         );
                     })}
 
-                    {/* Tombol "Lainnya" */}
-                    <button
-                        onClick={() => setMoreMenuOpen((prev) => !prev)}
-                        className={cn(
-                            'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1',
-                            'min-w-[60px]',
-                            moreMenuOpen || isSecondaryActive
-                                ? 'text-amber-600'
-                                : 'text-slate-400 active:text-slate-600'
+                    {/* Tombol "Lainnya" dengan popup ke atas */}
+                    <div className="relative min-w-[60px] flex justify-center" ref={popupRef}>
+                        {/* Popup — muncul ke atas dari tombol */}
+                        {moreMenuOpen && (
+                            <div className="absolute bottom-full right-0 mb-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/80 z-[80] overflow-hidden">
+                                {/* Header */}
+                                <div className="px-4 py-3 border-b border-slate-100">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        Menu Lainnya
+                                    </p>
+                                </div>
+
+                                {/* Items */}
+                                <nav className="p-2 space-y-0.5">
+                                    {secondaryNavItems.map((item) => {
+                                        const isActive = location.pathname === item.path;
+                                        const Icon = item.icon;
+                                        return (
+                                            <button
+                                                key={item.path}
+                                                onClick={() => {
+                                                    navigate(item.path);
+                                                    setMoreMenuOpen(false);
+                                                }}
+                                                className={cn(
+                                                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left',
+                                                    isActive
+                                                        ? 'bg-amber-50 text-amber-700'
+                                                        : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
+                                                )}
+                                            >
+                                                <div className={cn(
+                                                    'p-1.5 rounded-lg shrink-0',
+                                                    isActive ? 'bg-amber-100' : 'bg-slate-100'
+                                                )}>
+                                                    <Icon className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="font-medium text-sm">{item.label}</span>
+                                                    <p className={cn(
+                                                        'text-xs truncate',
+                                                        isActive ? 'text-amber-500' : 'text-slate-400'
+                                                    )}>
+                                                        {item.description}
+                                                    </p>
+                                                </div>
+                                                {isActive && (
+                                                    <ChevronRight className="h-4 w-4 text-amber-500 shrink-0" />
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </nav>
+                            </div>
                         )}
-                    >
-                        {isSecondaryActive && !moreMenuOpen && (
-                            <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
-                        )}
-                        <Menu className={cn(
-                            'h-5 w-5 flex-shrink-0 transition-transform duration-200',
-                            moreMenuOpen && 'rotate-90'
-                        )} />
-                        <span className={cn(
-                            'text-[10px] leading-tight text-center whitespace-nowrap',
-                            (moreMenuOpen || isSecondaryActive) ? 'font-semibold' : 'font-medium'
-                        )}>
-                            Lainnya
-                        </span>
-                    </button>
+
+                        {/* Tombol trigger */}
+                        <button
+                            onClick={() => setMoreMenuOpen(prev => !prev)}
+                            className={cn(
+                                'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1 w-full',
+                                moreMenuOpen || isSecondaryActive
+                                    ? 'text-amber-600'
+                                    : 'text-slate-400 active:text-slate-600'
+                            )}
+                        >
+                            {isSecondaryActive && !moreMenuOpen && (
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
+                            )}
+                            <Menu className={cn(
+                                'h-5 w-5 flex-shrink-0 transition-transform duration-200',
+                                moreMenuOpen && 'rotate-90'
+                            )} />
+                            <span className={cn(
+                                'text-[10px] leading-tight text-center whitespace-nowrap',
+                                (moreMenuOpen || isSecondaryActive) ? 'font-semibold' : 'font-medium'
+                            )}>
+                                Lainnya
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </nav>
         </>
@@ -561,7 +536,7 @@ function Header({ pageInfo }: HeaderProps) {
         >
             <div className="flex items-center justify-between h-14 md:h-16 px-4 md:px-6">
                 <div className="flex items-center gap-3 md:gap-4">
-                    {/* Mobile: small logo + title */}
+                    {/* Mobile: small logo */}
                     <img
                         src="/Logo DiBeliin Admin.png"
                         alt="DiBeliin Admin"
@@ -579,7 +554,7 @@ function Header({ pageInfo }: HeaderProps) {
                     </div>
                 </div>
 
-                {/* Right Side - Logo (desktop only) */}
+                {/* Desktop: logo */}
                 <div className="hidden md:flex items-center gap-3">
                     <img
                         src="/Logo DiBeliin Admin.png"
