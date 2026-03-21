@@ -99,6 +99,76 @@ export function useReadyAccounts(
     });
 }
 
+/**
+ * Fetch akun 'ready' untuk tampilan Staff:
+ * - KopKen: 3 akun voucher lengkap (NoMin+50k) + 3 akun hanya Min50k
+ * - Fore:   3 akun voucher lengkap (BOGO+35%) + 3 akun hanya 35%
+ */
+export function useStaffAccounts(
+    brand: AccountBrand,
+    options?: Omit<UseQueryOptions<Account[], Error>, 'queryKey' | 'queryFn'>
+) {
+    return useQuery({
+        queryKey: ['accounts', 'staff', brand],
+        queryFn: async () => {
+            const { supabase } = await import('../lib/supabase');
+
+            if (brand === 'kopken') {
+                // Grup 1: Voucher lengkap (NoMin=true AND Min50k=true)
+                const { data: complete } = await supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('brand', 'kopken')
+                    .eq('status', 'ready')
+                    .eq('is_nomin_ready', true)
+                    .eq('is_min50k_ready', true)
+                    .order('expiry_date', { ascending: true })
+                    .limit(3);
+
+                // Grup 2: Hanya Min50k (NoMin=false AND Min50k=true)
+                const { data: min50kOnly } = await supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('brand', 'kopken')
+                    .eq('status', 'ready')
+                    .eq('is_nomin_ready', false)
+                    .eq('is_min50k_ready', true)
+                    .order('expiry_date', { ascending: true })
+                    .limit(3);
+
+                return [...(complete || []), ...(min50kOnly || [])] as Account[];
+            } else {
+                // Fore Coffee
+                // Grup 1: Voucher lengkap (BOGO=true AND 35%=true)
+                const { data: complete } = await supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('brand', 'fore')
+                    .eq('status', 'ready')
+                    .eq('is_bogo_ready', true)
+                    .eq('is_discount35_ready', true)
+                    .order('expiry_date', { ascending: true })
+                    .limit(3);
+
+                // Grup 2: Hanya 35% (BOGO=false AND 35%=true)
+                const { data: disc35Only } = await supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('brand', 'fore')
+                    .eq('status', 'ready')
+                    .eq('is_bogo_ready', false)
+                    .eq('is_discount35_ready', true)
+                    .order('expiry_date', { ascending: true })
+                    .limit(3);
+
+                return [...(complete || []), ...(disc35Only || [])] as Account[];
+            }
+        },
+        enabled: !!brand,
+        ...options,
+    });
+}
+
 // -----------------------------------------------------------------------------
 // Mutation Hooks (Write Operations)
 // -----------------------------------------------------------------------------

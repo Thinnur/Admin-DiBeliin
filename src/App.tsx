@@ -1,13 +1,14 @@
 // =============================================================================
 // DiBeliin Admin - App Entry Point
 // =============================================================================
-// Router setup with Authentication
+// Router setup dengan Authentication & Role-Based Access Control
 
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 
 import { queryClient } from '@/lib/queryClient';
+import { useAuth } from '@/contexts/AuthContext';
 import AdminLayout from '@/components/layout/AdminLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/Login';
@@ -23,6 +24,24 @@ import DigitalProvidersPage from '@/pages/DigitalProviders';
 
 import './App.css';
 
+// -----------------------------------------------------------------------------
+// Staff Route Guard
+// Redirect Staff ke /inventory jika mencoba akses halaman terlarang
+// -----------------------------------------------------------------------------
+
+function StaffRoute() {
+    const { isStaff, isLoading } = useAuth();
+
+    // Tunggu sampai role selesai diload
+    if (isLoading) return null;
+
+    // Jika Staff, redirect ke /inventory
+    if (isStaff) return <Navigate to="/inventory" replace />;
+
+    // Super Admin — lanjutkan ke halaman yang diminta
+    return <Outlet />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -31,22 +50,29 @@ function App() {
           {/* Public Route */}
           <Route path="/login" element={<LoginPage />} />
 
-          {/* Protected Routes */}
+          {/* Protected Routes (harus login) */}
           <Route element={<ProtectedRoute />}>
             <Route element={<AdminLayout />}>
+
+              {/* Rute yang bisa diakses SEMUA role */}
               <Route path="/inventory" element={<InventoryPage />} />
-              <Route path="/finance" element={<FinancePage />} />
               <Route path="/calculator" element={<CalculatorPage />} />
-              <Route path="/operational" element={<OperationalPage />} />
-              <Route path="/outlets" element={<OutletManagementPage />} />
-              <Route path="/menus" element={<MenuManagementPage />} />
-              <Route path="/digital-products" element={<DigitalProductsPage />} />
-              <Route path="/digital-tracking" element={<DigitalTrackingPage />} />
-              <Route path="/digital-providers" element={<DigitalProvidersPage />} />
+
+              {/* Rute khusus Super Admin — Staff akan di-redirect ke /inventory */}
+              <Route element={<StaffRoute />}>
+                <Route path="/finance" element={<FinancePage />} />
+                <Route path="/operational" element={<OperationalPage />} />
+                <Route path="/outlets" element={<OutletManagementPage />} />
+                <Route path="/menus" element={<MenuManagementPage />} />
+                <Route path="/digital-products" element={<DigitalProductsPage />} />
+                <Route path="/digital-tracking" element={<DigitalTrackingPage />} />
+                <Route path="/digital-providers" element={<DigitalProvidersPage />} />
+              </Route>
+
             </Route>
           </Route>
 
-          {/* Redirect root to inventory (will redirect to login if not authenticated) */}
+          {/* Redirect root ke inventory (akan redirect ke login jika belum auth) */}
           <Route path="/" element={<Navigate to="/inventory" replace />} />
 
           {/* Catch-all redirect */}
@@ -68,3 +94,4 @@ function App() {
 }
 
 export default App;
+

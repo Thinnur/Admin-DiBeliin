@@ -22,11 +22,13 @@ import {
     MonitorPlay,
     CalendarClock,
     Layers,
+    ShieldAlert,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -145,10 +147,16 @@ interface SidebarProps {
     onSignOut: () => void;
     onToggleCollapse: () => void;
     user: SupabaseUser | null;
+    isStaff: boolean;
 }
 
-function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user }: SidebarProps) {
+function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user, isStaff }: SidebarProps) {
     const location = useLocation();
+
+    // Filter navigasi: Staff hanya bisa akses Inventory dan Calculator
+    const visibleNavItems = isStaff
+        ? navItems.filter((item) => ['/inventory', '/calculator'].includes(item.path))
+        : navItems;
 
     return (
         <>
@@ -223,7 +231,7 @@ function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user
                             Menu
                         </p>
                     )}
-                    {navItems.map((item) => {
+                    {visibleNavItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
 
@@ -311,7 +319,14 @@ function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user
                                     <p className="text-sm font-medium text-slate-200 truncate">
                                         {user?.email || 'Admin'}
                                     </p>
-                                    <p className="text-xs text-slate-500">Manager</p>
+                                    {isStaff ? (
+                                        <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400">
+                                            <ShieldAlert className="h-2.5 w-2.5" />
+                                            Staff Mode
+                                        </span>
+                                    ) : (
+                                        <p className="text-xs text-slate-500">Super Admin</p>
+                                    )}
                                 </div>
                                 <Button
                                     variant="ghost"
@@ -357,7 +372,7 @@ function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user
 // Mobile Bottom Navigation
 // -----------------------------------------------------------------------------
 
-// Pisahkan menu menjadi primary (4 utama) dan secondary (sisanya)
+// Menu default untuk Super Admin
 const primaryNavItems = navItems.filter((item) =>
     ['/inventory', '/finance', '/calculator', '/outlets'].includes(item.path)
 );
@@ -365,16 +380,28 @@ const secondaryNavItems = navItems.filter(
     (item) => !['/inventory', '/finance', '/calculator', '/outlets'].includes(item.path)
 );
 
-function MobileBottomNav() {
+// Menu untuk Staff (hanya Inventory & Calculator)
+const staffNavItems = navItems.filter((item) =>
+    ['/inventory', '/calculator'].includes(item.path)
+);
+
+interface MobileBottomNavProps {
+    isStaff: boolean;
+}
+
+function MobileBottomNav({ isStaff }: MobileBottomNavProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
     const popupRef = useRef<HTMLDivElement>(null);
 
     // Cek apakah halaman aktif ada di secondary menu
-    const isSecondaryActive = secondaryNavItems.some(
+    const isSecondaryActive = !isStaff && secondaryNavItems.some(
         (item) => location.pathname === item.path
     );
+
+    // Tentukan item yang ditampilkan berdasarkan role
+    const activePrimaryItems = isStaff ? staffNavItems : primaryNavItems;
 
     // Tutup popup saat klik di luar
     useEffect(() => {
@@ -400,7 +427,7 @@ function MobileBottomNav() {
                 }}
             >
                 <div className="flex h-14 items-center justify-around">
-                    {primaryNavItems.map((item) => {
+                    {activePrimaryItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
 
@@ -431,87 +458,89 @@ function MobileBottomNav() {
                         );
                     })}
 
-                    {/* Tombol "Lainnya" dengan popup ke atas */}
-                    <div className="relative min-w-[60px] flex justify-center" ref={popupRef}>
-                        {/* Popup — muncul ke atas dari tombol */}
-                        {moreMenuOpen && (
-                            <div className="absolute bottom-full right-0 mb-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/80 z-[80] overflow-hidden">
-                                {/* Header */}
-                                <div className="px-4 py-3 border-b border-slate-100">
-                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                        Menu Lainnya
-                                    </p>
-                                </div>
+                    {/* Tombol "Lainnya" — hanya tampil untuk Super Admin */}
+                    {!isStaff && (
+                        <div className="relative min-w-[60px] flex justify-center" ref={popupRef}>
+                            {/* Popup — muncul ke atas dari tombol */}
+                            {moreMenuOpen && (
+                                <div className="absolute bottom-full right-0 mb-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/80 z-[80] overflow-hidden">
+                                    {/* Header */}
+                                    <div className="px-4 py-3 border-b border-slate-100">
+                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                            Menu Lainnya
+                                        </p>
+                                    </div>
 
-                                {/* Items */}
-                                <nav className="p-2 space-y-0.5">
-                                    {secondaryNavItems.map((item) => {
-                                        const isActive = location.pathname === item.path;
-                                        const Icon = item.icon;
-                                        return (
-                                            <button
-                                                key={item.path}
-                                                onClick={() => {
-                                                    navigate(item.path);
-                                                    setMoreMenuOpen(false);
-                                                }}
-                                                className={cn(
-                                                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left',
-                                                    isActive
-                                                        ? 'bg-amber-50 text-amber-700'
-                                                        : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
-                                                )}
-                                            >
-                                                <div className={cn(
-                                                    'p-1.5 rounded-lg shrink-0',
-                                                    isActive ? 'bg-amber-100' : 'bg-slate-100'
-                                                )}>
-                                                    <Icon className="h-4 w-4" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <span className="font-medium text-sm">{item.label}</span>
-                                                    <p className={cn(
-                                                        'text-xs truncate',
-                                                        isActive ? 'text-amber-500' : 'text-slate-400'
+                                    {/* Items */}
+                                    <nav className="p-2 space-y-0.5">
+                                        {secondaryNavItems.map((item) => {
+                                            const isActive = location.pathname === item.path;
+                                            const Icon = item.icon;
+                                            return (
+                                                <button
+                                                    key={item.path}
+                                                    onClick={() => {
+                                                        navigate(item.path);
+                                                        setMoreMenuOpen(false);
+                                                    }}
+                                                    className={cn(
+                                                        'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left',
+                                                        isActive
+                                                            ? 'bg-amber-50 text-amber-700'
+                                                            : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
+                                                    )}
+                                                >
+                                                    <div className={cn(
+                                                        'p-1.5 rounded-lg shrink-0',
+                                                        isActive ? 'bg-amber-100' : 'bg-slate-100'
                                                     )}>
-                                                        {item.description}
-                                                    </p>
-                                                </div>
-                                                {isActive && (
-                                                    <ChevronRight className="h-4 w-4 text-amber-500 shrink-0" />
-                                                )}
-                                            </button>
-                                        );
-                                    })}
-                                </nav>
-                            </div>
-                        )}
+                                                        <Icon className="h-4 w-4" />
+                                                    </div>
+                                                    <div className="flex-1 min-w-0">
+                                                        <span className="font-medium text-sm">{item.label}</span>
+                                                        <p className={cn(
+                                                            'text-xs truncate',
+                                                            isActive ? 'text-amber-500' : 'text-slate-400'
+                                                        )}>
+                                                            {item.description}
+                                                        </p>
+                                                    </div>
+                                                    {isActive && (
+                                                        <ChevronRight className="h-4 w-4 text-amber-500 shrink-0" />
+                                                    )}
+                                                </button>
+                                            );
+                                        })}
+                                    </nav>
+                                </div>
+                            )}
 
-                        {/* Tombol trigger */}
-                        <button
-                            onClick={() => setMoreMenuOpen(prev => !prev)}
-                            className={cn(
-                                'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1 w-full',
-                                moreMenuOpen || isSecondaryActive
-                                    ? 'text-amber-600'
-                                    : 'text-slate-400 active:text-slate-600'
-                            )}
-                        >
-                            {isSecondaryActive && !moreMenuOpen && (
-                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
-                            )}
-                            <Menu className={cn(
-                                'h-5 w-5 flex-shrink-0 transition-transform duration-200',
-                                moreMenuOpen && 'rotate-90'
-                            )} />
-                            <span className={cn(
-                                'text-[10px] leading-tight text-center whitespace-nowrap',
-                                (moreMenuOpen || isSecondaryActive) ? 'font-semibold' : 'font-medium'
-                            )}>
-                                Lainnya
-                            </span>
-                        </button>
-                    </div>
+                            {/* Tombol trigger */}
+                            <button
+                                onClick={() => setMoreMenuOpen(prev => !prev)}
+                                className={cn(
+                                    'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1 w-full',
+                                    moreMenuOpen || isSecondaryActive
+                                        ? 'text-amber-600'
+                                        : 'text-slate-400 active:text-slate-600'
+                                )}
+                            >
+                                {isSecondaryActive && !moreMenuOpen && (
+                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
+                                )}
+                                <Menu className={cn(
+                                    'h-5 w-5 flex-shrink-0 transition-transform duration-200',
+                                    moreMenuOpen && 'rotate-90'
+                                )} />
+                                <span className={cn(
+                                    'text-[10px] leading-tight text-center whitespace-nowrap',
+                                    (moreMenuOpen || isSecondaryActive) ? 'font-semibold' : 'font-medium'
+                                )}>
+                                    Lainnya
+                                </span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </nav>
         </>
@@ -587,6 +616,7 @@ export default function AdminLayout() {
     const [user, setUser] = useState<SupabaseUser | null>(null);
     const navigate = useNavigate();
     const location = useLocation();
+    const { isStaff } = useAuth();
 
     const pageInfo = pageTitles[location.pathname] || {
         title: 'Dashboard',
@@ -632,6 +662,7 @@ export default function AdminLayout() {
                 onToggleCollapse={handleToggleCollapse}
                 onSignOut={handleSignOut}
                 user={user}
+                isStaff={isStaff}
             />
 
             {/* Main Content */}
@@ -650,7 +681,7 @@ export default function AdminLayout() {
             </div>
 
             {/* Mobile Bottom Navigation */}
-            <MobileBottomNav />
+            <MobileBottomNav isStaff={isStaff} />
         </div>
     );
 }

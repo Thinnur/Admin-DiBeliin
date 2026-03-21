@@ -48,7 +48,9 @@ import {
     useDeleteAccount,
     useUpdateAccountStatus,
     useUpdateAccount,
+    useStaffAccounts,
 } from '@/hooks/useInventory';
+import { useAuth } from '@/contexts/AuthContext';
 import type { Account, AccountBrand, AccountStatus } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -88,6 +90,9 @@ function calculateVoucherStats(accounts: Account[]): VoucherStats {
 // -----------------------------------------------------------------------------
 
 export default function InventoryPage() {
+    // Deteksi role user
+    const { isStaff } = useAuth();
+
     // Tab state for brand selection
     const [activeTab, setActiveTab] = useState<AccountBrand>('kopken');
 
@@ -106,12 +111,36 @@ export default function InventoryPage() {
     const [isInUseDialogOpen, setIsInUseDialogOpen] = useState(false);
     const [inUseByName, setInUseByName] = useState('');
 
-    // Fetch ALL accounts (no server-side filtering, we filter client-side now)
+    // Fetch data: Staff pakai hook terbatas (limit 6, status=ready only)
+    // Super Admin pakai hook penuh (semua data)
     const {
-        data: allAccounts,
-        isLoading,
-        isError,
-    } = useAccounts();
+        data: allAccountsAdmin,
+        isLoading: isLoadingAdmin,
+        isError: isErrorAdmin,
+    } = useAccounts(undefined, { enabled: !isStaff });
+
+    const {
+        data: staffAccountsKopken,
+        isLoading: isLoadingStaffKopken,
+        isError: isErrorStaffKopken,
+    } = useStaffAccounts('kopken', { enabled: isStaff });
+
+    const {
+        data: staffAccountsFore,
+        isLoading: isLoadingStaffFore,
+        isError: isErrorStaffFore,
+    } = useStaffAccounts('fore', { enabled: isStaff });
+
+    // Gabungkan berdasarkan role
+    const allAccounts = isStaff
+        ? [...(staffAccountsKopken || []), ...(staffAccountsFore || [])]
+        : (allAccountsAdmin || []);
+    const isLoading = isStaff
+        ? (isLoadingStaffKopken || isLoadingStaffFore)
+        : isLoadingAdmin;
+    const isError = isStaff
+        ? (isErrorStaffKopken || isErrorStaffFore)
+        : isErrorAdmin;
 
     // Mutations
     const deleteAccount = useDeleteAccount();
@@ -136,54 +165,52 @@ export default function InventoryPage() {
 
     // Smart Filtered & Sorted Accounts Logic
     const filteredAccounts = useMemo(() => {
-        if (!allAccounts) return [];
+        // Untuk Staff: data sudah di-filter server-side (ready, limit 6), tinggal filter per brand
+        if (isStaff) {
+            const staffData = activeTab === 'kopken'
+                ? (staffAccountsKopken || [])
+                : (staffAccountsFore || []);
+            return [...staffData].sort((a, b) =>
+                new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime()
+            );
+        }
 
-        let result = allAccounts;
+        // Untuk Super Admin: logika filter & sort penuh
+        if (!allAccountsAdmin) return [];
+
+        let result = allAccountsAdmin;
 
         // Rule 1: Always filter by active Tab (Brand)
         result = result.filter((account) => account.brand === activeTab);
 
-        // Rule 2 (Visibility / Smart Filtering):
-        // IF searchQuery is empty AND filterStatus is 'all' (default):
-        //   Show 'ready' and 'in_use' accounts (Hide sold/expired/issue)
-        // ELSE (If user searches OR explicitly selects a status filter):
-        //   Show matching accounts regardless of status
+        // Rule 2: Smart Filtering
         const isDefaultState = searchQuery.trim() === '' && statusFilter === 'all';
 
         if (isDefaultState) {
-            // Default: Show ready + in_use accounts
             result = result.filter(
                 (account) => account.status === 'ready' || account.status === 'in_use'
             );
         } else {
-            // User is searching or filtering explicitly
             if (statusFilter !== 'all') {
                 result = result.filter((account) => account.status === statusFilter);
             }
-            // Search is handled by DataTable's internal filter
         }
 
         // Rule 3: Priority Sort
-        // - 'in_use' accounts float to top (admin needs quick access)
-        // - 'ready' accounts sorted by voucher value priority
-        // - Within each group, sub-sort by expiry_date ascending (closest first)
         result = [...result].sort((a, b) => {
-            // in_use always on top
             if (a.status === 'in_use' && b.status !== 'in_use') return -1;
             if (a.status !== 'in_use' && b.status === 'in_use') return 1;
 
-            // For ready accounts, sort by voucher value priority
             if (a.status === 'ready' && b.status === 'ready') {
                 const priorityDiff = getVoucherPriority(a) - getVoucherPriority(b);
                 if (priorityDiff !== 0) return priorityDiff;
             }
 
-            // Sub-sort by expiry_date ascending (closest first)
             return new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime();
         });
 
         return result;
-    }, [allAccounts, activeTab, searchQuery, statusFilter]);
+    }, [allAccounts, allAccountsAdmin, staffAccountsKopken, staffAccountsFore, activeTab, searchQuery, statusFilter, isStaff]);
 
     // Action handlers
     const handleEdit = (account: Account) => {
@@ -272,9 +299,10 @@ export default function InventoryPage() {
             onMarkAsInUse: handleMarkAsInUse,
             onMarkAsReady: handleMarkAsReady,
             onToggleVoucher: handleToggleVoucher,
+            isStaff, // Staff tidak bisa Edit/Delete
         };
         return createAccountColumns(columnActions);
-    }, []);
+    }, [isStaff]);
 
     // Handle search input change (for smart filtering logic)
     const handleSearchChange = (value: string) => {
@@ -350,8 +378,9 @@ export default function InventoryPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Summary Stats Cards - Ready Stock */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+            {/* Summary Stats Cards - disembunyikan untuk Staff */}
+            {!isStaff && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
                 {/* Fore BOGO */}
                 <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
                     <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
@@ -437,7 +466,8 @@ export default function InventoryPage() {
                         <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Min. 50rb</p>
                     </CardContent>
                 </Card>
-            </div>
+                </div>
+            )}
 
             {/* Brand Tabs with Table */}
             <Card className="shadow-sm">
@@ -445,14 +475,23 @@ export default function InventoryPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                         <div>
                             <CardTitle className="text-lg">Account Inventory</CardTitle>
-                            <CardDescription>
-                                Your coffee shop account collection
-                                <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                                    Total: {voucherStats.foreBogo + voucherStats.foreDisc35 + voucherStats.kopkenNomin + voucherStats.kopkenMin50k} akun siap
-                                </span>
-                            </CardDescription>
+                            {!isStaff && (
+                                <CardDescription>
+                                    Your coffee shop account collection
+                                    <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
+                                        Total: {voucherStats.foreBogo + voucherStats.foreDisc35 + voucherStats.kopkenNomin + voucherStats.kopkenMin50k} akun siap
+                                    </span>
+                                </CardDescription>
+                            )}
+                            {isStaff && (
+                                <CardDescription>
+                                    Menampilkan maks. 6 akun tersedia per brand
+                                </CardDescription>
+                            )}
                         </div>
 
+                        {/* Kontrol filter — hanya untuk Super Admin */}
+                        {!isStaff && (
                         <div className="flex flex-wrap items-center gap-3">
                             {/* Status Filter */}
                             <Select
@@ -495,6 +534,7 @@ export default function InventoryPage() {
                                 Add Account
                             </Button>
                         </div>
+                        )}
                     </div>
                 </CardHeader>
                 <CardContent className="pt-4">
@@ -519,14 +559,16 @@ export default function InventoryPage() {
                                     columns={columns}
                                     data={filteredAccounts}
                                     isLoading={isLoading}
-                                    filterColumnName="phone_number"
+                                    filterColumnName={isStaff ? undefined : 'phone_number'}
                                     filterPlaceholder="Search by phone number..."
                                     onFilterChange={handleSearchChange}
                                     disablePagination={true}
                                     emptyMessage={
-                                        statusFilter !== 'all' || searchQuery.trim() !== ''
-                                            ? 'No accounts match your filters.'
-                                            : 'No ready accounts found for Kopi Kenangan.'
+                                        isStaff
+                                            ? 'Tidak ada akun tersedia untuk Kopi Kenangan saat ini.'
+                                            : statusFilter !== 'all' || searchQuery.trim() !== ''
+                                                ? 'No accounts match your filters.'
+                                                : 'No ready accounts found for Kopi Kenangan.'
                                     }
                                 />
                             </div>
@@ -538,14 +580,16 @@ export default function InventoryPage() {
                                     columns={columns}
                                     data={filteredAccounts}
                                     isLoading={isLoading}
-                                    filterColumnName="phone_number"
+                                    filterColumnName={isStaff ? undefined : 'phone_number'}
                                     filterPlaceholder="Search by phone number..."
                                     onFilterChange={handleSearchChange}
                                     disablePagination={true}
                                     emptyMessage={
-                                        statusFilter !== 'all' || searchQuery.trim() !== ''
-                                            ? 'No accounts match your filters.'
-                                            : 'No ready accounts found for Fore Coffee.'
+                                        isStaff
+                                            ? 'Tidak ada akun tersedia untuk Fore Coffee saat ini.'
+                                            : statusFilter !== 'all' || searchQuery.trim() !== ''
+                                                ? 'No accounts match your filters.'
+                                                : 'No ready accounts found for Fore Coffee.'
                                     }
                                 />
                             </div>

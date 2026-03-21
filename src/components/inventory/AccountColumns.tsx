@@ -271,6 +271,7 @@ function ActionsCell({
     const [isOpen, setIsOpen] = useState(false);
     const isReady = account.status === 'ready';
     const isInUse = account.status === 'in_use';
+    const isStaff = actions?.isStaff ?? false;
 
     return (
         <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
@@ -369,8 +370,8 @@ function ActionsCell({
                 <DropdownMenuLabel>Account Actions</DropdownMenuLabel>
                 <DropdownMenuSeparator />
 
-                {/* Edit */}
-                {actions?.onEdit && (
+                {/* Edit — disembunyikan untuk Staff */}
+                {!isStaff && actions?.onEdit && (
                     <DropdownMenuItem
                         onClick={() => {
                             actions.onEdit?.(account);
@@ -425,8 +426,8 @@ function ActionsCell({
                     </DropdownMenuItem>
                 )}
 
-                {/* Delete */}
-                {actions?.onDelete && (
+                {/* Delete — disembunyikan untuk Staff */}
+                {!isStaff && actions?.onDelete && (
                     <DropdownMenuItem
                         onClick={() => {
                             actions.onDelete?.(account);
@@ -511,6 +512,7 @@ export interface AccountColumnActions {
     onMarkAsInUse?: (account: Account) => void;
     onMarkAsReady?: (account: Account) => void;
     onToggleVoucher?: (account: Account, voucher: 'nomin' | 'min50k' | 'bogo' | 'disc35', newValue: boolean) => void;
+    isStaff?: boolean; // Jika true, sembunyikan Edit & Delete
 }
 
 /**
