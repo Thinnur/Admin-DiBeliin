@@ -5,7 +5,7 @@
 // Role dibaca dari Supabase Auth user_metadata.role.
 // Default: 'super_admin' jika metadata tidak ada/tidak diset.
 
-import { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
@@ -43,26 +43,28 @@ const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: ReactNode }) {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(true);
-    const initialized = useRef(false);
-
     useEffect(() => {
-        if (initialized.current) return;
-        initialized.current = true;
-
-        // Gunakan getUser() bukan getSession() agar metadata selalu fresh dari server
-        // getSession() membaca JWT cache yang mungkin sudah stale
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            setUser(user ?? null);
-            setIsLoading(false);
-        });
-
-        // Dengarkan perubahan auth (login/logout)
+        // onAuthStateChange adalah SATU-SATUNYA sumber kebenaran auth.
+        // Saat subscribe, Supabase v2 langsung menembakkan event INITIAL_SESSION
+        // dengan session dari localStorage — tidak ada panggilan jaringan terpisah
+        // yang berlomba dengan handler ini.
+        //
+        // Alur yang dijamin berurutan:
+        // 1. INITIAL_SESSION tiba  → setUser(session.user), setIsLoading(false)
+        // 2. TOKEN_REFRESHED tiba  → setUser(user segar dari server), isLoading tetap false
+        // 3. SIGNED_OUT tiba       → setUser(null), isLoading tetap false
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (_event, session) => {
+            async (event, session) => {
                 if (session) {
-                    // Refresh user data agar metadata terbaru ter-load
-                    const { data: { user } } = await supabase.auth.getUser();
-                    setUser(user ?? null);
+                    if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+                        // Untuk login baru & token refresh: ambil metadata segar dari server
+                        const { data: { user } } = await supabase.auth.getUser();
+                        setUser(user ?? null);
+                    } else {
+                        // Untuk INITIAL_SESSION: pakai data dari JWT yang sudah ada di localStorage
+                        // (cepat, tanpa network round-trip tambahan)
+                        setUser(session.user);
+                    }
                 } else {
                     setUser(null);
                 }

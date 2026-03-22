@@ -2,7 +2,8 @@
 // DiBeliin Admin - Protected Route Wrapper
 // =============================================================================
 // Guards routes requiring authentication.
-// Uses delayed loading to prevent flicker when session is cached locally.
+// Menunggu BAIK ProtectedRoute (session check) MAUPUN AuthContext (user + role)
+// selesai sebelum merender halaman anak — mencegah query data jalan tanpa auth.
 
 import { useEffect, useState, useRef } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -10,6 +11,7 @@ import { Loader2, Coffee } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/contexts/AuthContext';
 
 // -----------------------------------------------------------------------------
 // Component
@@ -18,7 +20,10 @@ import { supabase } from '@/lib/supabase';
 export default function ProtectedRoute() {
     const location = useLocation();
     const [session, setSession] = useState<Session | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [isSessionLoading, setIsSessionLoading] = useState(true);
+
+    // Tunggu juga AuthContext selesai memulihkan user + role dari Supabase
+    const { isLoading: isAuthLoading } = useAuth();
 
     // -------------------------------------------------------------------------
     // REFACTORED: Delayed loading — mencegah flicker.
@@ -39,7 +44,7 @@ export default function ProtectedRoute() {
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
-            setIsLoading(false);
+            setIsSessionLoading(false);
 
             // Batalkan timer jika session sudah didapat sebelum 200ms
             if (timerRef.current) {
@@ -52,7 +57,7 @@ export default function ProtectedRoute() {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             (_event, session) => {
                 setSession(session);
-                setIsLoading(false);
+                setIsSessionLoading(false);
             }
         );
 
@@ -64,6 +69,11 @@ export default function ProtectedRoute() {
             }
         };
     }, []);
+
+    // Gabungkan kedua loading state:
+    // isSessionLoading = cek session lokal (cepat)
+    // isAuthLoading    = validasi user + role di AuthContext (bisa lebih lambat)
+    const isLoading = isSessionLoading || isAuthLoading;
 
     // Loading state — hanya tampil jika sudah melewati delay 200ms
     if (isLoading && showLoading) {
@@ -90,6 +100,7 @@ export default function ProtectedRoute() {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // Authenticated - render protected content
+    // Authenticated + AuthContext resolved - render protected content
     return <Outlet />;
 }
+
