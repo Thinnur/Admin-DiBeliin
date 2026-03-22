@@ -2,8 +2,7 @@
 // DiBeliin Admin - Protected Route Wrapper
 // =============================================================================
 // Guards routes requiring authentication.
-// Menunggu BAIK ProtectedRoute (session check) MAUPUN AuthContext (user + role)
-// selesai sebelum merender halaman anak — mencegah query data jalan tanpa auth.
+// Uses delayed loading to prevent flicker when session is cached locally.
 
 import { useEffect, useState, useRef } from 'react';
 import { Navigate, Outlet, useLocation } from 'react-router-dom';
@@ -11,7 +10,6 @@ import { Loader2, Coffee } from 'lucide-react';
 import type { Session } from '@supabase/supabase-js';
 
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
 
 // -----------------------------------------------------------------------------
 // Component
@@ -20,13 +18,10 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function ProtectedRoute() {
     const location = useLocation();
     const [session, setSession] = useState<Session | null>(null);
-    const [isSessionLoading, setIsSessionLoading] = useState(true);
-
-    // Tunggu juga AuthContext selesai memulihkan user + role dari Supabase
-    const { isLoading: isAuthLoading } = useAuth();
+    const [isLoading, setIsLoading] = useState(true);
 
     // -------------------------------------------------------------------------
-    // REFACTORED: Delayed loading — mencegah flicker.
+    // Delayed loading — mencegah flicker.
     // Loading screen hanya ditampilkan jika pengecekan sesi membutuhkan
     // waktu > 200ms. Jika sesi sudah ada di local storage, getSession()
     // biasanya selesai dalam < 50ms sehingga spinner tidak pernah muncul.
@@ -35,47 +30,32 @@ export default function ProtectedRoute() {
     const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        // Mulai timer 200ms — jika session check belum selesai,
-        // baru tampilkan loading screen.
         timerRef.current = setTimeout(() => {
             setShowLoading(true);
         }, 200);
 
-        // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
-            setIsSessionLoading(false);
-
-            // Batalkan timer jika session sudah didapat sebelum 200ms
+            setIsLoading(false);
             if (timerRef.current) {
                 clearTimeout(timerRef.current);
                 timerRef.current = null;
             }
         });
 
-        // Listen for auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             (_event, session) => {
                 setSession(session);
-                setIsSessionLoading(false);
+                setIsLoading(false);
             }
         );
 
         return () => {
             subscription.unsubscribe();
-            // Cleanup timer untuk mencegah memory leak
-            if (timerRef.current) {
-                clearTimeout(timerRef.current);
-            }
+            if (timerRef.current) clearTimeout(timerRef.current);
         };
     }, []);
 
-    // Gabungkan kedua loading state:
-    // isSessionLoading = cek session lokal (cepat)
-    // isAuthLoading    = validasi user + role di AuthContext (bisa lebih lambat)
-    const isLoading = isSessionLoading || isAuthLoading;
-
-    // Loading state — hanya tampil jika sudah melewati delay 200ms
     if (isLoading && showLoading) {
         return (
             <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center gap-4">
@@ -90,17 +70,12 @@ export default function ProtectedRoute() {
         );
     }
 
-    // Masih loading tapi belum 200ms — render nothing (mencegah flicker)
-    if (isLoading) {
-        return null;
-    }
+    if (isLoading) return null;
 
-    // Not authenticated - redirect to login
     if (!session) {
         return <Navigate to="/login" state={{ from: location }} replace />;
     }
 
-    // Authenticated + AuthContext resolved - render protected content
     return <Outlet />;
 }
 
