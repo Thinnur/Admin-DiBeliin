@@ -387,9 +387,10 @@ const staffNavItems = navItems.filter((item) =>
 
 interface MobileBottomNavProps {
     isStaff: boolean;
+    onSignOut: () => void;
 }
 
-function MobileBottomNav({ isStaff }: MobileBottomNavProps) {
+function MobileBottomNav({ isStaff, onSignOut }: MobileBottomNavProps) {
     const location = useLocation();
     const navigate = useNavigate();
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
@@ -458,6 +459,17 @@ function MobileBottomNav({ isStaff }: MobileBottomNavProps) {
                         );
                     })}
 
+                    {/* Tombol Logout — hanya tampil untuk Staff (langsung di bar) */}
+                    {isStaff && (
+                        <button
+                            onClick={onSignOut}
+                            className="relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1 min-w-[60px] text-slate-400 active:text-red-500"
+                        >
+                            <LogOut className="h-5 w-5 flex-shrink-0" />
+                            <span className="text-[10px] leading-tight font-medium">Keluar</span>
+                        </button>
+                    )}
+
                     {/* Tombol "Lainnya" — hanya tampil untuk Super Admin */}
                     {!isStaff && (
                         <div className="relative min-w-[60px] flex justify-center" ref={popupRef}>
@@ -512,6 +524,22 @@ function MobileBottomNav({ isStaff }: MobileBottomNavProps) {
                                             );
                                         })}
                                     </nav>
+
+                                    {/* Divider + Logout */}
+                                    <div className="border-t border-slate-100 p-2">
+                                        <button
+                                            onClick={() => {
+                                                setMoreMenuOpen(false);
+                                                onSignOut();
+                                            }}
+                                            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left text-red-500 hover:bg-red-50 active:bg-red-100"
+                                        >
+                                            <div className="p-1.5 rounded-lg shrink-0 bg-red-50">
+                                                <LogOut className="h-4 w-4" />
+                                            </div>
+                                            <span className="font-medium text-sm">Keluar</span>
+                                        </button>
+                                    </div>
                                 </div>
                             )}
 
@@ -681,7 +709,7 @@ export default function AdminLayout() {
             </div>
 
             {/* Mobile Bottom Navigation */}
-            <MobileBottomNav isStaff={isStaff} />
+            <MobileBottomNav isStaff={isStaff} onSignOut={handleSignOut} />
         </div>
     );
 }

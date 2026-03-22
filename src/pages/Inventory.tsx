@@ -90,8 +90,8 @@ function calculateVoucherStats(accounts: Account[]): VoucherStats {
 // -----------------------------------------------------------------------------
 
 export default function InventoryPage() {
-    // Deteksi role user
-    const { isStaff } = useAuth();
+    // Deteksi role user + status pemulihan sesi auth
+    const { isStaff, isLoading: isAuthLoading } = useAuth();
 
     // Tab state for brand selection
     const [activeTab, setActiveTab] = useState<AccountBrand>('kopken');
@@ -113,31 +113,33 @@ export default function InventoryPage() {
 
     // Fetch data: Staff pakai hook terbatas (limit 6, status=ready only)
     // Super Admin pakai hook penuh (semua data)
+    // Guard: !isAuthLoading memastikan query TIDAK jalan sebelum sesi auth selesai dipulihkan
     const {
         data: allAccountsAdmin,
         isLoading: isLoadingAdmin,
         isError: isErrorAdmin,
-    } = useAccounts(undefined, { enabled: !isStaff });
+    } = useAccounts(undefined, { enabled: !isAuthLoading && !isStaff });
 
     const {
         data: staffAccountsKopken,
         isLoading: isLoadingStaffKopken,
         isError: isErrorStaffKopken,
-    } = useStaffAccounts('kopken', { enabled: isStaff });
+    } = useStaffAccounts('kopken', { enabled: !isAuthLoading && isStaff });
 
     const {
         data: staffAccountsFore,
         isLoading: isLoadingStaffFore,
         isError: isErrorStaffFore,
-    } = useStaffAccounts('fore', { enabled: isStaff });
+    } = useStaffAccounts('fore', { enabled: !isAuthLoading && isStaff });
 
     // Gabungkan berdasarkan role
     const allAccounts = isStaff
         ? [...(staffAccountsKopken || []), ...(staffAccountsFore || [])]
         : (allAccountsAdmin || []);
-    const isLoading = isStaff
+    // isLoading harus true juga selama sesi auth belum selesai dipulihkan
+    const isLoading = isAuthLoading || (isStaff
         ? (isLoadingStaffKopken || isLoadingStaffFore)
-        : isLoadingAdmin;
+        : isLoadingAdmin);
     const isError = isStaff
         ? (isErrorStaffKopken || isErrorStaffFore)
         : isErrorAdmin;
