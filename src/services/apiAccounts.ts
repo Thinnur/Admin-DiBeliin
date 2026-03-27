@@ -396,3 +396,45 @@ export function shouldMarkAsSold(account: Account): boolean {
     // KopKen: sold if both nomin and min50k are gone
     return !account.is_nomin_ready && !account.is_min50k_ready;
 }
+
+/**
+ * Fix stale 'ready' accounts that have all vouchers exhausted
+ * (handles legacy data before auto-sold logic was added)
+ * Returns the number of accounts that were fixed
+ */
+export async function fixStaleAccounts(): Promise<number> {
+    // Fetch all ready accounts
+    const { data, error } = await supabase
+        .from('accounts')
+        .select('id, brand, is_nomin_ready, is_min50k_ready, is_bogo_ready, is_discount35_ready')
+        .eq('status', 'ready');
+
+    if (error) {
+        throw new Error(`Failed to fetch accounts for fix: ${error.message}`);
+    }
+
+    // Find stale accounts (all vouchers gone but still 'ready')
+    const staleIds = (data as Account[])
+        .filter(shouldMarkAsSold)
+        .map((a) => a.id);
+
+    if (staleIds.length === 0) return 0;
+
+    // Batch update to 'sold' with all voucher flags cleared
+    const { error: updateError } = await supabase
+        .from('accounts')
+        .update({
+            status: 'sold',
+            is_nomin_ready: false,
+            is_min50k_ready: false,
+            is_bogo_ready: false,
+            is_discount35_ready: false,
+        })
+        .in('id', staleIds);
+
+    if (updateError) {
+        throw new Error(`Failed to fix stale accounts: ${updateError.message}`);
+    }
+
+    return staleIds.length;
+}

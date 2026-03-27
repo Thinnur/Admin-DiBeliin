@@ -49,6 +49,7 @@ import {
     useUpdateAccountStatus,
     useUpdateAccount,
     useStaffAccounts,
+    useFixStaleAccounts,
 } from '@/hooks/useInventory';
 import { useAuth } from '@/contexts/AuthContext';
 import type { Account, AccountBrand, AccountStatus } from '@/types/database';
@@ -148,6 +149,7 @@ export default function InventoryPage() {
     const deleteAccount = useDeleteAccount();
     const updateStatus = useUpdateAccountStatus();
     const updateAccount = useUpdateAccount();
+    const fixStale = useFixStaleAccounts();
 
     // Calculate voucher stats from all accounts (memoized)
     const voucherStats = useMemo(
@@ -159,6 +161,15 @@ export default function InventoryPage() {
     // Value Priority Sorting Helper
     // -------------------------------------------------------------------------
     const getVoucherPriority = (account: Account): number => {
+        if (account.brand === 'fore') {
+            const hasBogo = account.is_bogo_ready === true;
+            const hasDisc35 = account.is_discount35_ready === true;
+            if (hasBogo && hasDisc35) return 0; // Lengkap (BOGO + 35%)
+            if (hasBogo) return 1;              // Hanya BOGO
+            if (hasDisc35) return 2;            // Hanya 35%
+            return 3;                           // Kosong
+        }
+        // KopKen
         if (account.is_nomin_ready && account.is_min50k_ready) return 0; // Complete
         if (account.is_nomin_ready) return 1;  // NoMin only
         if (account.is_min50k_ready) return 2; // Min50k only
@@ -531,6 +542,16 @@ export default function InventoryPage() {
                                 </Button>
                             )}
 
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fixStale.mutate()}
+                                disabled={fixStale.isPending}
+                                className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                                title="Tandai otomatis akun yang sudah tidak punya voucher sebagai Sold"
+                            >
+                                {fixStale.isPending ? 'Checking...' : 'Fix Stale'}
+                            </Button>
                             <Button onClick={handleAddNew}>
                                 <Plus className="mr-2 h-4 w-4" />
                                 Add Account

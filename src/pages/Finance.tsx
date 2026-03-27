@@ -35,12 +35,14 @@ import {
     Calendar,
     CalendarDays,
     CalendarRange,
+    Landmark,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 
 import { DataTable } from '@/components/ui/data-table';
 import { AddTransactionDialog } from '@/components/finance/AddTransactionDialog';
+import { ImportBankJagoDialog } from '@/components/finance/ImportBankJagoDialog';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -520,6 +522,9 @@ export default function FinancePage() {
     const [aiDialogOpen, setAiDialogOpen] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Import Bank Jago State
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
+
     // FAB Dialog State (for mobile)
     const [fabDialogOpen, setFabDialogOpen] = useState(false);
 
@@ -767,6 +772,16 @@ export default function FinancePage() {
                                 )}
                             </Button>
 
+                            {/* Import Bank Jago Button */}
+                            <Button
+                                variant="outline"
+                                onClick={() => setImportDialogOpen(true)}
+                                className="gap-1.5 md:gap-2 text-xs md:text-sm h-7 md:h-9 px-2.5 md:px-4 border-blue-200 text-blue-700 hover:bg-blue-50"
+                            >
+                                <Landmark className="h-3.5 w-3.5 md:h-4 md:w-4" />
+                                Import Bank Jago
+                            </Button>
+
                             {/* Desktop Add Transaction Button - Hidden on Mobile */}
                             <div className="hidden md:flex">
                                 <AddTransactionDialog />
@@ -855,6 +870,12 @@ export default function FinancePage() {
                     trigger={null}
                 />
             )}
+
+            {/* Import Bank Jago Dialog */}
+            <ImportBankJagoDialog
+                open={importDialogOpen}
+                onOpenChange={setImportDialogOpen}
+            />
 
             {/* Mobile FAB for Add Transaction - rendered via portal to escape transform ancestor */}
             {createPortal(

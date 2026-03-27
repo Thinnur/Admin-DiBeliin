@@ -371,3 +371,69 @@ export function useAutoAssign() {
         },
     });
 }
+
+// -----------------------------------------------------------------------------
+// Fix Stale Accounts Hook
+// -----------------------------------------------------------------------------
+
+/**
+ * Auto-mark accounts with no vouchers left as 'sold'.
+ * An account is "stale" when:
+ * - KopKen: is_nomin_ready=false AND is_min50k_ready=false AND status='ready'
+ * - Fore:   is_bogo_ready=false AND is_discount35_ready=false AND status='ready'
+ */
+export function useFixStaleAccounts() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            const { supabase } = await import('../lib/supabase');
+
+            // Fetch all ready accounts
+            const { data: readyAccounts, error } = await supabase
+                .from('accounts')
+                .select('id, brand, is_nomin_ready, is_min50k_ready, is_bogo_ready, is_discount35_ready')
+                .eq('status', 'ready');
+
+            if (error) throw new Error(error.message);
+            if (!readyAccounts || readyAccounts.length === 0) return { fixed: 0 };
+
+            // Identify stale accounts
+            const staleIds = readyAccounts
+                .filter((a) => {
+                    if (a.brand === 'kopken') {
+                        return !a.is_nomin_ready && !a.is_min50k_ready;
+                    }
+                    if (a.brand === 'fore') {
+                        return !a.is_bogo_ready && !a.is_discount35_ready;
+                    }
+                    return false;
+                })
+                .map((a) => a.id);
+
+            if (staleIds.length === 0) return { fixed: 0 };
+
+            // Batch update to 'sold'
+            const { error: updateError } = await supabase
+                .from('accounts')
+                .update({ status: 'sold' })
+                .in('id', staleIds);
+
+            if (updateError) throw new Error(updateError.message);
+
+            return { fixed: staleIds.length };
+        },
+        onSuccess: ({ fixed }) => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
+            if (fixed > 0) {
+                toast.success(`${fixed} akun tanpa voucher ditandai sebagai Sold.`);
+            } else {
+                toast.info('Tidak ada akun stale yang ditemukan.');
+            }
+        },
+        onError: (error: Error) => {
+            toast.error(`Fix Stale gagal: ${error.message}`);
+        },
+    });
+}
+

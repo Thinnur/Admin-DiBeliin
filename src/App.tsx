@@ -30,16 +30,16 @@ import './App.css';
 // -----------------------------------------------------------------------------
 
 function StaffRoute() {
-    const { isStaff, isLoading } = useAuth();
+  const { isStaff, isLoading } = useAuth();
 
-    // Tunggu sampai role selesai diload
-    if (isLoading) return null;
+  // Tunggu sampai role selesai diload
+  if (isLoading) return null;
 
-    // Jika Staff, redirect ke /inventory
-    if (isStaff) return <Navigate to="/inventory" replace />;
+  // Jika Staff, redirect ke /inventory
+  if (isStaff) return <Navigate to="/inventory" replace />;
 
-    // Super Admin — lanjutkan ke halaman yang diminta
-    return <Outlet />;
+  // Super Admin — lanjutkan ke halaman yang diminta
+  return <Outlet />;
 }
 
 function App() {
