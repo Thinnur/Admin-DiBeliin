@@ -23,6 +23,22 @@ export interface Voucher {
 export type VoucherInsert = Omit<Voucher, 'id'>;
 
 // -----------------------------------------------------------------------------
+// Antrian Pesanan Types
+// -----------------------------------------------------------------------------
+
+export type AntrianStatus = 'selesai' | 'gagal' | 'menunggu' | 'diproses';
+
+export interface AntrianPesanan {
+    id: string;
+    created_at: string;        // ISO timestamp
+    nomor_antrian: number | null; // int4 di DB
+    toko: string;              // Nama toko
+    nomor_wa: string | null;   // Nomor WhatsApp (text)
+    admin_in_charge: string | null; // Nama admin yang bertugas
+    status: string;            // Status raw dari DB (uppercase: SELESAI, GAGAL, dll)
+}
+
+// -----------------------------------------------------------------------------
 // Store Status Operations
 // -----------------------------------------------------------------------------
 
@@ -184,5 +200,32 @@ export async function updateServiceStatus(brand: 'fore' | 'kenangan', isOpen: bo
     if (error) {
         console.error(`Error updating ${brand} service status:`, error);
         throw new Error(`Failed to update ${brand} service status: ${error.message}`);
+    }
+}
+
+// -----------------------------------------------------------------------------
+// Antrian Pesanan Operations
+// -----------------------------------------------------------------------------
+
+/**
+ * Fetch all antrian pesanan records, ordered by created_at descending (newest first).
+ * Returns empty array if table doesn't exist yet.
+ */
+export async function getAntrianPesanan(): Promise<AntrianPesanan[]> {
+    try {
+        const { data, error } = await supabase
+            .from('antrian_pesanan')
+            .select('id, created_at, nomor_antrian, nomor_wa, toko, status, admin_in_charge')
+            .order('created_at', { ascending: false });
+
+        if (error) {
+            console.error('Error fetching antrian pesanan:', error);
+            return [];
+        }
+
+        return (data as AntrianPesanan[]) || [];
+    } catch (error) {
+        console.error('Error fetching antrian pesanan:', error);
+        return [];
     }
 }

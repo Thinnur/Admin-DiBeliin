@@ -41,6 +41,7 @@ import {
     type Voucher,
 } from '@/services/operationalService';
 import BannerManagement from '@/components/inventory/BannerManagement';
+import AntrianPesananTable from '@/components/operational/AntrianPesananTable';
 
 // -----------------------------------------------------------------------------
 // Store Status Section
@@ -590,6 +591,9 @@ export default function Operational() {
                 <TabsTrigger value="banner" className="flex-1 sm:flex-none">
                     Banner
                 </TabsTrigger>
+                <TabsTrigger value="riwayat-antrian" className="flex-1 sm:flex-none">
+                    Riwayat Antrian
+                </TabsTrigger>
             </TabsList>
 
             {/* ── Tab: Operasional ─────────────────────────────────────── */}
@@ -649,6 +653,11 @@ export default function Operational() {
             {/* ── Tab: Banner ──────────────────────────────────────────── */}
             <TabsContent value="banner" className="mt-0">
                 <BannerManagement />
+            </TabsContent>
+
+            {/* ── Tab: Riwayat Antrian ──────────────────────────────────── */}
+            <TabsContent value="riwayat-antrian" className="mt-0">
+                <AntrianPesananTable />
             </TabsContent>
         </Tabs>
     );
