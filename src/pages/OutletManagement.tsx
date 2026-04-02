@@ -70,6 +70,7 @@ function OutletFormDialog({
     const [isPremium, setIsPremium] = useState(false);
 
     // Pre-fill form when editing
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (editingOutlet) {
             setName(editingOutlet.name);
@@ -84,6 +85,7 @@ function OutletFormDialog({
             setIsPremium(false);
         }
     }, [editingOutlet, open]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();

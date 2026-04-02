@@ -134,9 +134,11 @@ export default function InventoryPage() {
     } = useStaffAccounts('fore', { enabled: !isAuthLoading && isStaff });
 
     // Gabungkan berdasarkan role
-    const allAccounts = isStaff
-        ? [...(staffAccountsKopken || []), ...(staffAccountsFore || [])]
-        : (allAccountsAdmin || []);
+    const allAccounts = useMemo(() => (
+        isStaff
+            ? [...(staffAccountsKopken || []), ...(staffAccountsFore || [])]
+            : (allAccountsAdmin || [])
+    ), [isStaff, staffAccountsKopken, staffAccountsFore, allAccountsAdmin]);
     // isLoading harus true juga selama sesi auth belum selesai dipulihkan
     const isLoading = isAuthLoading || (isStaff
         ? (isLoadingStaffKopken || isLoadingStaffFore)
@@ -223,7 +225,7 @@ export default function InventoryPage() {
         });
 
         return result;
-    }, [allAccounts, allAccountsAdmin, staffAccountsKopken, staffAccountsFore, activeTab, searchQuery, statusFilter, isStaff]);
+    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, activeTab, searchQuery, statusFilter, isStaff]);
 
     // Action handlers
     const handleEdit = (account: Account) => {
@@ -304,18 +306,16 @@ export default function InventoryPage() {
     };
 
     // Create columns with actions (memoized)
-    const columns = useMemo(() => {
-        const columnActions: AccountColumnActions = {
-            onEdit: handleEdit,
-            onDelete: handleDelete,
-            onMarkAsSold: handleMarkAsSold,
-            onMarkAsInUse: handleMarkAsInUse,
-            onMarkAsReady: handleMarkAsReady,
-            onToggleVoucher: handleToggleVoucher,
-            isStaff, // Staff tidak bisa Edit/Delete
-        };
-        return createAccountColumns(columnActions);
-    }, [isStaff]);
+    const columnActions: AccountColumnActions = {
+        onEdit: handleEdit,
+        onDelete: handleDelete,
+        onMarkAsSold: handleMarkAsSold,
+        onMarkAsInUse: handleMarkAsInUse,
+        onMarkAsReady: handleMarkAsReady,
+        onToggleVoucher: handleToggleVoucher,
+        isStaff, // Staff tidak bisa Edit/Delete
+    };
+    const columns = createAccountColumns(columnActions);
 
     // Handle search input change (for smart filtering logic)
     const handleSearchChange = (value: string) => {

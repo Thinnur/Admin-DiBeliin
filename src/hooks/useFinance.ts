@@ -7,14 +7,17 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
+import type { TransactionCategoryGroups } from '@/lib/financeCategories';
 import {
     fetchTransactions,
+    fetchTransactionCategories,
     fetchFinancialSummary,
     createTransaction,
+    updateTransaction,
     deleteTransaction,
 } from '@/services/apiTransactions';
 import type { TransactionFilters, SummaryDateRange } from '@/services/apiTransactions';
-import type { Transaction, TransactionInsert } from '@/types/database';
+import type { Transaction, TransactionInsert, TransactionUpdate } from '@/types/database';
 import { queryKeys } from '@/lib/queryClient';
 
 // Local type for financial summary (matches API return)
@@ -35,6 +38,20 @@ export function useTransactions(
     return useQuery({
         queryKey: queryKeys.transactions.list(filters as Record<string, unknown> | undefined),
         queryFn: () => fetchTransactions(filters),
+        ...options,
+    });
+}
+
+// -----------------------------------------------------------------------------
+// Query: Fetch Transaction Categories
+// -----------------------------------------------------------------------------
+
+export function useTransactionCategories(
+    options?: Omit<UseQueryOptions<TransactionCategoryGroups, Error>, 'queryKey' | 'queryFn'>
+) {
+    return useQuery({
+        queryKey: queryKeys.transactions.categories,
+        queryFn: fetchTransactionCategories,
         ...options,
     });
 }
@@ -112,6 +129,26 @@ export function useAddTransaction() {
         },
         onError: (error: Error) => {
             toast.error(`Failed to add transaction: ${error.message}`);
+        },
+    });
+}
+
+// -----------------------------------------------------------------------------
+// Mutation: Update Transaction
+// -----------------------------------------------------------------------------
+
+export function useUpdateTransaction() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: ({ id, updates }: { id: string; updates: TransactionUpdate }) =>
+            updateTransaction(id, updates),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+            toast.success('Transaction updated successfully');
+        },
+        onError: (error: Error) => {
+            toast.error(`Failed to update transaction: ${error.message}`);
         },
     });
 }

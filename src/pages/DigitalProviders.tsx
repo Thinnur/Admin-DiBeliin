@@ -58,6 +58,7 @@ function ProviderFormDialog({
     const [name, setName] = useState('');
     const [logoUrl, setLogoUrl] = useState('');
 
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (editingProvider) {
             setName(editingProvider.name);
@@ -67,6 +68,7 @@ function ProviderFormDialog({
             setLogoUrl('');
         }
     }, [editingProvider, open]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -226,7 +228,7 @@ export default function DigitalProviders() {
             await deleteProvider(id);
             setProviders((prev) => prev.filter((p) => p.id !== id));
             toast.success(`Provider "${provider?.name}" berhasil dihapus`);
-        } catch (error) {
+        } catch {
             toast.error('Gagal menghapus provider');
         } finally {
             setIsDeletingId(null);

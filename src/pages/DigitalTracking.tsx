@@ -156,6 +156,7 @@ function SubFormDialog({ open, onOpenChange, onSubmit, isLoading, editingSub, ca
     const [endDate, setEndDate] = useState('');
     const [status, setStatus] = useState<SubscriptionStatus>('active');
 
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (editingSub) {
             setCustomerName(editingSub.customer_name);
@@ -179,6 +180,7 @@ function SubFormDialog({ open, onOpenChange, onSubmit, isLoading, editingSub, ca
             setStatus('active');
         }
     }, [editingSub, open]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -497,7 +499,7 @@ export default function DigitalTracking() {
             await deleteDigitalSubscription(id);
             setSubscriptions((prev) => prev.filter((s) => s.id !== id));
             toast.success('Langganan berhasil dihapus');
-        } catch (error) {
+        } catch {
             toast.error('Gagal menghapus langganan');
         } finally {
             setIsDeletingId(null);

@@ -184,6 +184,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
     const [isSpecialFee, setIsSpecialFee] = useState(false);
     const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
 
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (item) {
             setName(item.name);
@@ -201,6 +202,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
             setAddonGroups(item.addons ? JSON.parse(JSON.stringify(item.addons)) : []);
         }
     }, [item]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     // Reset categories when brand changes (keep only those valid for new brand)
     const handleBrandChange = (newBrand: 'fore' | 'kenangan') => {
@@ -1231,6 +1233,7 @@ function FoodMenuDialog({ item, isOpen, onClose, onSave, isSaving }: FoodMenuDia
     const [addonGroups, setAddonGroups] = useState<AddonGroup[]>([]);
 
     // Populate form when editing
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (item) {
             setName(item.name);
@@ -1253,6 +1256,7 @@ function FoodMenuDialog({ item, isOpen, onClose, onSave, isSaving }: FoodMenuDia
             setAddonGroups([]);
         }
     }, [item, isOpen]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const handleSave = async () => {
         if (!name.trim()) { toast.error('Nama makanan harus diisi'); return; }

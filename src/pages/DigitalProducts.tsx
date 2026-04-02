@@ -86,6 +86,7 @@ function ProductFormDialog({
     const [description, setDescription] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
 
+    /* eslint-disable react-hooks/set-state-in-effect */
     useEffect(() => {
         if (editingProduct) {
             setName(editingProduct.name);
@@ -103,6 +104,7 @@ function ProductFormDialog({
             setIsAvailable(true);
         }
     }, [editingProduct, open]);
+    /* eslint-enable react-hooks/set-state-in-effect */
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -361,7 +363,7 @@ export default function DigitalProducts() {
             await deleteDigitalProduct(id);
             setProducts((prev) => prev.filter((p) => p.id !== id));
             toast.success(`Produk "${product?.name}" berhasil dihapus`);
-        } catch (error) {
+        } catch {
             toast.error('Gagal menghapus produk');
         } finally {
             setIsDeletingId(null);

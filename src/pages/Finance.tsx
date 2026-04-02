@@ -23,6 +23,7 @@ import {
     TrendingDown,
     Wallet,
     Trash2,
+    PencilLine,
     ArrowUpRight,
     ArrowDownRight,
     Receipt,
@@ -36,14 +37,17 @@ import {
     CalendarDays,
     CalendarRange,
     Landmark,
+    Search,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
 
 import { DataTable } from '@/components/ui/data-table';
 import { AddTransactionDialog } from '@/components/finance/AddTransactionDialog';
+import { EditTransactionDialog } from '@/components/finance/EditTransactionDialog';
 import { ImportBankJagoDialog } from '@/components/finance/ImportBankJagoDialog';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
     Card,
@@ -66,10 +70,15 @@ import {
 
 import {
     useTransactions,
+    useTransactionCategories,
     useFinancialSummary,
     useDeleteTransaction,
     useProfitComparison,
 } from '@/hooks/useFinance';
+import {
+    formatCategoryLabel,
+    getAllCategorySuggestions,
+} from '@/lib/financeCategories';
 import { analyzeReceipt, type ReceiptAnalysisResult } from '@/services/aiService';
 import type { Transaction, TransactionType } from '@/types/database';
 
@@ -359,20 +368,6 @@ function PeriodSelector({
 }
 
 // -----------------------------------------------------------------------------
-// Category Labels
-// -----------------------------------------------------------------------------
-
-const CATEGORY_LABELS: Record<string, string> = {
-    penjualan: 'Penjualan',
-    jasa: 'Jasa',
-    lain: 'Lainnya',
-    beli_akun: 'Beli Akun',
-    server: 'Server',
-    operasional: 'Operasional',
-    marketing: 'Marketing',
-};
-
-// -----------------------------------------------------------------------------
 // Table Columns
 // -----------------------------------------------------------------------------
 
@@ -426,7 +421,7 @@ function getTransactionColumns(
                 const category = row.getValue('category') as string;
                 return (
                     <span className="text-sm font-medium text-slate-700">
-                        {CATEGORY_LABELS[category] || category || '-'}
+                        {formatCategoryLabel(category)}
                     </span>
                 );
             },
@@ -466,37 +461,51 @@ function getTransactionColumns(
             cell: ({ row }) => {
                 const transaction = row.original;
                 return (
-                    <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-8 w-8 hover:bg-red-50"
-                            >
-                                <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500 transition-colors" />
-                            </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                            <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                    This will permanently delete this{' '}
-                                    {transaction.transaction_type} of{' '}
-                                    <strong>{formatCurrency(transaction.amount)}</strong>. This
-                                    action cannot be undone.
-                                </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction
-                                    onClick={() => onDelete(transaction.id)}
-                                    className="bg-red-500 hover:bg-red-600"
+                    <div className="flex items-center justify-end gap-1">
+                        <EditTransactionDialog
+                            transaction={transaction}
+                            trigger={
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 hover:bg-slate-100"
                                 >
-                                    Delete
-                                </AlertDialogAction>
-                            </AlertDialogFooter>
-                        </AlertDialogContent>
-                    </AlertDialog>
+                                    <PencilLine className="h-4 w-4 text-slate-400 hover:text-slate-700 transition-colors" />
+                                </Button>
+                            }
+                        />
+                        <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                                <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 hover:bg-red-50"
+                                >
+                                    <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500 transition-colors" />
+                                </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        This will permanently delete this{' '}
+                                        {transaction.transaction_type} of{' '}
+                                        <strong>{formatCurrency(transaction.amount)}</strong>. This
+                                        action cannot be undone.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={() => onDelete(transaction.id)}
+                                        className="bg-red-500 hover:bg-red-600"
+                                    >
+                                        Delete
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </div>
                 );
             },
         },
@@ -515,6 +524,8 @@ export default function FinancePage() {
     const [rangeEnd, setRangeEnd] = useState<Date>(new Date());
 
     const [typeFilter, setTypeFilter] = useState<TransactionType | 'all'>('all');
+    const [categoryFilter, setCategoryFilter] = useState('all');
+    const [searchQuery, setSearchQuery] = useState('');
 
     // AI Scanning State
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -592,19 +603,14 @@ export default function FinancePage() {
     // Queries
     // -------------------------------------------------------------------------
 
-    const transactionFilters = useMemo(() => {
-        const filters: Record<string, string | undefined> = {
-            startDate: currentRange.startDate,
-            endDate: currentRange.endDate,
-        };
-        if (typeFilter !== 'all') {
-            filters.type = typeFilter;
-        }
-        return filters;
-    }, [currentRange, typeFilter]);
+    const transactionFilters = useMemo(() => ({
+        startDate: currentRange.startDate,
+        endDate: currentRange.endDate,
+    }), [currentRange]);
 
     const { data: transactions = [], isLoading: transactionsLoading } =
-        useTransactions(transactionFilters as any);
+        useTransactions(transactionFilters);
+    const { data: categoryGroups } = useTransactionCategories();
     const { data: summary, isLoading: summaryLoading } = useFinancialSummary(currentRange);
     const { data: comparison, isLoading: comparisonLoading } = useProfitComparison(
         currentRange,
@@ -656,6 +662,43 @@ export default function FinancePage() {
             setAiResult(null);
         }
     };
+
+    const categoryOptions = useMemo(
+        () => getAllCategorySuggestions(categoryGroups),
+        [categoryGroups]
+    );
+
+    const filteredTransactions = useMemo(() => {
+        const normalizedSearch = searchQuery.trim().toLowerCase();
+        const searchDigits = searchQuery.replace(/\D/g, '');
+
+        return transactions.filter((transaction) => {
+            if (typeFilter !== 'all' && transaction.transaction_type !== typeFilter) {
+                return false;
+            }
+
+            if (categoryFilter !== 'all' && transaction.category !== categoryFilter) {
+                return false;
+            }
+
+            if (!normalizedSearch) {
+                return true;
+            }
+
+            const description = (transaction.description ?? '').toLowerCase();
+            const categoryLabel = formatCategoryLabel(transaction.category).toLowerCase();
+            const rawCategory = (transaction.category ?? '').toLowerCase();
+            const amountText = String(transaction.amount);
+            const amountDigits = amountText.replace(/\D/g, '');
+
+            return (
+                description.includes(normalizedSearch) ||
+                categoryLabel.includes(normalizedSearch) ||
+                rawCategory.includes(normalizedSearch) ||
+                (!!searchDigits && amountDigits.includes(searchDigits))
+            );
+        });
+    }, [transactions, typeFilter, categoryFilter, searchQuery]);
 
     const columns = getTransactionColumns(handleDelete);
 
@@ -739,19 +782,6 @@ export default function FinancePage() {
                         </div>
 
                         <div className="flex items-center gap-2 md:gap-3">
-                            {/* Filter */}
-                            <select
-                                value={typeFilter}
-                                onChange={(e) =>
-                                    setTypeFilter(e.target.value as TransactionType | 'all')
-                                }
-                                className="px-2 py-1.5 md:px-3 md:py-2 border border-slate-200 rounded-lg text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
-                            >
-                                <option value="all">All Transactions</option>
-                                <option value="income">Income Only</option>
-                                <option value="expense">Expense Only</option>
-                            </select>
-
                             {/* Scan Button */}
                             <Button
                                 variant="outline"
@@ -788,15 +818,58 @@ export default function FinancePage() {
                             </div>
                         </div>
                     </div>
+
+                    <div className="mt-3 flex flex-col lg:flex-row lg:items-center gap-2">
+                        <div className="relative flex-1">
+                            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                            <Input
+                                value={searchQuery}
+                                onChange={(event) => setSearchQuery(event.target.value)}
+                                placeholder="Cari nominal atau keterangan transaksi"
+                                className="pl-9"
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 lg:w-[420px]">
+                            <select
+                                value={typeFilter}
+                                onChange={(event) =>
+                                    setTypeFilter(event.target.value as TransactionType | 'all')
+                                }
+                                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
+                            >
+                                <option value="all">Semua tipe</option>
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                            </select>
+
+                            <select
+                                value={categoryFilter}
+                                onChange={(event) => setCategoryFilter(event.target.value)}
+                                className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 bg-white"
+                            >
+                                <option value="all">Semua kategori</option>
+                                {categoryOptions.map((category) => (
+                                    <option key={category} value={category}>
+                                        {formatCategoryLabel(category)}
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <p className="mt-3 text-xs text-slate-500">
+                        Menampilkan {filteredTransactions.length} dari {transactions.length} transaksi
+                    </p>
                 </CardHeader>
                 <CardContent className="pt-4">
                     {/* Desktop: DataTable */}
                     <div className="hidden md:block overflow-x-auto">
                         <DataTable
                             columns={columns}
-                            data={transactions}
+                            data={filteredTransactions}
                             isLoading={transactionsLoading}
-                            emptyMessage="No transactions found. Add your first transaction!"
+                            emptyMessage="Tidak ada transaksi yang cocok dengan filter."
                         />
                     </div>
 
@@ -812,10 +885,10 @@ export default function FinancePage() {
                                     <Skeleton className="h-3 w-32" />
                                 </div>
                             ))
-                        ) : transactions.length === 0 ? (
-                            <p className="text-sm text-slate-400 text-center py-8">No transactions found.</p>
+                        ) : filteredTransactions.length === 0 ? (
+                            <p className="text-sm text-slate-400 text-center py-8">Tidak ada transaksi yang cocok.</p>
                         ) : (
-                            transactions.map((tx) => (
+                            filteredTransactions.map((tx) => (
                                 <div
                                     key={tx.id}
                                     className="p-3 rounded-xl border border-slate-100 bg-white hover:bg-slate-50 transition-colors"
@@ -841,17 +914,65 @@ export default function FinancePage() {
                                                 </span>
                                             </div>
                                             <p className="text-xs text-slate-500 truncate">
-                                                {CATEGORY_LABELS[tx.category] || tx.category || '-'}
+                                                {formatCategoryLabel(tx.category)}
                                                 {tx.description ? ` · ${tx.description}` : ''}
                                             </p>
                                         </div>
-                                        <span
-                                            className={`text-sm font-bold tabular-nums whitespace-nowrap ${tx.transaction_type === 'income' ? 'text-emerald-600' : 'text-red-600'
-                                                }`}
-                                        >
-                                            {tx.transaction_type === 'income' ? '+' : '-'}
-                                            {formatCurrency(tx.amount)}
-                                        </span>
+                                        <div className="flex flex-col items-end gap-1">
+                                            <span
+                                                className={`text-sm font-bold tabular-nums whitespace-nowrap ${tx.transaction_type === 'income' ? 'text-emerald-600' : 'text-red-600'
+                                                    }`}
+                                            >
+                                                {tx.transaction_type === 'income' ? '+' : '-'}
+                                                {formatCurrency(tx.amount)}
+                                            </span>
+
+                                            <div className="flex items-center gap-1">
+                                                <EditTransactionDialog
+                                                    transaction={tx}
+                                                    trigger={
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8"
+                                                        >
+                                                            <PencilLine className="h-4 w-4 text-slate-400" />
+                                                        </Button>
+                                                    }
+                                                />
+
+                                                <AlertDialog>
+                                                    <AlertDialogTrigger asChild>
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="icon"
+                                                            className="h-8 w-8 hover:bg-red-50"
+                                                        >
+                                                            <Trash2 className="h-4 w-4 text-slate-400 hover:text-red-500 transition-colors" />
+                                                        </Button>
+                                                    </AlertDialogTrigger>
+                                                    <AlertDialogContent>
+                                                        <AlertDialogHeader>
+                                                            <AlertDialogTitle>Delete Transaction?</AlertDialogTitle>
+                                                            <AlertDialogDescription>
+                                                                This will permanently delete this{' '}
+                                                                {tx.transaction_type} of{' '}
+                                                                <strong>{formatCurrency(tx.amount)}</strong>. This action cannot be undone.
+                                                            </AlertDialogDescription>
+                                                        </AlertDialogHeader>
+                                                        <AlertDialogFooter>
+                                                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                                                            <AlertDialogAction
+                                                                onClick={() => handleDelete(tx.id)}
+                                                                className="bg-red-500 hover:bg-red-600"
+                                                            >
+                                                                Delete
+                                                            </AlertDialogAction>
+                                                        </AlertDialogFooter>
+                                                    </AlertDialogContent>
+                                                </AlertDialog>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ))

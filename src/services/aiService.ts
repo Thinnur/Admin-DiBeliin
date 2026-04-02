@@ -79,7 +79,7 @@ function getTodayISO(): string {
  */
 function extractJSON(text: string): string {
     // Remove markdown code fences
-    let cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const cleaned = text.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
 
     // Find the JSON object boundaries
     const firstBrace = cleaned.indexOf('{');
@@ -145,7 +145,7 @@ export async function analyzeReceipt(imageFile: File): Promise<ReceiptAnalysisRe
             const cleanJson = extractJSON(rawText);
             console.log('Cleaned JSON:', cleanJson);
             parsed = JSON.parse(cleanJson);
-        } catch (parseError) {
+        } catch {
             console.error('JSON Parse Error. Raw text was:', rawText);
             throw new Error('AI tidak bisa membaca gambar ini. Coba gambar bukti transaksi yang lebih jelas.');
         }

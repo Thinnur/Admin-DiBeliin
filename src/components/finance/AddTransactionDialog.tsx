@@ -33,27 +33,23 @@ import {
     TabsTrigger,
 } from '@/components/ui/tabs';
 
-import { useAddTransaction } from '@/hooks/useFinance';
+import { useAddTransaction, useTransactionCategories } from '@/hooks/useFinance';
+import {
+    DEFAULT_EXPENSE_CATEGORIES,
+    DEFAULT_INCOME_CATEGORIES,
+    getCategorySuggestions,
+    normalizeCategoryValue,
+} from '@/lib/financeCategories';
 import { parseTransactionBulkText } from '@/lib/logic/transactionParser';
+import { TransactionCategoryInput } from '@/components/finance/TransactionCategoryInput';
 import type { TransactionType } from '@/types/database';
 
 // -----------------------------------------------------------------------------
 // Category Options
 // -----------------------------------------------------------------------------
 
-const INCOME_CATEGORIES = [
-    { value: 'penjualan', label: 'Penjualan Akun' },
-    { value: 'jasa', label: 'Jasa Lainnya' },
-    { value: 'lain', label: 'Pendapatan Lain' },
-];
-
-const EXPENSE_CATEGORIES = [
-    { value: 'beli_akun', label: 'Beli Akun' },
-    { value: 'server', label: 'Server / Hosting' },
-    { value: 'operasional', label: 'Biaya Operasional' },
-    { value: 'marketing', label: 'Marketing' },
-    { value: 'lain', label: 'Pengeluaran Lain' },
-];
+const INCOME_CATEGORIES = DEFAULT_INCOME_CATEGORIES;
+const EXPENSE_CATEGORIES = DEFAULT_EXPENSE_CATEGORIES;
 
 // Formatter for Rupiah
 function formatRupiah(amount: number): string {
@@ -101,6 +97,7 @@ export function AddTransactionDialog({
 }: AddTransactionDialogProps = {}) {
     const [internalOpen, setInternalOpen] = useState(false);
     const addTransaction = useAddTransaction();
+    const { data: categoryGroups } = useTransactionCategories();
 
     // Use controlled or internal state
     const isControlled = controlledOpen !== undefined;
@@ -127,6 +124,14 @@ export function AddTransactionDialog({
 
     const categories = type === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
     const bulkCategories = bulkType === 'income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
+    const categorySuggestions = useMemo(
+        () => getCategorySuggestions(type, categoryGroups),
+        [type, categoryGroups]
+    );
+    const bulkCategorySuggestions = useMemo(
+        () => getCategorySuggestions(bulkType, categoryGroups),
+        [bulkType, categoryGroups]
+    );
 
     // Parse bulk text in real-time
     const parseResult = useMemo(() => {
@@ -163,13 +168,14 @@ export function AddTransactionDialog({
 
     const validate = () => {
         const newErrors: Record<string, string> = {};
+        const normalizedCategory = normalizeCategoryValue(category);
 
         if (!amount || Number(amount) <= 0) {
             newErrors.amount = 'Amount must be greater than 0';
         }
 
-        if (!category) {
-            newErrors.category = 'Please select a category';
+        if (!normalizedCategory) {
+            newErrors.category = 'Please enter a category';
         }
 
         if (!date) {
@@ -190,10 +196,10 @@ export function AddTransactionDialog({
             await addTransaction.mutateAsync({
                 transaction_type: type,
                 amount: Number(amount),
-                category,
-                description: description || '',
+                category: normalizeCategoryValue(category),
+                description: description.trim(),
                 related_account_id: null,
-                date: date,
+                date,
             });
 
             resetForm();
@@ -206,7 +212,7 @@ export function AddTransactionDialog({
     // Bulk submit
     const handleBulkSubmit = async () => {
         if (!parseResult || parseResult.detectedCount === 0) return;
-        if (!bulkCategory || !bulkDate) return;
+        if (!normalizeCategoryValue(bulkCategory) || !bulkDate) return;
 
         setBulkIsSubmitting(true);
         try {
@@ -214,8 +220,8 @@ export function AddTransactionDialog({
                 await addTransaction.mutateAsync({
                     transaction_type: bulkType,
                     amount: txn.amount,
-                    category: bulkCategory,
-                    description: txn.description || '',
+                    category: normalizeCategoryValue(bulkCategory),
+                    description: (txn.description || '').trim(),
                     related_account_id: null,
                     date: bulkDate,
                 });
@@ -293,18 +299,14 @@ export function AddTransactionDialog({
             {/* Category */}
             <div className="space-y-2">
                 <Label htmlFor="category">Category</Label>
-                <Select value={category} onValueChange={setCategory}>
-                    <SelectTrigger className={errors.category ? 'border-red-500' : ''}>
-                        <SelectValue placeholder="Select category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        {categories.map((cat) => (
-                            <SelectItem key={cat.value} value={cat.value}>
-                                {cat.label}
-                            </SelectItem>
-                        ))}
-                    </SelectContent>
-                </Select>
+                <TransactionCategoryInput
+                    id="category"
+                    value={category}
+                    onChange={setCategory}
+                    suggestions={categorySuggestions}
+                    placeholder={`Contoh: ${categories[0]?.label ?? 'operasional'}`}
+                    className={errors.category ? 'border-red-500' : ''}
+                />
                 {errors.category && (
                     <p className="text-xs text-red-500">{errors.category}</p>
                 )}
@@ -385,18 +387,13 @@ export function AddTransactionDialog({
                 </div>
                 <div className="space-y-2">
                     <Label>Category</Label>
-                    <Select value={bulkCategory} onValueChange={setBulkCategory}>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Pilih kategori" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            {bulkCategories.map((cat) => (
-                                <SelectItem key={cat.value} value={cat.value}>
-                                    {cat.label}
-                                </SelectItem>
-                            ))}
-                        </SelectContent>
-                    </Select>
+                    <TransactionCategoryInput
+                        id="bulk-category"
+                        value={bulkCategory}
+                        onChange={setBulkCategory}
+                        suggestions={bulkCategorySuggestions}
+                        placeholder={`Contoh: ${bulkCategories[0]?.label ?? 'operasional'}`}
+                    />
                 </div>
             </div>
 
@@ -481,7 +478,7 @@ export function AddTransactionDialog({
                         bulkIsSubmitting ||
                         !parseResult ||
                         parseResult.detectedCount === 0 ||
-                        !bulkCategory ||
+                        !normalizeCategoryValue(bulkCategory) ||
                         !bulkDate
                     }
                 >

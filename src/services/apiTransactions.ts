@@ -3,11 +3,13 @@
 // =============================================================================
 // Supabase API wrapper for transactions table
 
+import type { TransactionCategoryGroups } from '@/lib/financeCategories';
 import { supabase } from '@/lib/supabase';
 import type {
     Transaction,
     TransactionInsert,
     TransactionType,
+    TransactionUpdate,
 } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -64,6 +66,54 @@ export async function fetchTransactions(
 }
 
 // -----------------------------------------------------------------------------
+// Fetch Transaction Categories
+// -----------------------------------------------------------------------------
+
+export async function fetchTransactionCategories(): Promise<TransactionCategoryGroups> {
+    const { data, error } = await supabase
+        .from('transactions')
+        .select('category, transaction_type');
+
+    if (error) {
+        throw new Error(`Failed to fetch transaction categories: ${error.message}`);
+    }
+
+    const groups: TransactionCategoryGroups = {
+        all: [],
+        income: [],
+        expense: [],
+    };
+    const seen = {
+        all: new Set<string>(),
+        income: new Set<string>(),
+        expense: new Set<string>(),
+    };
+
+    for (const row of data ?? []) {
+        const category = row.category?.trim();
+        if (!category) continue;
+
+        const normalizedKey = category.toLowerCase();
+        if (!seen.all.has(normalizedKey)) {
+            seen.all.add(normalizedKey);
+            groups.all.push(category);
+        }
+
+        const bucket = row.transaction_type === 'income' ? 'income' : 'expense';
+        if (!seen[bucket].has(normalizedKey)) {
+            seen[bucket].add(normalizedKey);
+            groups[bucket].push(category);
+        }
+    }
+
+    groups.all.sort((a, b) => a.localeCompare(b, 'id-ID'));
+    groups.income.sort((a, b) => a.localeCompare(b, 'id-ID'));
+    groups.expense.sort((a, b) => a.localeCompare(b, 'id-ID'));
+
+    return groups;
+}
+
+// -----------------------------------------------------------------------------
 // Fetch Financial Summary
 // -----------------------------------------------------------------------------
 
@@ -117,13 +167,13 @@ export async function createTransaction(
 ): Promise<Transaction> {
     // Extract the optional date field — it's not a real DB column.
     // We use it to override created_at so the user-selected date is saved.
-    const { date, ...rest } = transaction;
+    const { date, time, ...rest } = transaction;
 
     const payload: Record<string, unknown> = { ...rest };
     if (date) {
         // Supabase allows inserting created_at when it's not protected.
         // Use end-of-day time (23:59:59) to keep it within the chosen day.
-        payload.created_at = `${date}T23:59:59+07:00`;
+        payload.created_at = buildCreatedAt(date, time);
     }
 
     const { data, error } = await supabase
@@ -134,6 +184,32 @@ export async function createTransaction(
 
     if (error) {
         throw new Error(`Failed to create transaction: ${error.message}`);
+    }
+
+    return data;
+}
+
+// -----------------------------------------------------------------------------
+// Update Transaction
+// -----------------------------------------------------------------------------
+
+export async function updateTransaction(
+    id: string,
+    updates: TransactionUpdate
+): Promise<Transaction> {
+    const { date, time, ...payload } = updates;
+    void date;
+    void time;
+
+    const { data, error } = await supabase
+        .from('transactions')
+        .update(payload)
+        .eq('id', id)
+        .select()
+        .single();
+
+    if (error) {
+        throw new Error(`Failed to update transaction: ${error.message}`);
     }
 
     return data;
@@ -152,4 +228,50 @@ export async function deleteTransaction(id: string): Promise<void> {
     if (error) {
         throw new Error(`Failed to delete transaction: ${error.message}`);
     }
+}
+
+function buildCreatedAt(date: string, rawTime?: string): string {
+    const now = new Date();
+    const time = normalizeTime(rawTime) ?? getCurrentLocalTime(now);
+
+    return `${date}T${time}${getLocalOffset(now)}`;
+}
+
+function normalizeTime(rawTime?: string): string | null {
+    if (!rawTime) return null;
+
+    const match = rawTime.trim().match(/^(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?$/);
+    if (!match) return null;
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+    const seconds = Number(match[3] ?? '0');
+
+    if (hours > 23 || minutes > 59 || seconds > 59) {
+        return null;
+    }
+
+    return [
+        String(hours).padStart(2, '0'),
+        String(minutes).padStart(2, '0'),
+        String(seconds).padStart(2, '0'),
+    ].join(':');
+}
+
+function getCurrentLocalTime(date: Date): string {
+    return [
+        String(date.getHours()).padStart(2, '0'),
+        String(date.getMinutes()).padStart(2, '0'),
+        String(date.getSeconds()).padStart(2, '0'),
+    ].join(':');
+}
+
+function getLocalOffset(date: Date): string {
+    const totalMinutes = -date.getTimezoneOffset();
+    const sign = totalMinutes >= 0 ? '+' : '-';
+    const absoluteMinutes = Math.abs(totalMinutes);
+    const hours = Math.floor(absoluteMinutes / 60);
+    const minutes = absoluteMinutes % 60;
+
+    return `${sign}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
 }

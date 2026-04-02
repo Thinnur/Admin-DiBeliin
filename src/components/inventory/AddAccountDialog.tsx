@@ -114,7 +114,7 @@ export function AddAccountDialog({
         if (parseResult?.globalExpiry && !bulkExpiryDate) {
             setBulkExpiryDate(parseResult.globalExpiry);
         }
-    }, [parseResult?.globalExpiry]);
+    }, [parseResult?.globalExpiry, bulkExpiryDate]);
 
     // Initialize form with account data when editing
     useEffect(() => {

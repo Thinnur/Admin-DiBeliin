@@ -10,18 +10,11 @@ import {
     Trash2,
     Plus,
     Copy,
-    Check,
     AlertCircle,
     Zap,
     TrendingDown,
     Users,
     Receipt,
-    Loader2,
-    X,
-    Phone,
-    Key,
-    CheckCircle2,
-    XCircle,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -43,14 +36,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
-
-import {
     parseWhatsAppOrder,
     formatPrice,
     getSampleOrderText,
@@ -63,11 +48,6 @@ import {
     type CartItem,
     type OptimizationResult,
 } from '@/lib/logic/optimizer';
-import {
-    useExecuteOrder,
-    generateCompactReport,
-    type ExecutionResult,
-} from '@/hooks/useExecuteOrder';
 import type { AccountBrand } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -408,11 +388,6 @@ export default function CalculatorPage() {
     const [result, setResult] = useState<OptimizationResult | null>(null);
     const [hasOptimized, setHasOptimized] = useState(false);
 
-    // Execution state
-    const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
-    const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-    const executeOrder = useExecuteOrder();
-
     // Menu DB cache for auto-price matching
     const [dbMenuItems, setDbMenuItems] = useState<MenuItem[]>([]);
 
@@ -570,41 +545,6 @@ export default function CalculatorPage() {
 
         const groupLabel = brand === 'fore' ? 'akun' : 'group';
         toast.success(`Dioptimasi menjadi ${optimizationResult.groups.length} ${groupLabel}!`);
-    };
-
-    // Execute strategy
-    const handleExecute = async () => {
-        if (!result) return;
-
-        try {
-            const execResult = await executeOrder.mutateAsync({
-                groups: result.groups,
-                brand,
-            });
-
-            setExecutionResult(execResult);
-            setShowSuccessDialog(true);
-
-            // If fully successful, reset the calculator
-            if (execResult.success) {
-                setItems([]);
-                setResult(null);
-                setHasOptimized(false);
-                setOrderText('');
-            }
-        } catch (error) {
-            // Error is handled by the hook
-            console.error('Execution failed:', error);
-        }
-    };
-
-    // Copy execution result
-    const handleCopyExecutionResult = () => {
-        if (!executionResult) return;
-
-        const report = generateCompactReport(executionResult);
-        navigator.clipboard.writeText(report);
-        toast.success('Account details copied to clipboard!');
     };
 
     // Copy result
@@ -862,23 +802,6 @@ Example:
 
                             {/* Actions */}
                             <div className="flex gap-3 pt-2">
-                                <Button
-                                    onClick={handleExecute}
-                                    className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                                    disabled={executeOrder.isPending}
-                                >
-                                    {executeOrder.isPending ? (
-                                        <>
-                                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                            Allocating...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Check className="w-4 h-4 mr-2" />
-                                            Execute Strategy
-                                        </>
-                                    )}
-                                </Button>
                                 <Button variant="outline" onClick={handleCopyResult}>
                                     <Copy className="w-4 h-4 mr-2" />
                                     Copy
@@ -888,110 +811,6 @@ Example:
                     )}
                 </div>
             </div>
-
-            {/* Success Dialog */}
-            <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
-                <DialogContent className="max-w-md">
-                    <DialogHeader>
-                        <DialogTitle className="flex items-center gap-2">
-                            {executionResult?.success ? (
-                                <>
-                                    <CheckCircle2 className="w-5 h-5 text-emerald-500" />
-                                    Order Executed!
-                                </>
-                            ) : (
-                                <>
-                                    <XCircle className="w-5 h-5 text-amber-500" />
-                                    Partial Execution
-                                </>
-                            )}
-                        </DialogTitle>
-                        <DialogDescription>
-                            {executionResult?.success
-                                ? 'All accounts have been assigned successfully.'
-                                : `${executionResult?.assignedAccounts.length}/${executionResult?.summary.totalGroups} groups assigned.`}
-                        </DialogDescription>
-                    </DialogHeader>
-
-                    {executionResult && (
-                        <div className="space-y-4 mt-2">
-                            {/* Assigned Accounts */}
-                            {executionResult.assignedAccounts.length > 0 && (
-                                <div className="space-y-2">
-                                    <h4 className="text-sm font-medium text-slate-700">
-                                        Accounts to Use:
-                                    </h4>
-                                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                                        {executionResult.assignedAccounts.map((assignment) => (
-                                            <div
-                                                key={assignment.account.id}
-                                                className="p-3 bg-slate-50 rounded-lg border"
-                                            >
-                                                <div className="flex items-center justify-between mb-1">
-                                                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-slate-200 text-slate-600">
-                                                        Group {assignment.groupId}
-                                                    </span>
-                                                    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${assignment.voucherType === 'nomin'
-                                                        ? 'bg-emerald-100 text-emerald-700'
-                                                        : 'bg-blue-100 text-blue-700'
-                                                        }`}>
-                                                        {assignment.voucherType === 'nomin' ? 'No Min' : 'Min 50k'}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-sm mt-2">
-                                                    <Phone className="w-4 h-4 text-slate-400" />
-                                                    <span className="font-medium">{assignment.account.phone_number}</span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-sm mt-2">
-                                                    <Key className="w-4 h-4 text-amber-600" />
-                                                    <span className="font-mono font-bold text-amber-700 bg-amber-100 px-2 py-1 rounded border border-amber-200">
-                                                        {assignment.account.password}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Errors */}
-                            {executionResult.errors.length > 0 && (
-                                <div className="space-y-2">
-                                    <h4 className="text-sm font-medium text-red-600">
-                                        Failed Groups:
-                                    </h4>
-                                    <div className="space-y-1">
-                                        {executionResult.errors.map((err, index) => (
-                                            <div key={index} className="p-2 bg-red-50 rounded text-sm text-red-700">
-                                                <span className="font-medium">Group {err.groupId}:</span> {err.message}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Actions */}
-                            <div className="flex gap-2 pt-2">
-                                <Button
-                                    onClick={handleCopyExecutionResult}
-                                    variant="outline"
-                                    className="flex-1"
-                                >
-                                    <Copy className="w-4 h-4 mr-2" />
-                                    Copy Account Details
-                                </Button>
-                                <Button
-                                    onClick={() => setShowSuccessDialog(false)}
-                                    className="flex-1"
-                                >
-                                    <X className="w-4 h-4 mr-2" />
-                                    Close
-                                </Button>
-                            </div>
-                        </div>
-                    )}
-                </DialogContent>
-            </Dialog>
         </div>
     );
 }

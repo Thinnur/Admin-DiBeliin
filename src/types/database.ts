@@ -60,8 +60,10 @@ export type AccountInsert = Omit<Account, 'id' | 'created_at'>;
 export type AccountUpdate = Partial<AccountInsert>;
 
 export type TransactionInsert = Omit<Transaction, 'id' | 'created_at'> & {
-  /** Optional transaction date (YYYY-MM-DD). If provided, overrides created_at in DB. */
+  /** Optional transaction date (YYYY-MM-DD). If provided, used to build created_at. */
   date?: string;
+  /** Optional transaction time (HH:mm or HH.mm). If provided, used to build created_at. */
+  time?: string;
 };
 export type TransactionUpdate = Partial<TransactionInsert>;
 

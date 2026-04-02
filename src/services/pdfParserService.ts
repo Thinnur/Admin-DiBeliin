@@ -143,7 +143,7 @@ export async function parseBankJagoPdf(file: File, password?: string): Promise<P
     rowsArr.forEach((r) => r.sort((a, b) => a.x - b.x));
 
     // Cari header row → ukur batas kolom
-    let colBounds: ColBound[] = [];
+    const colBounds: ColBound[] = [];
     let headerIdx = -1;
     for (let i = 0; i < rowsArr.length; i++) {
         const row = rowsArr[i];

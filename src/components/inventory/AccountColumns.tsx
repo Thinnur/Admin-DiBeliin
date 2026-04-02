@@ -2,6 +2,7 @@
 // DiBeliin Admin - Account Table Column Definitions
 // =============================================================================
 // TanStack Table columns with Shadcn UI components
+/* eslint-disable react-refresh/only-export-components */
 
 import { useState } from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
@@ -585,21 +586,6 @@ export function createAccountColumns(
             cell: ({ row }) => <StatusBadge status={row.getValue('status')} inUseBy={row.original.in_use_by} />,
             filterFn: (row, id, value) => {
                 return value.includes(row.getValue(id));
-            },
-            meta: { className: 'hidden md:table-cell' },
-        },
-
-        // Purchase Price Column - hidden on mobile
-        {
-            accessorKey: 'purchase_price',
-            header: 'Price',
-            cell: ({ row }) => {
-                const price = row.getValue('purchase_price') as number;
-                return (
-                    <span className="font-medium">
-                        Rp {price?.toLocaleString('id-ID') || '0'}
-                    </span>
-                );
             },
             meta: { className: 'hidden md:table-cell' },
         },

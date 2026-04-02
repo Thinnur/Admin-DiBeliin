@@ -43,6 +43,10 @@ interface DataTableProps<TData, TValue> {
     disablePagination?: boolean;
 }
 
+type TableColumnMeta = {
+    className?: string;
+};
+
 
 // -----------------------------------------------------------------------------
 // Skeleton Loader
@@ -150,7 +154,7 @@ export function DataTable<TData, TValue>({
                                 {headerGroup.headers.map((header) => (
                                     <TableHead
                                         key={header.id}
-                                        className={(header.column.columnDef.meta as any)?.className}
+                                        className={(header.column.columnDef.meta as TableColumnMeta | undefined)?.className}
                                     >
                                         {header.isPlaceholder
                                             ? null
@@ -173,7 +177,7 @@ export function DataTable<TData, TValue>({
                                     {row.getVisibleCells().map((cell) => (
                                         <TableCell
                                             key={cell.id}
-                                            className={(cell.column.columnDef.meta as any)?.className}
+                                            className={(cell.column.columnDef.meta as TableColumnMeta | undefined)?.className}
                                         >
                                             {flexRender(
                                                 cell.column.columnDef.cell,

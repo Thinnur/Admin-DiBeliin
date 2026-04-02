@@ -13,6 +13,9 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 
+import { TransactionCategoryInput } from '@/components/finance/TransactionCategoryInput';
+import { useTransactionCategories } from '@/hooks/useFinance';
+import { getCategorySuggestions, normalizeCategoryValue } from '@/lib/financeCategories';
 import { parseBankJagoPdf, formatRupiah, type ParsedRow, type ParsedRowType } from '@/services/pdfParserService';
 import { createTransaction } from '@/services/apiTransactions';
 import { queryClient, queryKeys } from '@/lib/queryClient';
@@ -62,6 +65,7 @@ export function ImportBankJagoDialog({ open, onOpenChange }: { open: boolean; on
     const [error, setError]         = useState<string | null>(null);
     const [rows, setRows]           = useState<PreviewRow[]>([]);
     const fileRef = useRef<HTMLInputElement>(null);
+    const { data: categoryGroups } = useTransactionCategories();
 
     const reset = useCallback(() => {
         setStep('upload'); setFile(null); setPassword('');
@@ -93,6 +97,11 @@ export function ImportBankJagoDialog({ open, onOpenChange }: { open: boolean; on
 
     const handleSave = async () => {
         if (!rows.length) return;
+        if (rows.some((row) => !normalizeCategoryValue(row.category))) {
+            toast.error('Masih ada kategori yang kosong. Isi dulu sebelum simpan.');
+            return;
+        }
+
         setIsSaving(true);
         let ok = 0; const errs: string[] = [];
         for (const row of rows) {
@@ -100,10 +109,11 @@ export function ImportBankJagoDialog({ open, onOpenChange }: { open: boolean; on
                 await createTransaction({
                     transaction_type: row.type === 'credit' ? 'income' : 'expense',
                     amount: row.amount,
-                    category: row.category,
+                    category: normalizeCategoryValue(row.category),
                     description: row.source_dest || row.description || 'Import Bank Jago',
                     related_account_id: null,
                     date: row.mutation_date,
+                    time: row.transaction_time,
                 });
                 ok++;
             } catch (e) { errs.push(e instanceof Error ? e.message : '?'); }
@@ -269,6 +279,10 @@ export function ImportBankJagoDialog({ open, onOpenChange }: { open: boolean; on
                                         <tbody className="divide-y divide-slate-100">
                                             {rows.map(row => {
                                                 const cats = row.type === 'credit' ? INCOME_CATS : EXPENSE_CATS;
+                                                const categorySuggestions = getCategorySuggestions(
+                                                    row.type === 'credit' ? 'income' : 'expense',
+                                                    categoryGroups
+                                                );
                                                 return (
                                                     <tr key={row.client_id} className="hover:bg-slate-50 transition-colors">
                                                         {/* Tgl */}
@@ -312,13 +326,14 @@ export function ImportBankJagoDialog({ open, onOpenChange }: { open: boolean; on
                                                         </td>
                                                         {/* Kategori */}
                                                         <td className="px-3 py-3">
-                                                            <select
+                                                            <TransactionCategoryInput
+                                                                id={`import-category-${row.client_id}`}
                                                                 value={row.category}
-                                                                onChange={e => upd(row.client_id, { category: e.target.value })}
-                                                                className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white outline-none cursor-pointer w-full focus:ring-1 focus:ring-blue-400"
-                                                            >
-                                                                {cats.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
-                                                            </select>
+                                                                onChange={(value) => upd(row.client_id, { category: value })}
+                                                                suggestions={categorySuggestions}
+                                                                placeholder={cats[0]?.label ?? 'Kategori'}
+                                                                className="h-8 text-xs"
+                                                            />
                                                         </td>
                                                         {/* Nominal */}
                                                         <td className="px-4 py-3 text-right whitespace-nowrap">

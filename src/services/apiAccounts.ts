@@ -184,7 +184,7 @@ export async function updateAccount(
     id: string,
     updates: AccountUpdate
 ): Promise<Account> {
-    let finalUpdates = { ...updates };
+    const finalUpdates = { ...updates };
 
     // If explicitly setting status to 'sold', force all voucher flags to false
     if (updates.status === 'sold') {
