@@ -109,6 +109,23 @@ export function AddAccountDialog({
         return parseBulkText(bulkText);
     }, [bulkText]);
 
+    const passwordSummary = useMemo(() => {
+        if (!parseResult || parseResult.detectedCount === 0) return null;
+
+        const nonEmptyPasswords = parseResult.accounts
+            .map((account) => account.password.trim())
+            .filter(Boolean);
+
+        if (nonEmptyPasswords.length === 0) return null;
+
+        const uniquePasswords = Array.from(new Set(nonEmptyPasswords));
+        if (uniquePasswords.length === 1) {
+            return { mode: 'single' as const, value: uniquePasswords[0] };
+        }
+
+        return { mode: 'per-account' as const, count: uniquePasswords.length };
+    }, [parseResult]);
+
     // Auto-fill expiry date from parser when detected
     useEffect(() => {
         if (parseResult?.globalExpiry && !bulkExpiryDate) {
@@ -492,7 +509,7 @@ export function AddAccountDialog({
             <div className="space-y-2">
                 <Label>Paste Text dari Seller</Label>
                 <Textarea
-                    placeholder={`Paste text dari seller di sini...\n\nContoh:\nakun :\n+6285607637577\n+6283821585437\n085839073898\n\nPin : 080808\nBerlaku sampai : 20 maret 2026`}
+                    placeholder={`Paste text dari seller di sini...\n\nContoh format lama:\nakun :\n+6285607637577\n+6283821585437\n085839073898\n\nPin : 080808\nBerlaku sampai : 20 maret 2026\n\nContoh format baru (PIN per akun):\n85600756930|227224\n85600756214|662387`}
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
                     rows={8}
@@ -506,9 +523,14 @@ export function AddAccountDialog({
                     <p className="text-sm font-semibold text-violet-800">
                         ✓ Terdeteksi {parseResult.detectedCount} akun
                     </p>
-                    {parseResult.accounts[0]?.password && (
+                    {passwordSummary?.mode === 'single' && (
                         <p className="text-xs text-violet-700">
-                            Default Password: <span className="font-mono font-medium">{parseResult.accounts[0].password}</span>
+                            Default PIN: <span className="font-mono font-medium">{passwordSummary.value}</span>
+                        </p>
+                    )}
+                    {passwordSummary?.mode === 'per-account' && (
+                        <p className="text-xs text-violet-700">
+                            PIN per akun terdeteksi ({passwordSummary.count} variasi)
                         </p>
                     )}
                     {parseResult.globalExpiry && (

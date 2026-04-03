@@ -159,7 +159,7 @@ export function parseBulkText(text: string): ParseResult {
 
     const lines = trimmedInput.split(/\r?\n/);
 
-    const phones: string[] = [];
+    const accounts: ParsedAccount[] = [];
     let globalPassword: string | null = null;
     let globalExpiry: string | null = null;
 
@@ -169,6 +169,9 @@ export function parseBulkText(text: string): ParseResult {
     // PIN/Password keywords regex
     const pinRegex = /(?:pin|pass|password)\s*[:=]\s*(.+)/i;
 
+    // Per-account format: "Nomor|PIN"
+    const phonePinRegex = /^(.+?)\s*\|\s*(.+)$/;
+
     // Expiry date keywords regex
     const expiryRegex = /(?:berlaku|expiry|exp|valid|sampai|expired?)\s*(?:sampai|hingga|s\.?d\.?)?\s*[:=]?\s*(.+)/i;
 
@@ -176,21 +179,37 @@ export function parseBulkText(text: string): ParseResult {
         const trimmed = line.trim();
         if (!trimmed) continue;
 
-        // Check for phone numbers
-        const phoneMatch = trimmed.match(phoneRegex);
-        if (phoneMatch) {
-            const normalized = normalizePhone(phoneMatch[0]);
-            if (normalized) {
-                phones.push(normalized);
-                continue;
-            }
-        }
-
         // Check for global PIN/password
         const pinMatch = trimmed.match(pinRegex);
         if (pinMatch) {
             globalPassword = pinMatch[1].trim();
             continue;
+        }
+
+        // Check for per-account format: "Nomor|PIN"
+        const phonePinMatch = trimmed.match(phonePinRegex);
+        if (phonePinMatch) {
+            const normalized = normalizePhone(phonePinMatch[1]);
+            if (normalized) {
+                accounts.push({
+                    phone: normalized,
+                    password: phonePinMatch[2].trim(),
+                });
+                continue;
+            }
+        }
+
+        // Check for phone numbers
+        const phoneMatch = trimmed.match(phoneRegex);
+        if (phoneMatch) {
+            const normalized = normalizePhone(phoneMatch[0]);
+            if (normalized) {
+                accounts.push({
+                    phone: normalized,
+                    password: '',
+                });
+                continue;
+            }
         }
 
         // Check for expiry date
@@ -209,18 +228,19 @@ export function parseBulkText(text: string): ParseResult {
             if (dateFallback) {
                 globalExpiry = dateFallback;
             }
+            continue;
         }
     }
 
-    // Build accounts array
-    const accounts: ParsedAccount[] = phones.map((phone) => ({
-        phone,
-        password: globalPassword || '',
+    // Apply global PIN only to entries that don't have per-account PIN.
+    const normalizedAccounts: ParsedAccount[] = accounts.map((account) => ({
+        ...account,
+        password: account.password || globalPassword || '',
     }));
 
     return {
-        accounts,
+        accounts: normalizedAccounts,
         globalExpiry,
-        detectedCount: accounts.length,
+        detectedCount: normalizedAccounts.length,
     };
 }
