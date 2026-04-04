@@ -80,11 +80,19 @@ function ItemRow({
     return (
         <tr className="border-b border-slate-100 hover:bg-slate-50/50 hidden md:table-row">
             <td className="py-2 px-2">
-                <Input
-                    value={item.name}
-                    onChange={(e) => onUpdate(item.id, { name: e.target.value })}
-                    className="h-8 text-sm"
-                />
+                <div className="space-y-1">
+                    <Input
+                        value={item.name}
+                        onChange={(e) => onUpdate(item.id, { name: e.target.value })}
+                        className="h-8 text-sm"
+                    />
+                    <p className="text-[11px] text-slate-500">{item.name} x{item.qty}</p>
+                    {item.addons?.map((addon, idx) => (
+                        <p key={`${item.id}-addon-${idx}`} className="text-[11px] text-slate-500 pl-2">
+                            + {addon}
+                        </p>
+                    ))}
+                </div>
             </td>
             <td className="py-2 px-2 w-20">
                 <Input
@@ -200,7 +208,7 @@ function ItemCard({
                     />
                 </div>
                 <div className="flex items-center gap-1 flex-1">
-                    <span className="text-xs text-slate-400">×</span>
+                    <span className="text-xs text-slate-400">&times;</span>
                     <Input
                         type="number"
                         min="0"
@@ -213,6 +221,14 @@ function ItemCard({
                 <span className="text-sm font-semibold text-slate-800 tabular-nums whitespace-nowrap">
                     {formatPrice(item.price * item.qty)}
                 </span>
+            </div>
+            <div className="space-y-0.5">
+                <p className="text-[11px] text-slate-500">{item.name} x{item.qty}</p>
+                {item.addons?.map((addon, idx) => (
+                    <p key={`${item.id}-addon-mobile-${idx}`} className="text-[11px] text-slate-500 pl-2">
+                        + {addon}
+                    </p>
+                ))}
             </div>
             {isFore && (
                 <div className="flex items-center gap-2">
@@ -268,14 +284,21 @@ function StrategyCard({
                 <div className="space-y-1.5">
                     {group.items.map((item, i) => (
                         <div key={i} className="flex justify-between text-sm min-w-0">
-                            <div className="flex items-center gap-1.5 min-w-0 pr-2">
-                                {isBogo && item.isBogoDFree && (
-                                    <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">GRATIS</span>
-                                )}
-                                {isBogo && item.isForeDeli && (
-                                    <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">Deli</span>
-                                )}
-                                <span className="text-slate-600 truncate">{item.name}</span>
+                            <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-1.5 min-w-0">
+                                    {isBogo && item.isBogoDFree && (
+                                        <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">GRATIS</span>
+                                    )}
+                                    {isBogo && item.isForeDeli && (
+                                        <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">Deli</span>
+                                    )}
+                                    <span className="text-slate-600">{item.name} x1</span>
+                                </div>
+                                {item.addons?.map((addon, addonIdx) => (
+                                    <div key={`${group.id}-${i}-addon-${addonIdx}`} className="text-xs text-slate-500 pl-2 mt-0.5">
+                                        + {addon}
+                                    </div>
+                                ))}
                             </div>
                             <span className={`font-medium tabular-nums shrink-0 ${isBogo && item.isBogoDFree ? 'line-through text-slate-400' : 'text-slate-900'
                                 }`}>
@@ -416,7 +439,9 @@ export default function CalculatorPage() {
             // Sanitize the parsed name: lowercase + strip size/temp modifiers
             const sanitizedName = item.name
                 .toLowerCase()
-                .replace(/[-–]?\s*(regular|large|ice|hot)\b/gi, '')
+                .replace(/\([^)]*\)/g, ' ')
+                .replace(/[-\u2013]?\s*(regular|large|ice|hot)\b/gi, '')
+                .replace(/\s+/g, ' ')
                 .trim();
 
             // Try to find a matching item in the DB
@@ -497,6 +522,7 @@ export default function CalculatorPage() {
             name: 'New Item',
             price: 0,
             qty: 1,
+            addons: [],
             basePrice: 0,
             isForeDeli: false,
             rawLine: '',
@@ -533,6 +559,7 @@ export default function CalculatorPage() {
             name: item.name,
             price: item.price,
             qty: item.qty,
+            addons: item.addons ?? [],
             ...(brand === 'fore' ? {
                 basePrice: item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price,
                 isForeDeli: item.isForeDeli ?? isForeDeli(item.name),
@@ -553,7 +580,11 @@ export default function CalculatorPage() {
 
         const text = result.groups
             .map((g, i) => {
-                const items = g.items.map((item) => `  - ${item.name}: ${formatPrice(item.price)}`).join('\n');
+                const items = g.items.map((item) => {
+                    const headerLine = `  - ${item.name} x1: ${formatPrice(item.price)}`;
+                    const addonLines = (item.addons ?? []).map((addon) => `    + ${addon}`);
+                    return [headerLine, ...addonLines].join('\n');
+                }).join('\n');
                 return `Group ${i + 1} (${g.recommendedVoucher === 'nomin' ? 'No Min' : 'Min 50k'}):\n${items}\n  Subtotal: ${formatPrice(g.totalPrice)}\n  Discount: -${formatPrice(g.estimatedDiscount)}`;
             })
             .join('\n\n');

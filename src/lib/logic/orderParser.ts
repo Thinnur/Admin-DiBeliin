@@ -13,6 +13,7 @@ export interface ParsedItem {
     name: string;
     qty: number;
     price: number;
+    addons?: string[];
     // Legacy properties for backward compatibility with Calculator.tsx
     rawLine?: string;
     hasError?: boolean;
@@ -26,118 +27,140 @@ export interface ParseResult {
     totalUnparsed: number;
 }
 
+interface PendingItem {
+    id: string;
+    name: string;
+    qty: number;
+    rawLine: string;
+    addons: string[];
+}
+
+const ITEM_REGEX = /(?:^\d+[.)]\s*)?(.+?)\s+(?:x|X|\u00D7)\s*(\d+)$/;
+const PURE_PRICE_REGEX = /^(?:rp\.?|idr)?\s*([\d.,]+)$/i;
+const ITEM_META_REGEX = /^(order|pesanan|detail pembayaran|total|subtotal|ongkir|delivery|discount|diskon|biaya admin|admin fee|terima kasih|nama|outlet)\b/i;
+
+function parsePrice(line: string): number | null {
+    if (!PURE_PRICE_REGEX.test(line)) return null;
+
+    const digitsOnly = line.replace(/[^\d]/g, '');
+    if (digitsOnly.length < 3) return null;
+
+    const parsed = parseInt(digitsOnly, 10);
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function isAddonLine(line: string): boolean {
+    if (ITEM_META_REGEX.test(line)) return false;
+
+    return /^(add[\s-]?on|addon|topping|extra|sweetness|ice cube|size|catatan|notes?)\b/i.test(line)
+        || /^[A-Za-z][A-Za-z\s-]{1,25}\s*:\s*.+$/.test(line);
+}
+
+function pushPendingAsError(target: PendingItem, items: ParsedItem[]): void {
+    items.push({
+        id: target.id,
+        name: target.name,
+        qty: target.qty,
+        price: 0,
+        addons: target.addons,
+        rawLine: target.rawLine,
+        hasError: true,
+        errorMessage: 'Price not detected - please enter manually',
+    });
+}
+
 // -----------------------------------------------------------------------------
 // Main Parser Function
 // -----------------------------------------------------------------------------
 
 /**
- * Parse WhatsApp order text into structured items
- * 
- * This is a ROBUST parser that handles:
+ * Parse WhatsApp order text into structured items.
+ *
+ * This parser handles:
  * - Markdown formatting (*, _)
  * - Varied spacing and newlines
  * - Multi-line format (item on one line, price on next)
- * - Both "x" and "×" quantity indicators
- * 
- * @param text - Raw text from WhatsApp
- * @returns Array of parsed items
+ * - Quantity with x / X / multiplication sign
+ * - Item add-ons / notes lines between item and price
  */
 export function parseWhatsAppOrder(text: string): ParseResult {
     const items: ParsedItem[] = [];
     const unparsedLines: string[] = [];
 
-    // 1. Cleaning & Normalization
-    // Split lines, trim, and remove empty lines
     const lines = text
-        .split(/\r?\n/) // Handle both \n and \r\n
-        .map(line => line.trim())
-        .filter(line => line !== '');
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter((line) => line !== '');
 
-    let currentItem: Partial<ParsedItem> | null = null;
-
-    // Regex Patterns
-    // Matches: "1. Kopi Susu x 2", "Kopi x2", "Cloud Macchiato x4"
-    // Group 1: Name, Group 2: Qty
-    const itemRegex = /(?:^\d+\.\s*)?(.+?)\s+[xX×]\s*(\d+)$/i;
-
-    // Matches: "Rp 112.000", "112.000", "112000"
-    const priceRegex = /^(?:Rp\.?|IDR)?\s*([\d.,]+)$/i;
+    let currentItem: PendingItem | null = null;
 
     for (const line of lines) {
-        // Remove Markdown formatting (* or _)
-        const cleanLine = line.replace(/[*_]/g, '').trim();
+        const cleanLine = line.replace(/[*_]/g, '').replace(/\s+/g, ' ').trim();
+        if (!cleanLine) continue;
 
-        // Skip obvious header/footer lines
-        if (/^(order|pesanan|total|subtotal|ongkir|delivery|discount|diskon|---)/i.test(cleanLine)) {
+        // Skip clear separators
+        if (/^[\-\u2013\u2014\u2500]{3,}$/.test(cleanLine)) {
             continue;
         }
 
-        // CHECK FOR ITEM
-        const itemMatch = cleanLine.match(itemRegex);
+        // Skip obvious header/footer lines when not inside an item block
+        if (!currentItem && ITEM_META_REGEX.test(cleanLine)) {
+            continue;
+        }
+
+        // ITEM HEADER LINE
+        const itemMatch = cleanLine.match(ITEM_REGEX);
         if (itemMatch) {
-            // If previous item exists but has no price, save it with hasError
             if (currentItem) {
-                items.push({
-                    id: currentItem.id || crypto.randomUUID(),
-                    name: currentItem.name || '',
-                    qty: currentItem.qty || 1,
-                    price: 0,
-                    rawLine: currentItem.rawLine,
-                    hasError: true,
-                    errorMessage: 'Price not detected - please enter manually',
-                } as ParsedItem);
+                pushPendingAsError(currentItem, items);
             }
 
             currentItem = {
                 id: crypto.randomUUID(),
                 name: itemMatch[1].trim(),
                 qty: parseInt(itemMatch[2], 10) || 1,
-                price: 0,
                 rawLine: cleanLine,
-                hasError: false,
+                addons: [],
             };
             continue;
         }
 
-        // CHECK FOR PRICE (Only if we have a pending item)
         if (currentItem) {
-            // Remove everything except numbers to check raw value
-            const digitsOnly = cleanLine.replace(/[^\d]/g, '');
+            // PRICE LINE
+            const parsedPrice = parsePrice(cleanLine);
+            if (parsedPrice !== null) {
+                const unitPrice = Math.round(parsedPrice / currentItem.qty);
 
-            // Basic check: is this line primarily a price?
-            if (digitsOnly.length >= 3 && priceRegex.test(cleanLine)) {
-                const rawTotalPrice = parseInt(digitsOnly, 10);
+                items.push({
+                    id: currentItem.id,
+                    name: currentItem.name,
+                    qty: currentItem.qty,
+                    price: unitPrice,
+                    addons: currentItem.addons,
+                    rawLine: `${currentItem.rawLine}\n${cleanLine}`,
+                    hasError: false,
+                });
 
-                // Calculate Unit Price (Total / Qty)
-                const unitPrice = Math.round(rawTotalPrice / (currentItem.qty || 1));
+                currentItem = null;
+                continue;
+            }
 
-                currentItem.price = unitPrice;
+            // ADD-ON / DETAIL LINE
+            if (isAddonLine(cleanLine)) {
+                const detail = cleanLine.replace(/^[-\u2022]\s*/, '').trim();
+                currentItem.addons.push(detail);
                 currentItem.rawLine = `${currentItem.rawLine}\n${cleanLine}`;
-                currentItem.hasError = false;
-
-                items.push(currentItem as ParsedItem);
-                currentItem = null; // Reset
                 continue;
             }
         }
 
-        // Line didn't match item or price pattern
         if (!currentItem) {
             unparsedLines.push(cleanLine);
         }
     }
 
-    // Push last item if pending (with error since no price was found)
     if (currentItem) {
-        items.push({
-            id: currentItem.id || crypto.randomUUID(),
-            name: currentItem.name || '',
-            qty: currentItem.qty || 1,
-            price: 0,
-            rawLine: currentItem.rawLine,
-            hasError: true,
-            errorMessage: 'Price not detected - please enter manually',
-        } as ParsedItem);
+        pushPendingAsError(currentItem, items);
     }
 
     return {
@@ -164,9 +187,14 @@ export function formatPrice(price: number): string {
  */
 export function getSampleOrderText(): string {
     return `1. Cloud Caramel Macchiato - Regular x4
+   Sweetness: Normal Sweet
+   Ice Cube: Less Ice
    Rp 112.000
 2. Matcha Espresso - Regular x4
+   Sweetness: Less Sweet
+   Ice Cube: Normal Ice
    Rp 108.000
 3. Es Kopi Susu x2
+   Add On: Oat Milk
    Rp 36.000`;
 }

@@ -4,11 +4,11 @@
 // Implements optimization strategies for Fore Coffee and Kopi Kenangan.
 //
 // FORE COFFEE (Updated S&K):
-//   - Skenario A: Diskon 35% × total actualPrice, maks Rp 50.000, 1 akun
-//   - Skenario B: BOGO — tiap pasang butuh ≥1 minuman (bukan Fore Deli) sbg trigger
+//   - Skenario A: Diskon 35% x total actualPrice, maks Rp 50.000, 1 akun
+//   - Skenario B: BOGO - tiap pasang butuh >=1 minuman (bukan Fore Deli) sbg trigger
 //                 Diskon = basePrice item termurah dalam pasangan
 //                 Tiap pasangan = 1 akun terpisah (admin Rp 5.000/akun)
-//   - Strategi: Hybrid Exhaustive Search — coba semua k BOGO pairs + sisa ke 35%
+//   - Strategi: Hybrid Exhaustive Search - coba semua k BOGO pairs + sisa ke 35%
 //               Pilih k dengan Net Benefit tertinggi.
 //
 // KOPI KENANGAN: Unchanged bin-packing with nomin/min50k vouchers.
@@ -20,6 +20,7 @@ export interface CartItem {
     /** actualPrice: harga yang dibayar (Regular = harga regular, Large = harga Large) */
     price: number;
     qty: number;
+    addons?: string[];
     /**
      * basePrice: harga Regular menu (untuk kalkulasi diskon BOGO).
      * Jika tidak diisi, dianggap sama dengan actualPrice.
@@ -38,6 +39,7 @@ export interface OptimizedGroup {
     id: string;
     items: {
         name: string;
+        addons?: string[];
         /** actualPrice unit */
         price: number;
         /** basePrice unit (same as price if not set) */
@@ -76,17 +78,20 @@ function expandCartItems(items: CartItem[]): {
     price: number;
     basePrice: number;
     isForeDeli: boolean;
+    addons: string[];
 }[] {
-    const expanded: { name: string; price: number; basePrice: number; isForeDeli: boolean }[] = [];
+    const expanded: { name: string; price: number; basePrice: number; isForeDeli: boolean; addons: string[] }[] = [];
     for (const item of items) {
         const bp = item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price;
         const fd = item.isForeDeli ?? isForeDeli(item.name);
+        const addons = item.addons ?? [];
         for (let i = 0; i < item.qty; i++) {
             expanded.push({
                 name: item.name,
                 price: item.price,
                 basePrice: bp,
                 isForeDeli: fd,
+                addons: [...addons],
             });
         }
     }
@@ -110,6 +115,7 @@ type ForeItem = {
     price: number;      // actualPrice per unit
     basePrice: number;  // basePrice per unit (for BOGO discount)
     isForeDeli: boolean;
+    addons: string[];
 };
 
 /**
@@ -127,10 +133,10 @@ function calc35Discount(items: ForeItem[]): number {
  * Strategy:
  *   For k = 0, 1, 2, ..., maxK:
  *     - Select k BOGO pairs (each pair: 1 trigger drink + 1 free item)
- *       → The cheapest items (by actualPrice) are chosen as the "free" items first
- *       → The trigger must be a non-ForeDeli drink (cheapest available)
+ *       -> The cheapest items (by actualPrice) are chosen as the "free" items first
+ *       -> The trigger must be a non-ForeDeli drink (cheapest available)
  *     - Remaining items go to the 35% account (only if disc > admin cost)
- *     - Compute NetBenefit = (bogoDis + disc35) - ((k + hasDisc35Acct) × ADMIN_COST)
+ *     - Compute NetBenefit = (bogoDis + disc35) - ((k + hasDisc35Acct) x ADMIN_COST)
  *   Pick k with highest NetBenefit.
  */
 function optimizeFore(expandedItems: ForeItem[]): OptimizedGroup[] {
@@ -160,7 +166,7 @@ function simulateForeScenario(
     allItems: ForeItem[],
     k: number
 ): { groups: OptimizedGroup[]; netBenefit: number } {
-    // Sort ascending by basePrice — item dengan Regular price termurah yang gratis (BOGO rule)
+    // Sort ascending by basePrice - item dengan Regular price termurah yang gratis (BOGO rule)
     const sorted = [...allItems].sort((a, b) => a.basePrice - b.basePrice);
 
     const groups: OptimizedGroup[] = [];
@@ -171,7 +177,7 @@ function simulateForeScenario(
     for (let p = 0; p < k; p++) {
         if (sorted.length - usedIndices.size < 2) break;
 
-        // FREE ITEM = cheapest unused item (any type — minuman atau Fore Deli)
+        // FREE ITEM = cheapest unused item (any type - minuman atau Fore Deli)
         let freeIdx = -1;
         for (let i = 0; i < sorted.length; i++) {
             if (!usedIndices.has(i)) { freeIdx = i; break; }
@@ -204,6 +210,7 @@ function simulateForeScenario(
             items: [
                 {
                     name: triggerItem.name,
+                    addons: triggerItem.addons,
                     price: triggerItem.price,
                     basePrice: triggerItem.basePrice,
                     isForeDeli: triggerItem.isForeDeli,
@@ -211,6 +218,7 @@ function simulateForeScenario(
                 },
                 {
                     name: freeItem.name,
+                    addons: freeItem.addons,
                     price: freeItem.price,
                     basePrice: freeItem.basePrice,
                     isForeDeli: freeItem.isForeDeli,
@@ -224,7 +232,7 @@ function simulateForeScenario(
         });
     }
 
-    // Remaining items (not used in BOGO) → 35% account
+    // Remaining items (not used in BOGO) -> 35% account
     const remainingItems = sorted.filter((_, i) => !usedIndices.has(i));
 
     let disc35 = 0;
@@ -240,6 +248,7 @@ function simulateForeScenario(
                 id: generateId(),
                 items: remainingItems.map(i => ({
                     name: i.name,
+                    addons: i.addons,
                     price: i.price,
                     basePrice: i.basePrice,
                     isForeDeli: i.isForeDeli,
@@ -249,12 +258,13 @@ function simulateForeScenario(
                 estimatedDiscount: disc35,
             });
         } else {
-            // Items exist but no discount worth it — show as group with 0 discount (no voucher)
+            // Items exist but no discount worth it - show as group with 0 discount (no voucher)
             const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
             groups.push({
                 id: generateId(),
                 items: remainingItems.map(i => ({
                     name: i.name,
+                    addons: i.addons,
                     price: i.price,
                     basePrice: i.basePrice,
                     isForeDeli: i.isForeDeli,
@@ -282,18 +292,18 @@ function simulateForeScenario(
 const calcKopKenDiscA = (price: number) => Math.min(price * 0.5, 35000);
 const calcKopKenDiscB = (price: number) => (price >= 50000 ? Math.min(price * 0.5, 30000) : 0);
 
-function expandKopKenItems(items: CartItem[]): { name: string; price: number }[] {
-    const expanded: { name: string; price: number }[] = [];
+function expandKopKenItems(items: CartItem[]): { name: string; price: number; addons: string[] }[] {
+    const expanded: { name: string; price: number; addons: string[] }[] = [];
     for (const item of items) {
         for (let i = 0; i < item.qty; i++) {
-            expanded.push({ name: item.name, price: item.price });
+            expanded.push({ name: item.name, price: item.price, addons: item.addons ?? [] });
         }
     }
     return expanded;
 }
 
-function optimizeKopKen(expandedItems: { name: string; price: number }[]): OptimizedGroup[] {
-    const attemptAllMin50 = (itemList: { name: string; price: number }[]): OptimizedGroup[] | null => {
+function optimizeKopKen(expandedItems: { name: string; price: number; addons: string[] }[]): OptimizedGroup[] {
+    const attemptAllMin50 = (itemList: { name: string; price: number; addons: string[] }[]): OptimizedGroup[] | null => {
         if (itemList.length === 0) return [];
         const sorted = [...itemList].sort((a, b) => b.price - a.price);
         const total = sorted.reduce((a, b) => a + b.price, 0);
@@ -314,7 +324,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number }[]): Optim
 
             for (const item of sorted) {
                 baskets.sort((a, b) => a.totalPrice - b.totalPrice);
-                baskets[0].items.push({ name: item.name, price: item.price, basePrice: item.price, isForeDeli: false });
+                baskets[0].items.push({ name: item.name, addons: item.addons, price: item.price, basePrice: item.price, isForeDeli: false });
                 baskets[0].totalPrice += item.price;
             }
 
@@ -340,7 +350,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number }[]): Optim
             console.error('Optimizer Infinite Loop Detected: Forcing exit.');
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
                 totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: 0,
@@ -353,7 +363,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number }[]): Optim
         if (currentTotal >= 50000 && currentTotal <= 60000) {
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
                 totalPrice: currentTotal,
                 recommendedVoucher: 'min50k',
                 estimatedDiscount: calcKopKenDiscB(currentTotal),
@@ -364,7 +374,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number }[]): Optim
         if (currentTotal < 50000 || (currentTotal > 60000 && currentTotal <= 70000)) {
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
                 totalPrice: currentTotal,
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: calcKopKenDiscA(currentTotal),
@@ -372,7 +382,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number }[]): Optim
             break;
         }
 
-        const subsetB: { name: string; price: number }[] = [];
+        const subsetB: { name: string; price: number; addons: string[] }[] = [];
         let currentSubsetSum = 0;
         const indicesToRemove: number[] = [];
 
@@ -387,14 +397,14 @@ function optimizeKopKen(expandedItems: { name: string; price: number }[]): Optim
         if (currentSubsetSum >= 50000) {
             groups.push({
                 id: generateId(),
-                items: subsetB.map(i => ({ name: i.name, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: subsetB.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
                 totalPrice: currentSubsetSum,
                 recommendedVoucher: 'min50k',
                 estimatedDiscount: calcKopKenDiscB(currentSubsetSum),
             });
             indicesToRemove.sort((a, b) => b - a).forEach(idx => remainingItems.splice(idx, 1));
         } else {
-            const basketAItems: { name: string; price: number }[] = [];
+            const basketAItems: { name: string; price: number; addons: string[] }[] = [];
             let basketASum = 0;
             const removeA: number[] = [];
 
@@ -415,7 +425,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number }[]): Optim
 
             groups.push({
                 id: generateId(),
-                items: basketAItems.map(i => ({ name: i.name, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: basketAItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
                 totalPrice: basketASum,
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: calcKopKenDiscA(basketASum),
@@ -507,6 +517,7 @@ export function optimizeOrder(
                     id: generateId(),
                     items: items.map(i => ({
                         name: i.name,
+                        addons: i.addons,
                         price: i.price,
                         basePrice: i.basePrice ?? i.price,
                         isForeDeli: i.isForeDeli ?? false,
