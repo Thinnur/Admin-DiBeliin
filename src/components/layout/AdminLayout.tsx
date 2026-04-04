@@ -659,7 +659,8 @@ export default function AdminLayout() {
 
     const handleSignOut = async () => {
         try {
-            const { error } = await supabase.auth.signOut();
+            // Logout hanya untuk perangkat/browser saat ini agar sesi device lain tetap aktif.
+            const { error } = await supabase.auth.signOut({ scope: 'local' });
             if (error) throw error;
             toast.success('Signed out successfully');
             navigate('/login');
