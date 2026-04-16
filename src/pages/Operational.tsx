@@ -40,6 +40,7 @@ import {
     updateServiceStatus,
     type Voucher,
 } from '@/services/operationalService';
+import { useAuth } from '@/contexts/AuthContext';
 import BannerManagement from '@/components/inventory/BannerManagement';
 import AntrianPesananTable from '@/components/operational/AntrianPesananTable';
 
@@ -462,6 +463,8 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
 // -----------------------------------------------------------------------------
 
 export default function Operational() {
+    const { isSuperAdmin, isLoading: isRoleLoading } = useAuth();
+
     // Store status state
     const [isStoreOpen, setIsStoreOpen] = useState(true);
     const [isStatusLoading, setIsStatusLoading] = useState(false);
@@ -479,21 +482,26 @@ export default function Operational() {
 
     // Initial data fetch
     useEffect(() => {
-        fetchInitialData();
-    }, []);
+        if (isRoleLoading) return;
+        fetchInitialData(isSuperAdmin);
+    }, [isRoleLoading, isSuperAdmin]);
 
-    const fetchInitialData = async () => {
+    const fetchInitialData = async (loadVouchers: boolean) => {
         try {
-            const [status, foreStatus, kenanganStatus, voucherList] = await Promise.all([
+            const [status, foreStatus, kenanganStatus] = await Promise.all([
                 getStoreStatus(),
                 getServiceStatus('fore'),
                 getServiceStatus('kenangan'),
-                getVouchers(),
             ]);
             setIsStoreOpen(status);
             setIsForeOpen(foreStatus);
             setIsKenanganOpen(kenanganStatus);
-            setVouchers(voucherList);
+            if (loadVouchers) {
+                const voucherList = await getVouchers();
+                setVouchers(voucherList);
+            } else {
+                setVouchers([]);
+            }
         } catch (error) {
             console.error('Error fetching initial data:', error);
             toast.error('Failed to load operational data');
@@ -580,6 +588,28 @@ export default function Operational() {
             setIsDeletingId(null);
         }
     };
+
+    if (isRoleLoading) return null;
+
+    if (!isSuperAdmin) {
+        return (
+            <div className="space-y-6">
+                <StoreStatusSection
+                    isOpen={isStoreOpen}
+                    isLoading={isStatusLoading}
+                    onToggle={handleToggleStore}
+                />
+
+                <ServiceStatusSection
+                    isForeOpen={isForeOpen}
+                    isKenanganOpen={isKenanganOpen}
+                    isLoading={isServiceLoading}
+                    onToggleFore={handleToggleFore}
+                    onToggleKenangan={handleToggleKenangan}
+                />
+            </div>
+        );
+    }
 
     return (
         <Tabs defaultValue="operational" className="space-y-6">

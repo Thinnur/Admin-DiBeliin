@@ -3,7 +3,7 @@
 // =============================================================================
 // Premium financial dashboard with KPI cards, period filtering, and profit comparison
 
-import { useState, useRef, useMemo } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
     format,
@@ -11,6 +11,7 @@ import {
     endOfDay,
     startOfMonth,
     endOfMonth,
+    eachDayOfInterval,
     subDays,
     subMonths,
     addDays,
@@ -220,6 +221,251 @@ function ProfitComparisonCard({
                 </>
             )}
         </div>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Financial Trend Chart
+// -----------------------------------------------------------------------------
+
+interface FinancialTrendPoint {
+    label: string;
+    fullLabel: string;
+    income: number;
+    expense: number;
+    profit: number;
+}
+
+interface FinancialTrendChartProps {
+    data: FinancialTrendPoint[];
+    isLoading: boolean;
+}
+
+function FinancialTrendChart({
+    data,
+    isLoading,
+}: FinancialTrendChartProps) {
+    const chartContainerRef = useRef<HTMLDivElement>(null);
+    const [containerWidth, setContainerWidth] = useState(0);
+
+    useEffect(() => {
+        const element = chartContainerRef.current;
+        if (!element) return;
+
+        const updateWidth = () => {
+            setContainerWidth(element.clientWidth);
+        };
+
+        updateWidth();
+        const observer = new ResizeObserver(updateWidth);
+        observer.observe(element);
+
+        return () => observer.disconnect();
+    }, []);
+
+    const formatCompactAmount = (amount: number) => {
+        return new Intl.NumberFormat('id-ID', {
+            notation: 'compact',
+            compactDisplay: 'short',
+            maximumFractionDigits: 1,
+        }).format(amount);
+    };
+
+    if (isLoading) {
+        return (
+            <Card className="shadow-sm">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base md:text-lg">Grafik Tren Keuangan</CardTitle>
+                    <CardDescription className="text-xs md:text-sm">
+                        Income, expense, dan profit per hari
+                    </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                    <Skeleton className="h-56 w-full" />
+                    <div className="flex gap-3">
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-20" />
+                        <Skeleton className="h-4 w-20" />
+                    </div>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    if (data.length === 0) {
+        return (
+            <Card className="shadow-sm">
+                <CardHeader className="pb-3">
+                    <CardTitle className="text-base md:text-lg">Grafik Tren Keuangan</CardTitle>
+                    <CardDescription className="text-xs md:text-sm">
+                        Income, expense, dan profit per hari
+                    </CardDescription>
+                </CardHeader>
+                <CardContent>
+                    <p className="text-sm text-slate-500">Belum ada data transaksi pada periode ini.</p>
+                </CardContent>
+            </Card>
+        );
+    }
+
+    const allValues = data.flatMap((point) => [point.income, point.expense, point.profit]);
+    const minValue = Math.min(0, ...allValues);
+    const maxValue = Math.max(0, ...allValues);
+    const valueRange = Math.max(1, maxValue - minValue);
+
+    const chartHeight = 220;
+    const padding = { top: 16, right: 20, bottom: 34, left: 48 };
+    const pointCount = data.length;
+    const stepWidth = pointCount > 2000
+        ? 2
+        : pointCount > 1000
+            ? 4
+            : pointCount > 365
+                ? 8
+                : pointCount > 180
+                    ? 12
+                : pointCount > 90
+                    ? 20
+                    : 46;
+    const minDataWidth =
+        padding.left + padding.right + Math.max(0, pointCount - 1) * stepWidth;
+    const chartWidth = Math.max(containerWidth || 640, minDataWidth);
+    const plotWidth = chartWidth - padding.left - padding.right;
+    const plotHeight = chartHeight - padding.top - padding.bottom;
+
+    const getX = (index: number) => {
+        if (pointCount <= 1) {
+            return padding.left + plotWidth / 2;
+        }
+        return padding.left + (index / (pointCount - 1)) * plotWidth;
+    };
+    const getY = (value: number) =>
+        padding.top + ((maxValue - value) / valueRange) * plotHeight;
+
+    const buildPath = (series: 'income' | 'expense' | 'profit') => {
+        return data
+            .map((point, index) => `${index === 0 ? 'M' : 'L'} ${getX(index)} ${getY(point[series])}`)
+            .join(' ');
+    };
+
+    const yTicks = 5;
+    const tickValues = Array.from({ length: yTicks }, (_, index) => {
+        const ratio = index / (yTicks - 1);
+        return maxValue - ratio * valueRange;
+    });
+
+    const xLabelInterval =
+        pointCount <= 10 ? 1 : pointCount <= 20 ? 2 : Math.ceil(pointCount / 10);
+
+    return (
+        <Card className="shadow-sm">
+            <CardHeader className="pb-3">
+                <CardTitle className="text-base md:text-lg">Grafik Tren Keuangan</CardTitle>
+                <CardDescription className="text-xs md:text-sm">
+                    Income, expense, dan profit per hari
+                </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                <div ref={chartContainerRef} className="overflow-x-auto">
+                    <svg
+                        width={chartWidth}
+                        height={chartHeight}
+                        viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+                        className="block"
+                    >
+                        {tickValues.map((value, index) => {
+                            const y = getY(value);
+                            return (
+                                <g key={`tick-${index}`}>
+                                    <line
+                                        x1={padding.left}
+                                        y1={y}
+                                        x2={chartWidth - padding.right}
+                                        y2={y}
+                                        stroke="#e2e8f0"
+                                        strokeDasharray="3 3"
+                                    />
+                                    <text
+                                        x={padding.left - 8}
+                                        y={y + 4}
+                                        textAnchor="end"
+                                        fontSize="10"
+                                        fill="#64748b"
+                                    >
+                                        {formatCompactAmount(value)}
+                                    </text>
+                                </g>
+                            );
+                        })}
+
+                        <line
+                            x1={padding.left}
+                            y1={getY(0)}
+                            x2={chartWidth - padding.right}
+                            y2={getY(0)}
+                            stroke="#94a3b8"
+                            strokeWidth="1.3"
+                        />
+
+                        <path
+                            d={buildPath('income')}
+                            fill="none"
+                            stroke="#10b981"
+                            strokeWidth="2.5"
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        />
+                        <path
+                            d={buildPath('expense')}
+                            fill="none"
+                            stroke="#ef4444"
+                            strokeWidth="2.5"
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        />
+                        <path
+                            d={buildPath('profit')}
+                            fill="none"
+                            stroke="#f59e0b"
+                            strokeWidth="2.5"
+                            strokeLinejoin="round"
+                            strokeLinecap="round"
+                        />
+
+                        {data.map((point, index) => (
+                            <g key={`x-label-${point.fullLabel}`}>
+                                {(index === 0 || index === pointCount - 1 || index % xLabelInterval === 0) && (
+                                    <text
+                                        x={getX(index)}
+                                        y={chartHeight - 10}
+                                        textAnchor="middle"
+                                        fontSize="10"
+                                        fill="#64748b"
+                                    >
+                                        {point.label}
+                                    </text>
+                                )}
+                            </g>
+                        ))}
+                    </svg>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-600">
+                    <div className="inline-flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                        Income
+                    </div>
+                    <div className="inline-flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-red-500" />
+                        Expense
+                    </div>
+                    <div className="inline-flex items-center gap-1.5">
+                        <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                        Profit
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
     );
 }
 
@@ -582,18 +828,20 @@ export default function FinancePage() {
             };
         } else {
             // Range mode: custom from-to
-            const rStart = startOfDay(rangeStart).toISOString();
-            const rEnd = endOfDay(rangeEnd).toISOString();
+            const [normalizedStart, normalizedEnd] =
+                rangeStart <= rangeEnd ? [rangeStart, rangeEnd] : [rangeEnd, rangeStart];
+            const rStart = startOfDay(normalizedStart).toISOString();
+            const rEnd = endOfDay(normalizedEnd).toISOString();
 
-            // Previous period = same duration right before rangeStart
-            const days = differenceInDays(rangeEnd, rangeStart) + 1;
-            const prevEnd = subDays(rangeStart, 1);
-            const prevStart = subDays(rangeStart, days);
+            // Previous period = same duration right before normalizedStart
+            const days = differenceInDays(normalizedEnd, normalizedStart) + 1;
+            const prevEnd = subDays(normalizedStart, 1);
+            const prevStart = subDays(normalizedStart, days);
 
             return {
                 currentRange: { startDate: rStart, endDate: rEnd },
                 previousRange: { startDate: startOfDay(prevStart).toISOString(), endDate: endOfDay(prevEnd).toISOString() },
-                currentLabel: `${format(rangeStart, 'dd MMM', { locale: localeID })} - ${format(rangeEnd, 'dd MMM', { locale: localeID })}`,
+                currentLabel: `${format(normalizedStart, 'dd MMM', { locale: localeID })} - ${format(normalizedEnd, 'dd MMM', { locale: localeID })}`,
                 previousLabel: `${format(prevStart, 'dd MMM', { locale: localeID })} - ${format(prevEnd, 'dd MMM', { locale: localeID })}`,
             };
         }
@@ -700,6 +948,79 @@ export default function FinancePage() {
         });
     }, [transactions, typeFilter, categoryFilter, searchQuery]);
 
+    const normalizedRange = useMemo(() => {
+        const [start, end] = rangeStart <= rangeEnd ? [rangeStart, rangeEnd] : [rangeEnd, rangeStart];
+        return { start, end };
+    }, [rangeStart, rangeEnd]);
+
+    const trendData = useMemo<FinancialTrendPoint[]>(() => {
+        if (periodMode === 'daily') {
+            return [];
+        }
+
+        let earliestDateMs: number | null = null;
+        let latestDateMs: number | null = null;
+        for (const transaction of transactions) {
+            const timestamp = new Date(transaction.created_at).getTime();
+            if (Number.isNaN(timestamp)) continue;
+            if (earliestDateMs === null || timestamp < earliestDateMs) earliestDateMs = timestamp;
+            if (latestDateMs === null || timestamp > latestDateMs) latestDateMs = timestamp;
+        }
+
+        const periodStart =
+            periodMode === 'monthly'
+                ? startOfMonth(selectedDate)
+                : periodMode === 'range'
+                    ? startOfDay(normalizedRange.start)
+                    : earliestDateMs !== null
+                        ? startOfDay(new Date(earliestDateMs))
+                        : null;
+
+        const periodEnd =
+            periodMode === 'monthly'
+                ? endOfMonth(selectedDate)
+                : periodMode === 'range'
+                    ? endOfDay(normalizedRange.end)
+                    : latestDateMs !== null
+                        ? endOfDay(new Date(latestDateMs))
+                        : null;
+
+        if (!periodStart || !periodEnd) {
+            return [];
+        }
+
+        const pointsByDay = new Map<string, FinancialTrendPoint>();
+        const periodDays = eachDayOfInterval({ start: periodStart, end: periodEnd });
+
+        for (const day of periodDays) {
+            const key = format(day, 'yyyy-MM-dd');
+            pointsByDay.set(key, {
+                label: periodMode === 'monthly'
+                    ? format(day, 'dd')
+                    : format(day, 'dd MMM', { locale: localeID }),
+                fullLabel: format(day, 'dd MMM yyyy', { locale: localeID }),
+                income: 0,
+                expense: 0,
+                profit: 0,
+            });
+        }
+
+        for (const transaction of transactions) {
+            const key = format(new Date(transaction.created_at), 'yyyy-MM-dd');
+            const point = pointsByDay.get(key);
+            if (!point) continue;
+
+            if (transaction.transaction_type === 'income') {
+                point.income += transaction.amount;
+            } else {
+                point.expense += transaction.amount;
+            }
+            point.profit = point.income - point.expense;
+        }
+
+        return periodDays.map((day) => pointsByDay.get(format(day, 'yyyy-MM-dd'))!);
+    }, [transactions, periodMode, selectedDate, normalizedRange]);
+
     const columns = getTransactionColumns(handleDelete);
 
     return (
@@ -752,6 +1073,14 @@ export default function FinancePage() {
                 </div>
             </div>
 
+            {/* Financial Trend Chart */}
+            {periodMode !== 'daily' && (
+                <FinancialTrendChart
+                    data={trendData}
+                    isLoading={transactionsLoading}
+                />
+            )}
+
             {/* Profit Comparison Card */}
             <ProfitComparisonCard
                 currentProfit={comparison?.current.net_profit || 0}
@@ -777,7 +1106,7 @@ export default function FinancePage() {
                                         ? format(selectedDate, 'MMMM yyyy', { locale: localeID })
                                         : periodMode === 'all_time'
                                             ? 'Semua transaksi'
-                                            : `${format(rangeStart, 'dd MMM yyyy', { locale: localeID })} — ${format(rangeEnd, 'dd MMM yyyy', { locale: localeID })}`}
+                                            : `${format(normalizedRange.start, 'dd MMM yyyy', { locale: localeID })} - ${format(normalizedRange.end, 'dd MMM yyyy', { locale: localeID })}`}
                             </CardDescription>
                         </div>
 
@@ -1019,3 +1348,4 @@ export default function FinancePage() {
         </div>
     );
 }
+

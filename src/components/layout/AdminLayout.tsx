@@ -153,9 +153,9 @@ interface SidebarProps {
 function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user, isStaff }: SidebarProps) {
     const location = useLocation();
 
-    // Filter navigasi: Staff hanya bisa akses Inventory dan Calculator
+    // Filter navigasi: Staff bisa akses Inventory, Calculator, dan Operational
     const visibleNavItems = isStaff
-        ? navItems.filter((item) => ['/inventory', '/calculator'].includes(item.path))
+        ? navItems.filter((item) => ['/inventory', '/calculator', '/operational'].includes(item.path))
         : navItems;
 
     return (
@@ -380,9 +380,9 @@ const secondaryNavItems = navItems.filter(
     (item) => !['/inventory', '/finance', '/calculator', '/operational'].includes(item.path)
 );
 
-// Menu untuk Staff (hanya Inventory & Calculator)
+// Menu untuk Staff (Inventory, Calculator, dan Operational)
 const staffNavItems = navItems.filter((item) =>
-    ['/inventory', '/calculator'].includes(item.path)
+    ['/inventory', '/calculator', '/operational'].includes(item.path)
 );
 
 interface MobileBottomNavProps {

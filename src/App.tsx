@@ -57,11 +57,11 @@ function App() {
               {/* Rute yang bisa diakses SEMUA role */}
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/calculator" element={<CalculatorPage />} />
+              <Route path="/operational" element={<OperationalPage />} />
 
               {/* Rute khusus Super Admin — Staff akan di-redirect ke /inventory */}
               <Route element={<StaffRoute />}>
                 <Route path="/finance" element={<FinancePage />} />
-                <Route path="/operational" element={<OperationalPage />} />
                 <Route path="/outlets" element={<OutletManagementPage />} />
                 <Route path="/menus" element={<MenuManagementPage />} />
                 <Route path="/digital-products" element={<DigitalProductsPage />} />
@@ -94,4 +94,3 @@ function App() {
 }
 
 export default App;
-
