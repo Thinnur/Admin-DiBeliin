@@ -52,6 +52,13 @@ import {
     useFixStaleAccounts,
 } from '@/hooks/useInventory';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+    DEVICE_ALL_VALUE,
+    DEVICE_OPTIONS,
+    DEVICE_UNSET_VALUE,
+    isUnsetDevice,
+    type DeviceFilterValue,
+} from '@/lib/deviceOptions';
 import type { Account, AccountBrand, AccountStatus } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -99,6 +106,9 @@ export default function InventoryPage() {
 
     // Status filter
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+
+    // Device filter
+    const [deviceFilter, setDeviceFilter] = useState<DeviceFilterValue>(DEVICE_ALL_VALUE);
 
     // Search query state (will be managed via DataTable internally, but we track it manually for smart filtering)
     const [searchQuery, setSearchQuery] = useState('');
@@ -198,8 +208,20 @@ export default function InventoryPage() {
         // Rule 1: Always filter by active Tab (Brand)
         result = result.filter((account) => account.brand === activeTab);
 
-        // Rule 2: Smart Filtering
-        const isDefaultState = searchQuery.trim() === '' && statusFilter === 'all';
+        // Rule 2: Device filter
+        if (deviceFilter === DEVICE_UNSET_VALUE) {
+            result = result.filter((account) => isUnsetDevice(account.device_name));
+        } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+            result = result.filter(
+                (account) => account.device_name?.trim() === deviceFilter
+            );
+        }
+
+        // Rule 3: Smart Filtering
+        const isDefaultState =
+            searchQuery.trim() === '' &&
+            statusFilter === 'all' &&
+            deviceFilter === DEVICE_ALL_VALUE;
 
         if (isDefaultState) {
             result = result.filter(
@@ -211,7 +233,7 @@ export default function InventoryPage() {
             }
         }
 
-        // Rule 3: Priority Sort
+        // Rule 4: Priority Sort
         result = [...result].sort((a, b) => {
             if (a.status === 'in_use' && b.status !== 'in_use') return -1;
             if (a.status !== 'in_use' && b.status === 'in_use') return 1;
@@ -225,7 +247,7 @@ export default function InventoryPage() {
         });
 
         return result;
-    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, activeTab, searchQuery, statusFilter, isStaff]);
+    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, activeTab, searchQuery, statusFilter, deviceFilter, isStaff]);
 
     // Action handlers
     const handleEdit = (account: Account) => {
@@ -527,13 +549,35 @@ export default function InventoryPage() {
                                 </SelectContent>
                             </Select>
 
+                            {/* Device Filter */}
+                            <Select
+                                value={deviceFilter}
+                                onValueChange={(value) =>
+                                    setDeviceFilter(value as DeviceFilterValue)
+                                }
+                            >
+                                <SelectTrigger className="w-[150px] bg-white">
+                                    <SelectValue placeholder="Perangkat" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value={DEVICE_ALL_VALUE}>Semua HP</SelectItem>
+                                    {DEVICE_OPTIONS.map((device) => (
+                                        <SelectItem key={device} value={device}>
+                                            {device}
+                                        </SelectItem>
+                                    ))}
+                                    <SelectItem value={DEVICE_UNSET_VALUE}>Belum diset</SelectItem>
+                                </SelectContent>
+                            </Select>
+
                             {/* Clear Filters */}
-                            {(statusFilter !== 'all' || searchQuery.trim() !== '') && (
+                            {(statusFilter !== 'all' || deviceFilter !== DEVICE_ALL_VALUE || searchQuery.trim() !== '') && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => {
                                         setStatusFilter('all');
+                                        setDeviceFilter(DEVICE_ALL_VALUE);
                                         setSearchQuery('');
                                     }}
                                     className="text-slate-500"
@@ -589,7 +633,7 @@ export default function InventoryPage() {
                                     emptyMessage={
                                         isStaff
                                             ? 'Tidak ada akun tersedia untuk Kopi Kenangan saat ini.'
-                                            : statusFilter !== 'all' || searchQuery.trim() !== ''
+                                            : statusFilter !== 'all' || deviceFilter !== DEVICE_ALL_VALUE || searchQuery.trim() !== ''
                                                 ? 'No accounts match your filters.'
                                                 : 'No ready accounts found for Kopi Kenangan.'
                                     }
@@ -610,7 +654,7 @@ export default function InventoryPage() {
                                     emptyMessage={
                                         isStaff
                                             ? 'Tidak ada akun tersedia untuk Fore Coffee saat ini.'
-                                            : statusFilter !== 'all' || searchQuery.trim() !== ''
+                                            : statusFilter !== 'all' || deviceFilter !== DEVICE_ALL_VALUE || searchQuery.trim() !== ''
                                                 ? 'No accounts match your filters.'
                                                 : 'No ready accounts found for Fore Coffee.'
                                     }

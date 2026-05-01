@@ -25,6 +25,7 @@ export interface Account {
   id: string;
   phone_number: string;
   password: string;
+  device_name?: string | null;
   brand: AccountBrand;
   voucher_type: string;
   expiry_date: string; // ISO date string (YYYY-MM-DD)

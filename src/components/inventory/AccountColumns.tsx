@@ -15,10 +15,13 @@ import {
     AlertCircle,
     Check,
     X,
+    Smartphone,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import type { Account, AccountStatus, AccountBrand } from '@/types/database';
+import { normalizeDeviceName } from '@/lib/deviceOptions';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
     DropdownMenu,
@@ -258,6 +261,24 @@ function PINCell({ pin }: { pin: string | null }) {
     );
 }
 
+function DeviceBadgeCell({ deviceName }: { deviceName?: string | null }) {
+    const normalizedDevice = normalizeDeviceName(deviceName);
+
+    if (!normalizedDevice) {
+        return <span className="text-sm italic text-slate-400">Belum diset</span>;
+    }
+
+    return (
+        <Badge
+            variant="outline"
+            className="border-sky-200 bg-sky-50 text-sky-700"
+        >
+            <Smartphone className="h-3 w-3" />
+            {normalizedDevice}
+        </Badge>
+    );
+}
+
 
 /**
  * Actions dropdown with voucher toggle options
@@ -476,7 +497,7 @@ function MobileInfoCell({ account }: { account: Account }) {
             </div>
 
             {/* Line 2: PIN & Health (The Status) */}
-            <div className="flex items-center gap-2.5">
+            <div className="flex flex-wrap items-center gap-2.5">
                 {account.password && (
                     <div className="flex items-center gap-1.5 text-xs bg-muted/40 px-1.5 py-0.5 rounded-sm">
                         <span className="text-muted-foreground">PIN:</span>
@@ -486,6 +507,7 @@ function MobileInfoCell({ account }: { account: Account }) {
                     </div>
                 )}
                 <StatusBadge status={account.status} inUseBy={account.in_use_by} />
+                <DeviceBadgeCell deviceName={account.device_name} />
             </div>
 
             {/* Line 3: Voucher & Expiry (The Value) */}
@@ -555,6 +577,14 @@ export function createAccountColumns(
             accessorKey: 'password',
             header: 'PIN',
             cell: ({ row }) => <PINCell pin={row.original.password} />,
+            meta: { className: 'hidden md:table-cell' },
+        },
+
+        // Device Mapping Column - hidden on mobile
+        {
+            accessorKey: 'device_name',
+            header: 'Perangkat',
+            cell: ({ row }) => <DeviceBadgeCell deviceName={row.original.device_name} />,
             meta: { className: 'hidden md:table-cell' },
         },
 

@@ -35,6 +35,13 @@ import {
 
 import { useAddAccount, useUpdateAccount } from '@/hooks/useInventory';
 import { parseBulkText } from '@/lib/logic/smartParser';
+import {
+    DEVICE_OPTIONS,
+    DEVICE_UNSET_VALUE,
+    deviceSelectValueToPayload,
+    toDeviceSelectValue,
+    type DeviceSelectValue,
+} from '@/lib/deviceOptions';
 import type { Account, AccountBrand } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -85,6 +92,7 @@ export function AddAccountDialog({
 
     // Single-mode form state
     const [brand, setBrand] = useState<AccountBrand>('kopken');
+    const [deviceName, setDeviceName] = useState<DeviceSelectValue>(DEVICE_UNSET_VALUE);
     const [phoneNumber, setPhoneNumber] = useState('');
     const [password, setPassword] = useState('');
     const [isNominReady, setIsNominReady] = useState(true);
@@ -99,6 +107,7 @@ export function AddAccountDialog({
     // Bulk-mode form state
     const [bulkText, setBulkText] = useState('');
     const [bulkBrand, setBulkBrand] = useState<AccountBrand>('kopken');
+    const [bulkDeviceName, setBulkDeviceName] = useState<DeviceSelectValue>(DEVICE_UNSET_VALUE);
     const [bulkExpiryDate, setBulkExpiryDate] = useState('');
     const [bulkPurchasePrice, setBulkPurchasePrice] = useState('');
     const [bulkIsSubmitting, setBulkIsSubmitting] = useState(false);
@@ -137,6 +146,7 @@ export function AddAccountDialog({
     useEffect(() => {
         if (accountToEdit) {
             setBrand(accountToEdit.brand);
+            setDeviceName(toDeviceSelectValue(accountToEdit.device_name));
             setPhoneNumber(accountToEdit.phone_number);
             setPassword(accountToEdit.password || '');
             setIsNominReady(accountToEdit.is_nomin_ready);
@@ -173,6 +183,7 @@ export function AddAccountDialog({
 
     const resetForm = () => {
         setBrand('kopken');
+        setDeviceName(DEVICE_UNSET_VALUE);
         setPhoneNumber('');
         setPassword('');
         setIsNominReady(true);
@@ -185,6 +196,7 @@ export function AddAccountDialog({
         setErrors({});
         setBulkText('');
         setBulkBrand('kopken');
+        setBulkDeviceName(DEVICE_UNSET_VALUE);
         setBulkExpiryDate('');
         setBulkPurchasePrice('');
         setDialogTab('single');
@@ -224,6 +236,7 @@ export function AddAccountDialog({
                     id: accountToEdit.id,
                     updates: {
                         brand,
+                        device_name: deviceSelectValueToPayload(deviceName),
                         phone_number: phoneNumber,
                         password,
                         expiry_date: expiryDate,
@@ -240,6 +253,7 @@ export function AddAccountDialog({
                 // Create new account
                 await addAccount.mutateAsync({
                     brand,
+                    device_name: deviceSelectValueToPayload(deviceName),
                     phone_number: phoneNumber,
                     password,
                     voucher_type: 'Multi', // Legacy field, kept for compatibility
@@ -276,6 +290,7 @@ export function AddAccountDialog({
             for (const account of parseResult.accounts) {
                 await addAccount.mutateAsync({
                     brand: bulkBrand,
+                    device_name: deviceSelectValueToPayload(bulkDeviceName),
                     phone_number: account.phone,
                     password: account.password,
                     voucher_type: 'Multi',
@@ -309,24 +324,49 @@ export function AddAccountDialog({
     };
 
     const isPending = addAccount.isPending || updateAccount.isPending;
+    const renderDeviceSelectItems = () => (
+        <>
+            <SelectItem value={DEVICE_UNSET_VALUE}>Belum diset</SelectItem>
+            {DEVICE_OPTIONS.map((device) => (
+                <SelectItem key={device} value={device}>
+                    {device}
+                </SelectItem>
+            ))}
+        </>
+    );
 
     // -------------------------------------------------------------------------
     // Single Account Form
     // -------------------------------------------------------------------------
     const singleForm = (
         <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Brand */}
-            <div className="space-y-2">
-                <Label htmlFor="brand">Brand</Label>
-                <Select value={brand} onValueChange={(v) => setBrand(v as AccountBrand)}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select brand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="kopken">Kopi Kenangan</SelectItem>
-                        <SelectItem value="fore">Fore Coffee</SelectItem>
-                    </SelectContent>
-                </Select>
+            {/* Brand & Device */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="brand">Brand</Label>
+                    <Select value={brand} onValueChange={(v) => setBrand(v as AccountBrand)}>
+                        <SelectTrigger id="brand" className="w-full">
+                            <SelectValue placeholder="Select brand" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="kopken">Kopi Kenangan</SelectItem>
+                            <SelectItem value="fore">Fore Coffee</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="device_name">Perangkat</Label>
+                    <Select
+                        value={deviceName}
+                        onValueChange={(v) => setDeviceName(v as DeviceSelectValue)}
+                    >
+                        <SelectTrigger id="device_name" className="w-full">
+                            <SelectValue placeholder="Pilih perangkat" />
+                        </SelectTrigger>
+                        <SelectContent>{renderDeviceSelectItems()}</SelectContent>
+                    </Select>
+                </div>
             </div>
 
             {/* Phone Number & Password Row */}
@@ -491,18 +531,33 @@ export function AddAccountDialog({
     // -------------------------------------------------------------------------
     const bulkForm = (
         <div className="space-y-4">
-            {/* Brand */}
-            <div className="space-y-2">
-                <Label>Brand</Label>
-                <Select value={bulkBrand} onValueChange={(v) => setBulkBrand(v as AccountBrand)}>
-                    <SelectTrigger>
-                        <SelectValue placeholder="Select brand" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="kopken">Kopi Kenangan</SelectItem>
-                        <SelectItem value="fore">Fore Coffee</SelectItem>
-                    </SelectContent>
-                </Select>
+            {/* Brand & Device */}
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label>Brand</Label>
+                    <Select value={bulkBrand} onValueChange={(v) => setBulkBrand(v as AccountBrand)}>
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Select brand" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="kopken">Kopi Kenangan</SelectItem>
+                            <SelectItem value="fore">Fore Coffee</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
+                <div className="space-y-2">
+                    <Label>Perangkat</Label>
+                    <Select
+                        value={bulkDeviceName}
+                        onValueChange={(v) => setBulkDeviceName(v as DeviceSelectValue)}
+                    >
+                        <SelectTrigger className="w-full">
+                            <SelectValue placeholder="Pilih perangkat" />
+                        </SelectTrigger>
+                        <SelectContent>{renderDeviceSelectItems()}</SelectContent>
+                    </Select>
+                </div>
             </div>
 
             {/* Paste Text Area */}
