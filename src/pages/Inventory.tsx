@@ -135,13 +135,13 @@ export default function InventoryPage() {
         data: staffAccountsKopken,
         isLoading: isLoadingStaffKopken,
         isError: isErrorStaffKopken,
-    } = useStaffAccounts('kopken', { enabled: !isAuthLoading && isStaff });
+    } = useStaffAccounts('kopken', deviceFilter, { enabled: !isAuthLoading && isStaff });
 
     const {
         data: staffAccountsFore,
         isLoading: isLoadingStaffFore,
         isError: isErrorStaffFore,
-    } = useStaffAccounts('fore', { enabled: !isAuthLoading && isStaff });
+    } = useStaffAccounts('fore', deviceFilter, { enabled: !isAuthLoading && isStaff });
 
     // Gabungkan berdasarkan role
     const allAccounts = useMemo(() => (
@@ -169,6 +169,24 @@ export default function InventoryPage() {
         [allAccounts]
     );
 
+    const isDeviceFilterActive = deviceFilter !== DEVICE_ALL_VALUE;
+    const hasActiveFilters =
+        statusFilter !== 'all' ||
+        isDeviceFilterActive ||
+        searchQuery.trim() !== '';
+
+    const getEmptyMessage = (brandName: string) => {
+        if (isStaff) {
+            return isDeviceFilterActive
+                ? `Tidak ada akun tersedia untuk ${brandName} pada filter perangkat ini.`
+                : `Tidak ada akun tersedia untuk ${brandName} saat ini.`;
+        }
+
+        return hasActiveFilters
+            ? 'No accounts match your filters.'
+            : `No ready accounts found for ${brandName}.`;
+    };
+
     // -------------------------------------------------------------------------
     // Value Priority Sorting Helper
     // -------------------------------------------------------------------------
@@ -195,7 +213,17 @@ export default function InventoryPage() {
             const staffData = activeTab === 'kopken'
                 ? (staffAccountsKopken || [])
                 : (staffAccountsFore || []);
-            return [...staffData].sort((a, b) =>
+
+            let result = staffData;
+            if (deviceFilter === DEVICE_UNSET_VALUE) {
+                result = result.filter((account) => isUnsetDevice(account.device_name));
+            } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                result = result.filter(
+                    (account) => account.device_name?.trim() === deviceFilter
+                );
+            }
+
+            return [...result].sort((a, b) =>
                 new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime()
             );
         }
@@ -525,29 +553,30 @@ export default function InventoryPage() {
                             )}
                         </div>
 
-                        {/* Kontrol filter — hanya untuk Super Admin */}
-                        {!isStaff && (
+                        {/* Kontrol filter */}
                         <div className="flex flex-wrap items-center gap-3">
                             {/* Status Filter */}
-                            <Select
-                                value={statusFilter}
-                                onValueChange={(value) =>
-                                    setStatusFilter(value as StatusFilter)
-                                }
-                            >
-                                <SelectTrigger className="w-[130px] bg-white">
-                                    <SelectValue placeholder="Status" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">All Status</SelectItem>
-                                    <SelectItem value="ready">Ready</SelectItem>
-                                    <SelectItem value="in_use">Sedang Digunakan</SelectItem>
-                                    <SelectItem value="booked">Booked</SelectItem>
-                                    <SelectItem value="sold">Sold</SelectItem>
-                                    <SelectItem value="expired">Expired</SelectItem>
-                                    <SelectItem value="issue">Issue</SelectItem>
-                                </SelectContent>
-                            </Select>
+                            {!isStaff && (
+                                <Select
+                                    value={statusFilter}
+                                    onValueChange={(value) =>
+                                        setStatusFilter(value as StatusFilter)
+                                    }
+                                >
+                                    <SelectTrigger className="w-[130px] bg-white">
+                                        <SelectValue placeholder="Status" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="all">All Status</SelectItem>
+                                        <SelectItem value="ready">Ready</SelectItem>
+                                        <SelectItem value="in_use">Sedang Digunakan</SelectItem>
+                                        <SelectItem value="booked">Booked</SelectItem>
+                                        <SelectItem value="sold">Sold</SelectItem>
+                                        <SelectItem value="expired">Expired</SelectItem>
+                                        <SelectItem value="issue">Issue</SelectItem>
+                                    </SelectContent>
+                                </Select>
+                            )}
 
                             {/* Device Filter */}
                             <Select
@@ -571,7 +600,7 @@ export default function InventoryPage() {
                             </Select>
 
                             {/* Clear Filters */}
-                            {(statusFilter !== 'all' || deviceFilter !== DEVICE_ALL_VALUE || searchQuery.trim() !== '') && (
+                            {hasActiveFilters && (
                                 <Button
                                     variant="ghost"
                                     size="sm"
@@ -586,22 +615,25 @@ export default function InventoryPage() {
                                 </Button>
                             )}
 
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() => fixStale.mutate()}
-                                disabled={fixStale.isPending}
-                                className="text-orange-600 border-orange-300 hover:bg-orange-50"
-                                title="Tandai otomatis akun yang sudah tidak punya voucher sebagai Sold"
-                            >
-                                {fixStale.isPending ? 'Checking...' : 'Fix Stale'}
-                            </Button>
-                            <Button onClick={handleAddNew}>
-                                <Plus className="mr-2 h-4 w-4" />
-                                Add Account
-                            </Button>
+                            {!isStaff && (
+                                <>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => fixStale.mutate()}
+                                        disabled={fixStale.isPending}
+                                        className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                                        title="Tandai otomatis akun yang sudah tidak punya voucher sebagai Sold"
+                                    >
+                                        {fixStale.isPending ? 'Checking...' : 'Fix Stale'}
+                                    </Button>
+                                    <Button onClick={handleAddNew}>
+                                        <Plus className="mr-2 h-4 w-4" />
+                                        Add Account
+                                    </Button>
+                                </>
+                            )}
                         </div>
-                        )}
                     </div>
                 </CardHeader>
                 <CardContent className="pt-4">
@@ -630,13 +662,7 @@ export default function InventoryPage() {
                                     filterPlaceholder="Search by phone number..."
                                     onFilterChange={handleSearchChange}
                                     disablePagination={true}
-                                    emptyMessage={
-                                        isStaff
-                                            ? 'Tidak ada akun tersedia untuk Kopi Kenangan saat ini.'
-                                            : statusFilter !== 'all' || deviceFilter !== DEVICE_ALL_VALUE || searchQuery.trim() !== ''
-                                                ? 'No accounts match your filters.'
-                                                : 'No ready accounts found for Kopi Kenangan.'
-                                    }
+                                    emptyMessage={getEmptyMessage('Kopi Kenangan')}
                                 />
                             </div>
                         </TabsContent>
@@ -651,13 +677,7 @@ export default function InventoryPage() {
                                     filterPlaceholder="Search by phone number..."
                                     onFilterChange={handleSearchChange}
                                     disablePagination={true}
-                                    emptyMessage={
-                                        isStaff
-                                            ? 'Tidak ada akun tersedia untuk Fore Coffee saat ini.'
-                                            : statusFilter !== 'all' || deviceFilter !== DEVICE_ALL_VALUE || searchQuery.trim() !== ''
-                                                ? 'No accounts match your filters.'
-                                                : 'No ready accounts found for Fore Coffee.'
-                                    }
+                                    emptyMessage={getEmptyMessage('Fore Coffee')}
                                 />
                             </div>
                         </TabsContent>

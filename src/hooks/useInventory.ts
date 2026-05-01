@@ -13,6 +13,11 @@ import { toast } from 'sonner';
 
 import { queryKeys } from '../lib/queryClient';
 import {
+    DEVICE_ALL_VALUE,
+    DEVICE_UNSET_VALUE,
+    type DeviceFilterValue,
+} from '../lib/deviceOptions';
+import {
     fetchAccounts,
     fetchAccountById,
     fetchAccountStatistics,
@@ -106,33 +111,50 @@ export function useReadyAccounts(
  */
 export function useStaffAccounts(
     brand: AccountBrand,
+    deviceFilter: DeviceFilterValue = DEVICE_ALL_VALUE,
     options?: Omit<UseQueryOptions<Account[], Error>, 'queryKey' | 'queryFn'>
 ) {
     return useQuery({
-        queryKey: ['accounts', 'staff', brand],
+        queryKey: ['accounts', 'staff', brand, deviceFilter],
         queryFn: async () => {
             const { supabase } = await import('../lib/supabase');
 
             if (brand === 'kopken') {
                 // Grup 1: Voucher lengkap (NoMin=true AND Min50k=true)
-                const { data: complete } = await supabase
+                let completeQuery = supabase
                     .from('accounts')
                     .select('*')
                     .eq('brand', 'kopken')
                     .eq('status', 'ready')
                     .eq('is_nomin_ready', true)
-                    .eq('is_min50k_ready', true)
+                    .eq('is_min50k_ready', true);
+
+                if (deviceFilter === DEVICE_UNSET_VALUE) {
+                    completeQuery = completeQuery.or('device_name.is.null,device_name.eq.');
+                } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                    completeQuery = completeQuery.eq('device_name', deviceFilter);
+                }
+
+                const { data: complete } = await completeQuery
                     .order('expiry_date', { ascending: true })
                     .limit(3);
 
                 // Grup 2: Hanya Min50k (NoMin=false AND Min50k=true)
-                const { data: min50kOnly } = await supabase
+                let min50kOnlyQuery = supabase
                     .from('accounts')
                     .select('*')
                     .eq('brand', 'kopken')
                     .eq('status', 'ready')
                     .eq('is_nomin_ready', false)
-                    .eq('is_min50k_ready', true)
+                    .eq('is_min50k_ready', true);
+
+                if (deviceFilter === DEVICE_UNSET_VALUE) {
+                    min50kOnlyQuery = min50kOnlyQuery.or('device_name.is.null,device_name.eq.');
+                } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                    min50kOnlyQuery = min50kOnlyQuery.eq('device_name', deviceFilter);
+                }
+
+                const { data: min50kOnly } = await min50kOnlyQuery
                     .order('expiry_date', { ascending: true })
                     .limit(3);
 
@@ -140,24 +162,40 @@ export function useStaffAccounts(
             } else {
                 // Fore Coffee
                 // Grup 1: Voucher lengkap (BOGO=true AND 35%=true)
-                const { data: complete } = await supabase
+                let completeQuery = supabase
                     .from('accounts')
                     .select('*')
                     .eq('brand', 'fore')
                     .eq('status', 'ready')
                     .eq('is_bogo_ready', true)
-                    .eq('is_discount35_ready', true)
+                    .eq('is_discount35_ready', true);
+
+                if (deviceFilter === DEVICE_UNSET_VALUE) {
+                    completeQuery = completeQuery.or('device_name.is.null,device_name.eq.');
+                } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                    completeQuery = completeQuery.eq('device_name', deviceFilter);
+                }
+
+                const { data: complete } = await completeQuery
                     .order('expiry_date', { ascending: true })
                     .limit(3);
 
                 // Grup 2: Hanya 35% (BOGO=false AND 35%=true)
-                const { data: disc35Only } = await supabase
+                let disc35OnlyQuery = supabase
                     .from('accounts')
                     .select('*')
                     .eq('brand', 'fore')
                     .eq('status', 'ready')
                     .eq('is_bogo_ready', false)
-                    .eq('is_discount35_ready', true)
+                    .eq('is_discount35_ready', true);
+
+                if (deviceFilter === DEVICE_UNSET_VALUE) {
+                    disc35OnlyQuery = disc35OnlyQuery.or('device_name.is.null,device_name.eq.');
+                } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                    disc35OnlyQuery = disc35OnlyQuery.eq('device_name', deviceFilter);
+                }
+
+                const { data: disc35Only } = await disc35OnlyQuery
                     .order('expiry_date', { ascending: true })
                     .limit(3);
 
