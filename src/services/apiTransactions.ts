@@ -53,16 +53,25 @@ export async function fetchTransactions(
     }
 
     if (filters?.limit) {
-        query = query.limit(filters.limit);
+        const { data, error } = await query.limit(filters.limit);
+        if (error) throw new Error(`Failed to fetch transactions: ${error.message}`);
+        return (data as Transaction[]) || [];
     }
 
-    const { data, error } = await query;
+    const PAGE_SIZE = 1000;
+    let from = 0;
+    let all: Transaction[] = [];
 
-    if (error) {
-        throw new Error(`Failed to fetch transactions: ${error.message}`);
+    while (true) {
+        const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+        if (error) throw new Error(`Failed to fetch transactions: ${error.message}`);
+        if (!data || data.length === 0) break;
+        all = all.concat(data as Transaction[]);
+        if (data.length < PAGE_SIZE) break;
+        from += PAGE_SIZE;
     }
 
-    return data || [];
+    return all;
 }
 
 // -----------------------------------------------------------------------------

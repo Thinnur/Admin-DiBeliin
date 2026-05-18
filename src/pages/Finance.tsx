@@ -948,6 +948,23 @@ export default function FinancePage() {
         });
     }, [transactions, typeFilter, categoryFilter, searchQuery]);
 
+    const isFiltered = useMemo(
+        () => typeFilter !== 'all' || categoryFilter !== 'all' || searchQuery.trim() !== '',
+        [typeFilter, categoryFilter, searchQuery]
+    );
+
+    const filteredSummary = useMemo(() => {
+        if (!isFiltered) return null;
+        return filteredTransactions.reduce(
+            (acc, t) => {
+                if (t.transaction_type === 'income') acc.income += t.amount;
+                else acc.expense += t.amount;
+                return acc;
+            },
+            { income: 0, expense: 0 }
+        );
+    }, [isFiltered, filteredTransactions]);
+
     const normalizedRange = useMemo(() => {
         const [start, end] = rangeStart <= rangeEnd ? [rangeStart, rangeEnd] : [rangeEnd, rangeStart];
         return { start, end };
@@ -1192,6 +1209,33 @@ export default function FinancePage() {
                     </p>
                 </CardHeader>
                 <CardContent className="pt-4">
+                    {filteredSummary && (
+                        <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                            <span className="font-medium text-slate-500">Ringkasan Filter:</span>
+                            <span>
+                                Income{' '}
+                                <span className="font-semibold text-emerald-600">
+                                    {formatCurrency(filteredSummary.income)}
+                                </span>
+                            </span>
+                            <span>
+                                Expense{' '}
+                                <span className="font-semibold text-red-500">
+                                    {formatCurrency(filteredSummary.expense)}
+                                </span>
+                            </span>
+                            <span>
+                                Profit{' '}
+                                <span className={`font-semibold ${filteredSummary.income - filteredSummary.expense >= 0 ? 'text-amber-600' : 'text-red-600'}`}>
+                                    {formatCurrency(filteredSummary.income - filteredSummary.expense)}
+                                </span>
+                            </span>
+                            <span className="ml-auto text-slate-400">
+                                {filteredTransactions.length} transaksi
+                            </span>
+                        </div>
+                    )}
+
                     {/* Desktop: DataTable */}
                     <div className="hidden md:block overflow-x-auto">
                         <DataTable
