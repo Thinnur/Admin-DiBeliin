@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/tabs';
 
 import { AddAccountDialog } from '@/components/inventory/AddAccountDialog';
+import { AccountLogViewer } from '@/components/inventory/AccountLogViewer';
 import {
     createAccountColumns,
     type AccountColumnActions,
@@ -99,7 +100,7 @@ function calculateVoucherStats(accounts: Account[]): VoucherStats {
 
 export default function InventoryPage() {
     // Deteksi role user + status pemulihan sesi auth
-    const { isStaff, isLoading: isAuthLoading } = useAuth();
+    const { isStaff, isSuperAdmin, isLoading: isAuthLoading } = useAuth();
 
     // Tab state for brand selection
     const [activeTab, setActiveTab] = useState<AccountBrand>('kopken');
@@ -290,7 +291,7 @@ export default function InventoryPage() {
 
     const handleDelete = (account: Account) => {
         if (confirm(`Are you sure you want to delete ${account.phone_number}?`)) {
-            deleteAccount.mutate(account.id);
+            deleteAccount.mutate(account);
         }
     };
 
@@ -684,6 +685,8 @@ export default function InventoryPage() {
                     </Tabs>
                 </CardContent>
             </Card>
+
+            {isSuperAdmin && <AccountLogViewer />}
         </div>
     );
 }

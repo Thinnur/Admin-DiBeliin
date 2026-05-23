@@ -28,6 +28,7 @@ import {
     fetchReadyAccountsByBrand,
 } from '../services/apiAccounts';
 import { createTransaction as createExpenseTransaction } from '../services/apiTransactions';
+import { createAccountLog, type AccountLogAction } from '../services/accountLogService';
 import { autoAssign as autoAssignLogic } from '../lib/logic/autoAssign';
 import type {
     Account,
@@ -208,6 +209,61 @@ export function useStaffAccounts(
 }
 
 // -----------------------------------------------------------------------------
+// Account Log Helper
+// -----------------------------------------------------------------------------
+
+function getUpdateLog(
+    updates: AccountUpdate,
+    account: Account
+): { action: AccountLogAction; description: string; metadata?: Record<string, unknown> } {
+    const phone = account.phone_number;
+    const brandLabel = account.brand === 'kopken' ? 'Kopi Kenangan' : 'Fore Coffee';
+    const voucherFields = ['is_nomin_ready', 'is_min50k_ready', 'is_bogo_ready', 'is_discount35_ready'];
+
+    if (updates.status === 'in_use' && updates.in_use_by) {
+        return {
+            action: 'marked_in_use',
+            description: `Akun ${phone} ditandai digunakan oleh ${updates.in_use_by}`,
+        };
+    }
+    if (updates.status === 'ready' && 'in_use_by' in updates && updates.in_use_by === null) {
+        return {
+            action: 'returned_to_ready',
+            description: `Akun ${phone} dikembalikan ke status Ready`,
+        };
+    }
+    if (updates.status) {
+        return {
+            action: 'status_changed',
+            description: `Status akun ${phone} diubah menjadi ${updates.status}`,
+        };
+    }
+
+    const changedVoucherFields = voucherFields.filter((f) => f in updates);
+    if (changedVoucherFields.length > 0) {
+        const labelMap: Record<string, [string, boolean]> = {
+            is_nomin_ready:      ['NoMin',  updates.is_nomin_ready      ?? false],
+            is_min50k_ready:     ['Min50k', updates.is_min50k_ready     ?? false],
+            is_bogo_ready:       ['BOGO',   updates.is_bogo_ready       ?? false],
+            is_discount35_ready: ['35%',    updates.is_discount35_ready ?? false],
+        };
+        const changedVouchers = changedVoucherFields.map(
+            (f) => `${labelMap[f][0]}: ${labelMap[f][1] ? 'Siap' : 'Terpakai'}`
+        );
+        const changes = Object.fromEntries(
+            changedVoucherFields.map((f) => [f, (updates as Record<string, unknown>)[f]])
+        );
+        return {
+            action: 'voucher_changed',
+            description: `Voucher akun ${phone} diperbarui — ${changedVouchers.join(', ')}`,
+            metadata: { changes },
+        };
+    }
+
+    return { action: 'updated', description: `Data akun ${phone} (${brandLabel}) diperbarui` };
+}
+
+// -----------------------------------------------------------------------------
 // Mutation Hooks (Write Operations)
 // -----------------------------------------------------------------------------
 
@@ -224,6 +280,13 @@ export function useAddAccount() {
             // Invalidate and refetch accounts list
             queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
             toast.success(`Account ${newAccount.phone_number} added successfully`);
+            createAccountLog({
+                account_id: newAccount.id,
+                account_phone: newAccount.phone_number,
+                account_brand: newAccount.brand,
+                action: 'created',
+                description: `Akun ${newAccount.phone_number} (${newAccount.brand === 'kopken' ? 'Kopi Kenangan' : 'Fore Coffee'}) ditambahkan`,
+            });
 
             // Auto-create expense transaction if purchase_price > 0
             if (variables.purchase_price && variables.purchase_price > 0) {
@@ -263,7 +326,7 @@ export function useUpdateAccount() {
     return useMutation({
         mutationFn: ({ id, updates }: { id: string; updates: AccountUpdate }) =>
             updateAccount(id, updates),
-        onSuccess: (updatedAccount) => {
+        onSuccess: (updatedAccount, variables) => {
             // Update specific account in cache
             queryClient.setQueryData(
                 queryKeys.accounts.detail(updatedAccount.id),
@@ -272,6 +335,15 @@ export function useUpdateAccount() {
             // ⚡️ FORCE REFRESH: Mark all 'accounts' data as stale so it refetches immediately
             queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
             toast.success('Account updated successfully');
+            const { action, description, metadata } = getUpdateLog(variables.updates, updatedAccount);
+            createAccountLog({
+                account_id: updatedAccount.id,
+                account_phone: updatedAccount.phone_number,
+                account_brand: updatedAccount.brand,
+                action,
+                description,
+                metadata,
+            });
         },
         onError: (error: Error) => {
             toast.error(`Failed to update account: ${error.message}`);
@@ -330,8 +402,16 @@ export function useUpdateAccountStatus() {
             queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
         },
 
-        onSuccess: () => {
+        onSuccess: (updatedAccount, variables) => {
             toast.success('Status updated');
+            createAccountLog({
+                account_id: variables.id,
+                account_phone: updatedAccount.phone_number,
+                account_brand: updatedAccount.brand,
+                action: 'status_changed',
+                description: `Status akun ${updatedAccount.phone_number} diubah menjadi ${variables.status}`,
+                metadata: { status: variables.status },
+            });
         },
     });
 }
@@ -343,10 +423,10 @@ export function useDeleteAccount() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (id: string) => deleteAccount(id),
+        mutationFn: (account: Account) => deleteAccount(account.id),
 
         // Optimistic delete
-        onMutate: async (id) => {
+        onMutate: async (account) => {
             await queryClient.cancelQueries({ queryKey: queryKeys.accounts.all });
 
             const previousAccounts = queryClient.getQueryData<Account[]>(
@@ -356,14 +436,14 @@ export function useDeleteAccount() {
             if (previousAccounts) {
                 queryClient.setQueryData<Account[]>(
                     queryKeys.accounts.list(),
-                    previousAccounts.filter((account) => account.id !== id)
+                    previousAccounts.filter((a) => a.id !== account.id)
                 );
             }
 
             return { previousAccounts };
         },
 
-        onError: (error: Error, _id, context) => {
+        onError: (error: Error, _account, context) => {
             if (context?.previousAccounts) {
                 queryClient.setQueryData(
                     queryKeys.accounts.list(),
@@ -377,8 +457,16 @@ export function useDeleteAccount() {
             queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
         },
 
-        onSuccess: () => {
+        onSuccess: (_data, account) => {
             toast.success('Account deleted');
+            const brandLabel = account.brand === 'kopken' ? 'Kopi Kenangan' : 'Fore Coffee';
+            createAccountLog({
+                account_id: null,
+                account_phone: account.phone_number,
+                account_brand: account.brand,
+                action: 'deleted',
+                description: `Akun ${account.phone_number} (${brandLabel}) dihapus`,
+            });
         },
     });
 }
