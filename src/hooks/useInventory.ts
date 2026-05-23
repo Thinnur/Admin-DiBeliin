@@ -253,10 +253,16 @@ function getUpdateLog(
         const changes = Object.fromEntries(
             changedVoucherFields.map((f) => [f, (updates as Record<string, unknown>)[f]])
         );
+
+        // Edge case: voucher toggle triggered auto-sell (semua voucher habis)
+        // Server menambahkan status='sold' secara otomatis di apiAccounts.updateAccount
+        const autoSold = account.status === 'sold';
         return {
             action: 'voucher_changed',
-            description: `Voucher akun ${phone} diperbarui — ${changedVouchers.join(', ')}`,
-            metadata: { changes },
+            description: autoSold
+                ? `Voucher akun ${phone} diperbarui — ${changedVouchers.join(', ')} (akun otomatis jadi Sold)`
+                : `Voucher akun ${phone} diperbarui — ${changedVouchers.join(', ')}`,
+            metadata: { changes, ...(autoSold ? { auto_sold: true } : {}) },
         };
     }
 

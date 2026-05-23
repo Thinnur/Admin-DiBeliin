@@ -39,8 +39,12 @@ export async function createAccountLog({
   metadata,
 }: CreateAccountLogParams): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    const user_email = user?.email ?? 'unknown';
+    const { data, error: authError } = await supabase.auth.getUser();
+    if (authError) {
+      console.error(`[AccountLog] Auth error saat menulis log (${action} ${account_phone}):`, authError);
+      return;
+    }
+    const user_email = data?.user?.email ?? 'unknown';
 
     const { error } = await supabase.from('account_logs').insert({
       account_id,
@@ -53,10 +57,10 @@ export async function createAccountLog({
     });
 
     if (error) {
-      console.error('Failed to write account log:', error);
+      console.error(`[AccountLog] Gagal tulis log (${action} ${account_phone}):`, error.message, error);
     }
   } catch (err) {
-    console.error('Failed to write account log:', err);
+    console.error(`[AccountLog] Exception saat menulis log (${action} ${account_phone}):`, err);
   }
 }
 
