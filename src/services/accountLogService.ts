@@ -73,13 +73,16 @@ interface FetchAccountLogsParams {
 export async function fetchAccountLogs({
   accountId,
   action,
-  limit = 100,
+  limit,
 }: FetchAccountLogsParams = {}): Promise<AccountLog[]> {
   let query = supabase
     .from('account_logs')
     .select('*')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .order('created_at', { ascending: false });
+
+  if (limit !== undefined) {
+    query = query.limit(limit);
+  }
 
   if (accountId) {
     query = query.eq('account_id', accountId);

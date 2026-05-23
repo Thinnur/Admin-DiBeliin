@@ -4,7 +4,7 @@
 // Premium inventory page for managing coffee shop accounts
 
 import { useState, useMemo } from 'react';
-import { Package, Coffee, Ticket, Plus } from 'lucide-react';
+import { Package, Coffee, Ticket, Plus, Search } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -642,16 +642,30 @@ export default function InventoryPage() {
                         value={activeTab}
                         onValueChange={(value) => setActiveTab(value as AccountBrand)}
                     >
-                        <TabsList className="mb-4">
-                            <TabsTrigger value="kopken" className="gap-2">
-                                <Coffee className="h-4 w-4" />
-                                Kopi Kenangan
-                            </TabsTrigger>
-                            <TabsTrigger value="fore" className="gap-2">
-                                <Coffee className="h-4 w-4" />
-                                Fore Coffee
-                            </TabsTrigger>
-                        </TabsList>
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+                            <TabsList className="mb-0">
+                                <TabsTrigger value="kopken" className="gap-2">
+                                    <Coffee className="h-4 w-4" />
+                                    Kopi Kenangan
+                                </TabsTrigger>
+                                <TabsTrigger value="fore" className="gap-2">
+                                    <Coffee className="h-4 w-4" />
+                                    Fore Coffee
+                                </TabsTrigger>
+                            </TabsList>
+
+                            {!isStaff && (
+                                <div className="relative w-full sm:max-w-xs">
+                                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                    <Input
+                                        placeholder="Search by phone number..."
+                                        value={searchQuery}
+                                        onChange={(e) => handleSearchChange(e.target.value)}
+                                        className="pl-9 bg-white"
+                                    />
+                                </div>
+                            )}
+                        </div>
 
                         <TabsContent value="kopken">
                             <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
@@ -660,8 +674,8 @@ export default function InventoryPage() {
                                     data={filteredAccounts}
                                     isLoading={isLoading}
                                     filterColumnName={isStaff ? undefined : 'phone_number'}
-                                    filterPlaceholder="Search by phone number..."
-                                    onFilterChange={handleSearchChange}
+                                    filterValue={searchQuery}
+                                    hideFilterInput={true}
                                     disablePagination={true}
                                     emptyMessage={getEmptyMessage('Kopi Kenangan')}
                                 />
@@ -675,8 +689,8 @@ export default function InventoryPage() {
                                     data={filteredAccounts}
                                     isLoading={isLoading}
                                     filterColumnName={isStaff ? undefined : 'phone_number'}
-                                    filterPlaceholder="Search by phone number..."
-                                    onFilterChange={handleSearchChange}
+                                    filterValue={searchQuery}
+                                    hideFilterInput={true}
                                     disablePagination={true}
                                     emptyMessage={getEmptyMessage('Fore Coffee')}
                                 />

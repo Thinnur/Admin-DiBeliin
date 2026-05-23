@@ -3,7 +3,7 @@
 // =============================================================================
 // Generic data table with pagination, sorting, and filtering
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
     flexRender,
     getCoreRowModel,
@@ -14,7 +14,6 @@ import {
 } from '@tanstack/react-table';
 import type { ColumnDef, ColumnFiltersState, SortingState } from '@tanstack/react-table';
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
-
 
 import {
     Table,
@@ -36,17 +35,18 @@ interface DataTableProps<TData, TValue> {
     columns: ColumnDef<TData, TValue>[];
     data: TData[];
     filterColumnName?: string;
+    filterValue?: string;
     filterPlaceholder?: string;
     isLoading?: boolean;
     emptyMessage?: string;
     onFilterChange?: (value: string) => void;
     disablePagination?: boolean;
+    hideFilterInput?: boolean;
 }
 
 type TableColumnMeta = {
     className?: string;
 };
-
 
 // -----------------------------------------------------------------------------
 // Skeleton Loader
@@ -89,11 +89,13 @@ export function DataTable<TData, TValue>({
     columns,
     data,
     filterColumnName,
+    filterValue,
     filterPlaceholder = 'Search...',
     isLoading = false,
     emptyMessage = 'No results found.',
     onFilterChange,
     disablePagination = false,
+    hideFilterInput = false,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -118,6 +120,12 @@ export function DataTable<TData, TValue>({
         },
     });
 
+    useEffect(() => {
+        if (filterColumnName && filterValue !== undefined) {
+            table.getColumn(filterColumnName)?.setFilterValue(filterValue);
+        }
+    }, [filterValue, filterColumnName, table]);
+
     // Show skeleton while loading
     if (isLoading) {
         return <TableSkeleton columns={columns.length} />;
@@ -126,7 +134,7 @@ export function DataTable<TData, TValue>({
     return (
         <div className="space-y-4">
             {/* Filter Input */}
-            {filterColumnName && (
+            {filterColumnName && !hideFilterInput && (
                 <div className="relative max-w-sm">
                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -143,7 +151,6 @@ export function DataTable<TData, TValue>({
                     />
                 </div>
             )}
-
 
             {/* Table */}
             <div className="rounded-md border">

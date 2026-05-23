@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { ClipboardList, RefreshCw, Inbox } from 'lucide-react';
-import { format } from 'date-fns';
+import { format, isToday, isYesterday } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
 import {
@@ -19,6 +19,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAccountLogs } from '@/hooks/useAccountLogs';
 import type { AccountLog, AccountLogAction } from '@/services/accountLogService';
@@ -26,20 +27,6 @@ import type { AccountLog, AccountLogAction } from '@/services/accountLogService'
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
-
-function formatRelative(dateStr: string): string {
-    const now = new Date();
-    const date = new Date(dateStr);
-    const diffMs = now.getTime() - date.getTime();
-    const diffSec = Math.floor(diffMs / 1000);
-    const diffMin = Math.floor(diffSec / 60);
-    const diffHour = Math.floor(diffMin / 60);
-
-    if (diffSec < 60) return 'Baru saja';
-    if (diffMin < 60) return `${diffMin} menit lalu`;
-    if (diffHour < 24) return `${diffHour} jam lalu`;
-    return format(date, 'dd MMM yyyy HH:mm', { locale: localeId });
-}
 
 function truncateEmail(email: string): string {
     return email.length > 20 ? email.slice(0, 20) + '...' : email;
@@ -84,14 +71,34 @@ function ActionBadge({ action }: { action: AccountLogAction }) {
 export function AccountLogViewer() {
     const [actionFilter, setActionFilter] = useState<AccountLogAction | 'all'>('all');
     const [brandFilter, setBrandFilter] = useState<'all' | 'kopken' | 'fore'>('all');
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
 
-    const { data: logs = [], isLoading, refetch } = useAccountLogs({ limit: 100 });
+    const { data: logs = [], isLoading, refetch } = useAccountLogs();
 
     const filteredLogs = logs.filter((log) => {
         if (actionFilter !== 'all' && log.action !== actionFilter) return false;
         if (brandFilter !== 'all' && log.account_brand !== brandFilter) return false;
         return true;
     });
+
+    // Extract unique days (yyyy-MM-dd)
+    const uniqueDays = useMemo(() => {
+        const days = filteredLogs.map((log) => format(new Date(log.created_at), 'yyyy-MM-dd'));
+        return Array.from(new Set(days)).sort((a, b) => b.localeCompare(a));
+    }, [filteredLogs]);
+
+    // Active day resolver
+    const activeDay = (selectedDay && uniqueDays.includes(selectedDay))
+        ? selectedDay
+        : (uniqueDays[0] || null);
+
+    // Filter logs for the active day
+    const logsForActiveDay = useMemo(() => {
+        if (!activeDay) return [];
+        return filteredLogs.filter(
+            (log) => format(new Date(log.created_at), 'yyyy-MM-dd') === activeDay
+        );
+    }, [filteredLogs, activeDay]);
 
     return (
         <Card className="shadow-sm">
@@ -103,7 +110,11 @@ export function AccountLogViewer() {
                             <CardTitle className="text-lg">Riwayat Perubahan Akun</CardTitle>
                         </div>
                         <CardDescription className="mt-1">
-                            {isLoading ? 'Memuat...' : `${filteredLogs.length} entri`}
+                            {isLoading
+                                ? 'Memuat...'
+                                : activeDay
+                                ? `${logsForActiveDay.length} entri (${filteredLogs.length} total)`
+                                : '0 entri'}
                         </CardDescription>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
@@ -123,7 +134,7 @@ export function AccountLogViewer() {
                                 ))}
                             </SelectContent>
                         </Select>
-
+ 
                         {/* Brand filter */}
                         <Select
                             value={brandFilter}
@@ -138,7 +149,7 @@ export function AccountLogViewer() {
                                 <SelectItem value="fore">Fore Coffee</SelectItem>
                             </SelectContent>
                         </Select>
-
+ 
                         <Button
                             variant="outline"
                             size="sm"
@@ -151,7 +162,7 @@ export function AccountLogViewer() {
                     </div>
                 </div>
             </CardHeader>
-
+ 
             <CardContent className="pt-4">
                 {isLoading ? (
                     <div className="space-y-3">
@@ -166,6 +177,35 @@ export function AccountLogViewer() {
                     </div>
                 ) : (
                     <>
+                        {/* Tab Filter Hari */}
+                        <div className="mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+                            <Tabs
+                                value={activeDay || ''}
+                                onValueChange={(val) => setSelectedDay(val || null)}
+                            >
+                                <TabsList className="inline-flex w-auto bg-slate-100 p-1 rounded-lg">
+                                    {uniqueDays.map((dayStr) => {
+                                        const date = new Date(dayStr);
+                                        let label = format(date, 'd MMM yyyy', { locale: localeId });
+                                        if (isToday(date)) {
+                                            label = 'Hari Ini';
+                                        } else if (isYesterday(date)) {
+                                            label = 'Kemarin';
+                                        }
+                                        return (
+                                            <TabsTrigger
+                                                key={dayStr}
+                                                value={dayStr}
+                                                className="text-xs px-3 py-1.5 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900"
+                                            >
+                                                {label}
+                                            </TabsTrigger>
+                                        );
+                                    })}
+                                </TabsList>
+                            </Tabs>
+                        </div>
+
                         {/* Desktop table */}
                         <div className="hidden md:block overflow-x-auto">
                             <table className="w-full text-sm">
@@ -179,10 +219,10 @@ export function AccountLogViewer() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-50">
-                                    {filteredLogs.map((log: AccountLog) => (
+                                    {logsForActiveDay.map((log: AccountLog) => (
                                         <tr key={log.id} className="hover:bg-slate-50/50">
-                                            <td className="py-3 pr-4 text-slate-400 whitespace-nowrap text-xs">
-                                                {formatRelative(log.created_at)}
+                                            <td className="py-3 pr-4 text-slate-600 font-mono whitespace-nowrap text-xs">
+                                                {format(new Date(log.created_at), 'HH:mm:ss')}
                                             </td>
                                             <td className="py-3 pr-4">
                                                 <ActionBadge action={log.action} />
@@ -201,18 +241,18 @@ export function AccountLogViewer() {
                                 </tbody>
                             </table>
                         </div>
-
+ 
                         {/* Mobile card list */}
                         <div className="md:hidden space-y-2">
-                            {filteredLogs.map((log: AccountLog) => (
+                            {logsForActiveDay.map((log: AccountLog) => (
                                 <div
                                     key={log.id}
                                     className="rounded-lg border border-slate-100 bg-slate-50/50 p-3 space-y-1.5"
                                 >
                                     <div className="flex items-center justify-between gap-2">
                                         <ActionBadge action={log.action} />
-                                        <span className="text-xs text-slate-400">
-                                            {formatRelative(log.created_at)}
+                                        <span className="text-xs text-slate-500 font-mono">
+                                            {format(new Date(log.created_at), 'HH:mm:ss')}
                                         </span>
                                     </div>
                                     <p className="text-sm text-slate-700">{log.description}</p>
