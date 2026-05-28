@@ -229,3 +229,62 @@ export async function getAntrianPesanan(): Promise<AntrianPesanan[]> {
         return [];
     }
 }
+
+// -----------------------------------------------------------------------------
+// Admin Fees Operations (Dynamic Jasdor Fees)
+// -----------------------------------------------------------------------------
+
+export interface AdminFees {
+    fee_jasdor_fore: number;
+    fee_jasdor_kopken: number;
+}
+
+/**
+ * Fetch dynamic admin fees from app_settings
+ */
+export async function getAdminFees(): Promise<AdminFees> {
+    try {
+        const { data, error } = await supabase
+            .from('app_settings')
+            .select('key, value')
+            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken']);
+
+        if (error) {
+            console.error('Error fetching admin fees:', error);
+            return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000 };
+        }
+
+        const fees: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000 };
+        data?.forEach((row) => {
+            if (row.key === 'fee_jasdor_fore') {
+                fees.fee_jasdor_fore = Number(row.value) || 5000;
+            } else if (row.key === 'fee_jasdor_kopken') {
+                fees.fee_jasdor_kopken = Number(row.value) || 5000;
+            }
+        });
+        return fees;
+    } catch (error) {
+        console.error('Error fetching admin fees:', error);
+        return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000 };
+    }
+}
+
+/**
+ * Update a specific admin fee in app_settings
+ */
+export async function updateAdminFee(key: 'fee_jasdor_fore' | 'fee_jasdor_kopken', value: string): Promise<void> {
+    const { error } = await supabase
+        .from('app_settings')
+        .upsert(
+            {
+                key,
+                value,
+            },
+            { onConflict: 'key' }
+        );
+
+    if (error) {
+        console.error(`Error updating admin fee (${key}):`, error);
+        throw new Error(`Failed to update admin fee: ${error.message}`);
+    }
+}

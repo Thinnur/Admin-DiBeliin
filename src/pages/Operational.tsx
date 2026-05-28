@@ -30,6 +30,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+
 import {
     getStoreStatus,
     updateStoreStatus,
@@ -38,7 +40,10 @@ import {
     deleteVoucher,
     getServiceStatus,
     updateServiceStatus,
+    getAdminFees,
+    updateAdminFee,
     type Voucher,
+    type AdminFees,
 } from '@/services/operationalService';
 import { useAuth } from '@/contexts/AuthContext';
 import BannerManagement from '@/components/inventory/BannerManagement';
@@ -182,6 +187,122 @@ function ServiceStatusSection({
                         className="data-[state=checked]:bg-amber-600"
                     />
                 </div>
+            </CardContent>
+        </Card>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Admin Fee (Jasdor) Section
+// -----------------------------------------------------------------------------
+
+function AdminFeeSection() {
+    const queryClient = useQueryClient();
+
+    // 1. Fetch current admin fees from Supabase
+    const { data: adminFees, isLoading: isQueryLoading } = useQuery<AdminFees>({
+        queryKey: ['adminFees'],
+        queryFn: getAdminFees,
+    });
+
+    const [foreInput, setForeInput] = useState('');
+    const [kenanganInput, setKenanganInput] = useState('');
+
+    // Sync input states when query returns data
+    useEffect(() => {
+        if (adminFees) {
+            setForeInput(adminFees.fee_jasdor_fore.toString());
+            setKenanganInput(adminFees.fee_jasdor_kopken.toString());
+        }
+    }, [adminFees]);
+
+    // 2. Mutation to update a specific admin fee key
+    const updateFeeMutation = useMutation({
+        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken'; value: string }) => {
+            await updateAdminFee(variables.key, variables.value);
+        },
+        onSuccess: () => {
+            // Invalidate query to refetch and update UI instantly
+            queryClient.invalidateQueries({ queryKey: ['adminFees'] });
+            toast.success('Biaya Jasdor berhasil disimpan');
+        },
+        onError: (error) => {
+            console.error('Failed to update admin fee:', error);
+            toast.error('Gagal menyimpan biaya Jasdor');
+        },
+    });
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const fVal = Number(foreInput);
+        const kVal = Number(kenanganInput);
+        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0) {
+            toast.error('Biaya Jasdor harus berupa angka positif');
+            return;
+        }
+
+        if (adminFees) {
+            if (fVal !== adminFees.fee_jasdor_fore) {
+                updateFeeMutation.mutate({ key: 'fee_jasdor_fore', value: foreInput });
+            }
+            if (kVal !== adminFees.fee_jasdor_kopken) {
+                updateFeeMutation.mutate({ key: 'fee_jasdor_kopken', value: kenanganInput });
+            }
+            if (fVal === adminFees.fee_jasdor_fore && kVal === adminFees.fee_jasdor_kopken) {
+                toast.info('Tidak ada perubahan nominal biaya');
+            }
+        }
+    };
+
+    return (
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
+            <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-br from-violet-500 to-violet-600 rounded-xl shadow-lg shadow-violet-500/20">
+                        <Coffee className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-lg">Pengaturan Biaya Jasdor</CardTitle>
+                        <CardDescription>Sesuaikan biaya admin / jasdor secara dinamis</CardDescription>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {isQueryLoading ? (
+                    <div className="text-center py-6 text-slate-500">
+                        <div className="animate-pulse">Memuat data biaya...</div>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="fee_jasdor_fore">Biaya Jasdor Fore Coffee (Rp)</Label>
+                                <Input
+                                    id="fee_jasdor_fore"
+                                    type="number"
+                                    placeholder="5000"
+                                    value={foreInput}
+                                    onChange={(e) => setForeInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fee_jasdor_kopken">Biaya Jasdor Kopi Kenangan (Rp)</Label>
+                                <Input
+                                    id="fee_jasdor_kopken"
+                                    type="number"
+                                    placeholder="5000"
+                                    value={kenanganInput}
+                                    onChange={(e) => setKenanganInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                            </div>
+                        </div>
+                        <Button type="submit" disabled={updateFeeMutation.isPending} className="w-full sm:w-auto">
+                            {updateFeeMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
+                        </Button>
+                    </form>
+                )}
             </CardContent>
         </Card>
     );
@@ -607,6 +728,8 @@ export default function Operational() {
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                 />
+
+                <AdminFeeSection />
             </div>
         );
     }
@@ -643,6 +766,8 @@ export default function Operational() {
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                 />
+
+                <AdminFeeSection />
 
                 {/* Voucher Management */}
                 <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
