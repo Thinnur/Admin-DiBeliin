@@ -6,7 +6,7 @@
 // -----------------------------------------------------------------------------
 // Enums
 // -----------------------------------------------------------------------------
-export type AccountBrand = 'kopken' | 'fore';
+export type AccountBrand = 'kopken' | 'fore' | 'tomoro' | 'janjijiwa';
 
 export type AccountStatus = 'ready' | 'booked' | 'sold' | 'expired' | 'issue' | 'in_use';
 

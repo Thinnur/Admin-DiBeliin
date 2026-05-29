@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 export interface Outlet {
     id: number;
     name: string;
-    brand: 'fore' | 'kenangan';
+    brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa';
     city: string;
     is_premium: boolean;
     is_active: boolean;

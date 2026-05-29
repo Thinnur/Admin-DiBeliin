@@ -44,11 +44,15 @@ function BrandBadge({ brand }: { brand: AccountBrand }) {
     const styles = {
         kopken: 'bg-amber-100 text-amber-800 border-amber-200',
         fore: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+        tomoro: 'bg-orange-100 text-orange-800 border-orange-200',
+        janjijiwa: 'bg-zinc-800 text-white border-zinc-700',
     };
 
     const labels = {
         kopken: 'Kopi Kenangan',
         fore: 'Fore Coffee',
+        tomoro: 'Tomoro Coffee',
+        janjijiwa: 'Kopi Janji Jiwa',
     };
 
     return (
@@ -99,7 +103,7 @@ function StatusBadge({ status, inUseBy }: { status: AccountStatus; inUseBy?: str
 
 /**
  * Voucher status badges - shows individual voucher availability
- * Brand-aware: BOGO & 35% for Fore, NoMin & 50k for KopKen
+ * Brand-aware: BOGO & 35% for Fore, BOGO & 50% for Tomoro, 50% for Janji Jiwa, NoMin & 50k for KopKen
  */
 function VoucherStatusBadges({ account }: { account: Account }) {
     const { brand } = account;
@@ -111,10 +115,11 @@ function VoucherStatusBadges({ account }: { account: Account }) {
         return 'bg-slate-100 text-slate-500 border-slate-200';
     };
 
-    if (brand === 'fore') {
-        // Fore Coffee: show BOGO and 35% badges
+    if (brand === 'fore' || brand === 'tomoro') {
+        // Fore & Tomoro: show BOGO and 35%/50% badges
         const isBogoReady = account.is_bogo_ready ?? false;
         const isDisc35Ready = account.is_discount35_ready ?? false;
+        const discLabel = brand === 'fore' ? '35%' : '50%';
         return (
             <div className="flex flex-wrap gap-1.5">
                 <span
@@ -135,7 +140,26 @@ function VoucherStatusBadges({ account }: { account: Account }) {
                     ) : (
                         <X className="w-3 h-3" />
                     )}
-                    35%
+                    {discLabel}
+                </span>
+            </div>
+        );
+    }
+
+    if (brand === 'janjijiwa') {
+        // Janji Jiwa: show 50% badge only
+        const isDisc35Ready = account.is_discount35_ready ?? false;
+        return (
+            <div className="flex flex-wrap gap-1.5">
+                <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(isDisc35Ready)}`}
+                >
+                    {isDisc35Ready ? (
+                        <Check className="w-3 h-3" />
+                    ) : (
+                        <X className="w-3 h-3" />
+                    )}
+                    50%
                 </span>
             </div>
         );
@@ -310,9 +334,9 @@ function ActionsCell({
                 <DropdownMenuSeparator />
 
                 {/* Toggle Vouchers - brand-aware */}
-                {account.brand === 'fore' ? (
+                {(account.brand === 'fore' || account.brand === 'tomoro') && (
                     <>
-                        {/* Fore: BOGO toggle */}
+                        {/* BOGO toggle */}
                         <DropdownMenuItem
                             onClick={() => {
                                 actions?.onToggleVoucher?.(account, 'bogo', !(account.is_bogo_ready ?? false));
@@ -330,7 +354,7 @@ function ActionsCell({
                             </span>
                         </DropdownMenuItem>
 
-                        {/* Fore: 35% toggle */}
+                        {/* 35%/50% toggle */}
                         <DropdownMenuItem
                             onClick={() => {
                                 actions?.onToggleVoucher?.(account, 'disc35', !(account.is_discount35_ready ?? false));
@@ -344,11 +368,32 @@ function ActionsCell({
                                 ) : (
                                     <X className="w-4 h-4 text-slate-400" />
                                 )}
-                                35%: {(account.is_discount35_ready ?? false) ? 'Ready' : 'Used'}
+                                {account.brand === 'fore' ? '35%' : '50%'}: {(account.is_discount35_ready ?? false) ? 'Ready' : 'Used'}
                             </span>
                         </DropdownMenuItem>
                     </>
-                ) : (
+                )}
+
+                {account.brand === 'janjijiwa' && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions?.onToggleVoucher?.(account, 'disc35', !(account.is_discount35_ready ?? false));
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer"
+                    >
+                        <span className="flex items-center gap-2">
+                            {(account.is_discount35_ready ?? false) ? (
+                                <Check className="w-4 h-4 text-emerald-600" />
+                            ) : (
+                                <X className="w-4 h-4 text-slate-400" />
+                            )}
+                            50%: {(account.is_discount35_ready ?? false) ? 'Ready' : 'Used'}
+                        </span>
+                    </DropdownMenuItem>
+                )}
+
+                {account.brand === 'kopken' && (
                     <>
                         {/* KopKen: NoMin toggle */}
                         <DropdownMenuItem

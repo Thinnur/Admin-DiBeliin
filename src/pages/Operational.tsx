@@ -120,17 +120,25 @@ function StoreStatusSection({ isOpen, isLoading, onToggle }: StoreStatusSectionP
 interface ServiceStatusSectionProps {
     isForeOpen: boolean;
     isKenanganOpen: boolean;
+    isTomoroOpen: boolean;
+    isJanjijiwaOpen: boolean;
     isLoading: boolean;
     onToggleFore: () => void;
     onToggleKenangan: () => void;
+    onToggleTomoro: () => void;
+    onToggleJanjijiwa: () => void;
 }
 
 function ServiceStatusSection({
     isForeOpen,
     isKenanganOpen,
+    isTomoroOpen,
+    isJanjijiwaOpen,
     isLoading,
     onToggleFore,
     onToggleKenangan,
+    onToggleTomoro,
+    onToggleJanjijiwa,
 }: ServiceStatusSectionProps) {
     return (
         <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
@@ -187,6 +195,48 @@ function ServiceStatusSection({
                         className="data-[state=checked]:bg-amber-600"
                     />
                 </div>
+
+                {/* Tomoro Coffee Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-orange-50 border border-orange-200">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isTomoroOpen ? 'bg-orange-500' : 'bg-slate-300'}`}>
+                            <Coffee className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-slate-900">Layanan Tomoro Coffee</p>
+                            <p className="text-sm text-slate-500">
+                                {isTomoroOpen ? 'Menerima pesanan Tomoro' : 'Tidak menerima pesanan Tomoro'}
+                            </p>
+                        </div>
+                    </div>
+                    <Switch
+                        checked={isTomoroOpen}
+                        onCheckedChange={onToggleTomoro}
+                        disabled={isLoading}
+                        className="data-[state=checked]:bg-orange-600"
+                    />
+                </div>
+
+                {/* Kopi Janji Jiwa Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-50 border border-zinc-200">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isJanjijiwaOpen ? 'bg-zinc-800' : 'bg-slate-300'}`}>
+                            <Coffee className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-slate-900">Layanan Kopi Janji Jiwa</p>
+                            <p className="text-sm text-slate-500">
+                                {isJanjijiwaOpen ? 'Menerima pesanan Janji Jiwa' : 'Tidak menerima pesanan Janji Jiwa'}
+                            </p>
+                        </div>
+                    </div>
+                    <Switch
+                        checked={isJanjijiwaOpen}
+                        onCheckedChange={onToggleJanjijiwa}
+                        disabled={isLoading}
+                        className="data-[state=checked]:bg-zinc-800"
+                    />
+                </div>
             </CardContent>
         </Card>
     );
@@ -207,18 +257,22 @@ function AdminFeeSection() {
 
     const [foreInput, setForeInput] = useState('');
     const [kenanganInput, setKenanganInput] = useState('');
+    const [tomoroInput, setTomoroInput] = useState('');
+    const [janjijiwaInput, setJanjijiwaInput] = useState('');
 
     // Sync input states when query returns data
     useEffect(() => {
         if (adminFees) {
             setForeInput(adminFees.fee_jasdor_fore.toString());
             setKenanganInput(adminFees.fee_jasdor_kopken.toString());
+            setTomoroInput((adminFees.fee_jasdor_tomoro ?? 2000).toString());
+            setJanjijiwaInput((adminFees.fee_jasdor_janjijiwa ?? 2000).toString());
         }
     }, [adminFees]);
 
     // 2. Mutation to update a specific admin fee key
     const updateFeeMutation = useMutation({
-        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken'; value: string }) => {
+        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa'; value: string }) => {
             await updateAdminFee(variables.key, variables.value);
         },
         onSuccess: () => {
@@ -232,24 +286,42 @@ function AdminFeeSection() {
         },
     });
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         const fVal = Number(foreInput);
         const kVal = Number(kenanganInput);
-        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0) {
+        const tVal = Number(tomoroInput);
+        const jVal = Number(janjijiwaInput);
+        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0) {
             toast.error('Biaya Jasdor harus berupa angka positif');
             return;
         }
 
         if (adminFees) {
-            if (fVal !== adminFees.fee_jasdor_fore) {
-                updateFeeMutation.mutate({ key: 'fee_jasdor_fore', value: foreInput });
-            }
-            if (kVal !== adminFees.fee_jasdor_kopken) {
-                updateFeeMutation.mutate({ key: 'fee_jasdor_kopken', value: kenanganInput });
-            }
-            if (fVal === adminFees.fee_jasdor_fore && kVal === adminFees.fee_jasdor_kopken) {
-                toast.info('Tidak ada perubahan nominal biaya');
+            let hasChanges = false;
+            try {
+                if (fVal !== adminFees.fee_jasdor_fore) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_fore', value: foreInput });
+                    hasChanges = true;
+                }
+                if (kVal !== adminFees.fee_jasdor_kopken) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_kopken', value: kenanganInput });
+                    hasChanges = true;
+                }
+                if (tVal !== (adminFees.fee_jasdor_tomoro ?? 2000)) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_tomoro', value: tomoroInput });
+                    hasChanges = true;
+                }
+                if (jVal !== (adminFees.fee_jasdor_janjijiwa ?? 2000)) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_janjijiwa', value: janjijiwaInput });
+                    hasChanges = true;
+                }
+
+                if (!hasChanges) {
+                    toast.info('Tidak ada perubahan nominal biaya');
+                }
+            } catch (err) {
+                // error is already handled in onError of mutation
             }
         }
     };
@@ -297,6 +369,28 @@ function AdminFeeSection() {
                                     disabled={updateFeeMutation.isPending}
                                 />
                             </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fee_jasdor_tomoro">Biaya Jasdor Tomoro Coffee (Rp)</Label>
+                                <Input
+                                    id="fee_jasdor_tomoro"
+                                    type="number"
+                                    placeholder="2000"
+                                    value={tomoroInput}
+                                    onChange={(e) => setTomoroInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fee_jasdor_janjijiwa">Biaya Jasdor Kopi Janji Jiwa (Rp)</Label>
+                                <Input
+                                    id="fee_jasdor_janjijiwa"
+                                    type="number"
+                                    placeholder="2000"
+                                    value={janjijiwaInput}
+                                    onChange={(e) => setJanjijiwaInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                            </div>
                         </div>
                         <Button type="submit" disabled={updateFeeMutation.isPending} className="w-full sm:w-auto">
                             {updateFeeMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
@@ -323,7 +417,7 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
     const [minPurchase, setMinPurchase] = useState('');
     const [maxPurchase, setMaxPurchase] = useState('');
     const [quota, setQuota] = useState('1');
-    const [validFor, setValidFor] = useState<'all' | 'fore' | 'kenangan'>('all');
+    const [validFor, setValidFor] = useState<'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('all');
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -426,6 +520,8 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
                             <SelectItem value="all">All Brands</SelectItem>
                             <SelectItem value="fore">Fore Coffee</SelectItem>
                             <SelectItem value="kenangan">Kopi Kenangan</SelectItem>
+                            <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
+                            <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -464,6 +560,10 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
                 return <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100">Fore</Badge>;
             case 'kenangan':
                 return <Badge className="bg-amber-100 text-amber-700 hover:bg-amber-100">Kenangan</Badge>;
+            case 'tomoro':
+                return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Tomoro</Badge>;
+            case 'janjijiwa':
+                return <Badge className="bg-zinc-800 text-zinc-100 hover:bg-zinc-800">Janji Jiwa</Badge>;
             default:
                 return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">All</Badge>;
         }
@@ -593,6 +693,8 @@ export default function Operational() {
     // Service status state (brand-specific)
     const [isForeOpen, setIsForeOpen] = useState(true);
     const [isKenanganOpen, setIsKenanganOpen] = useState(true);
+    const [isTomoroOpen, setIsTomoroOpen] = useState(true);
+    const [isJanjijiwaOpen, setIsJanjijiwaOpen] = useState(true);
     const [isServiceLoading, setIsServiceLoading] = useState(false);
 
     // Voucher state
@@ -609,14 +711,18 @@ export default function Operational() {
 
     const fetchInitialData = async (loadVouchers: boolean) => {
         try {
-            const [status, foreStatus, kenanganStatus] = await Promise.all([
+            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus] = await Promise.all([
                 getStoreStatus(),
                 getServiceStatus('fore'),
                 getServiceStatus('kenangan'),
+                getServiceStatus('tomoro'),
+                getServiceStatus('janjijiwa'),
             ]);
             setIsStoreOpen(status);
             setIsForeOpen(foreStatus);
             setIsKenanganOpen(kenanganStatus);
+            setIsTomoroOpen(tomoroStatus);
+            setIsJanjijiwaOpen(janjijiwaStatus);
             if (loadVouchers) {
                 const voucherList = await getVouchers();
                 setVouchers(voucherList);
@@ -679,6 +785,38 @@ export default function Operational() {
         }
     };
 
+    // Toggle Tomoro service
+    const handleToggleTomoro = async () => {
+        setIsServiceLoading(true);
+        try {
+            const newStatus = !isTomoroOpen;
+            await updateServiceStatus('tomoro', newStatus);
+            setIsTomoroOpen(newStatus);
+            toast.success(`Layanan Tomoro Coffee ${newStatus ? 'DIBUKA' : 'DITUTUP'}`);
+        } catch (error) {
+            console.error('Error toggling Tomoro service:', error);
+            toast.error('Gagal mengubah status layanan Tomoro Coffee');
+        } finally {
+            setIsServiceLoading(false);
+        }
+    };
+
+    // Toggle Janji Jiwa service
+    const handleToggleJanjijiwa = async () => {
+        setIsServiceLoading(true);
+        try {
+            const newStatus = !isJanjijiwaOpen;
+            await updateServiceStatus('janjijiwa', newStatus);
+            setIsJanjijiwaOpen(newStatus);
+            toast.success(`Layanan Kopi Janji Jiwa ${newStatus ? 'DIBUKA' : 'DITUTUP'}`);
+        } catch (error) {
+            console.error('Error toggling Janji Jiwa service:', error);
+            toast.error('Gagal mengubah status layanan Kopi Janji Jiwa');
+        } finally {
+            setIsServiceLoading(false);
+        }
+    };
+
     // Create voucher
     const handleCreateVoucher = async (voucherData: Partial<Voucher>) => {
         setIsCreating(true);
@@ -724,9 +862,13 @@ export default function Operational() {
                 <ServiceStatusSection
                     isForeOpen={isForeOpen}
                     isKenanganOpen={isKenanganOpen}
+                    isTomoroOpen={isTomoroOpen}
+                    isJanjijiwaOpen={isJanjijiwaOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
+                    onToggleTomoro={handleToggleTomoro}
+                    onToggleJanjijiwa={handleToggleJanjijiwa}
                 />
 
                 <AdminFeeSection />
@@ -762,9 +904,13 @@ export default function Operational() {
                 <ServiceStatusSection
                     isForeOpen={isForeOpen}
                     isKenanganOpen={isKenanganOpen}
+                    isTomoroOpen={isTomoroOpen}
+                    isJanjijiwaOpen={isJanjijiwaOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
+                    onToggleTomoro={handleToggleTomoro}
+                    onToggleJanjijiwa={handleToggleJanjijiwa}
                 />
 
                 <AdminFeeSection />

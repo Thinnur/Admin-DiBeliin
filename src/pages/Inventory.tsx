@@ -79,11 +79,18 @@ interface VoucherStats {
     kopkenNomin: number;
     kopkenMin50k: number;
     kopkenTotal: number;
+    tomoroBogo: number;
+    tomoroDisc50: number;
+    tomoroTotal: number;
+    janjijiwaDisc50: number;
+    janjijiwaTotal: number;
 }
 
 function calculateVoucherStats(accounts: Account[]): VoucherStats {
     const foreAccounts = accounts.filter((a) => a.brand === 'fore');
     const kopkenAccounts = accounts.filter((a) => a.brand === 'kopken');
+    const tomoroAccounts = accounts.filter((a) => a.brand === 'tomoro');
+    const janjijiwaAccounts = accounts.filter((a) => a.brand === 'janjijiwa');
     return {
         foreBogo: foreAccounts.filter((a) => a.is_bogo_ready === true).length,
         foreDisc35: foreAccounts.filter((a) => a.is_discount35_ready === true).length,
@@ -91,6 +98,11 @@ function calculateVoucherStats(accounts: Account[]): VoucherStats {
         kopkenNomin: kopkenAccounts.filter((a) => a.is_nomin_ready === true).length,
         kopkenMin50k: kopkenAccounts.filter((a) => a.is_min50k_ready === true).length,
         kopkenTotal: kopkenAccounts.length,
+        tomoroBogo: tomoroAccounts.filter((a) => a.is_bogo_ready === true).length,
+        tomoroDisc50: tomoroAccounts.filter((a) => a.is_discount35_ready === true).length,
+        tomoroTotal: tomoroAccounts.length,
+        janjijiwaDisc50: janjijiwaAccounts.filter((a) => a.is_discount35_ready === true).length,
+        janjijiwaTotal: janjijiwaAccounts.length,
     };
 }
 
@@ -136,26 +148,43 @@ export default function InventoryPage() {
         data: staffAccountsKopken,
         isLoading: isLoadingStaffKopken,
         isError: isErrorStaffKopken,
-    } = useStaffAccounts('kopken', deviceFilter, { enabled: !isAuthLoading && isStaff });
+    } = useStaffAccounts('kopken', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'kopken' });
 
     const {
         data: staffAccountsFore,
         isLoading: isLoadingStaffFore,
         isError: isErrorStaffFore,
-    } = useStaffAccounts('fore', deviceFilter, { enabled: !isAuthLoading && isStaff });
+    } = useStaffAccounts('fore', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'fore' });
+
+    const {
+        data: staffAccountsTomoro,
+        isLoading: isLoadingStaffTomoro,
+        isError: isErrorStaffTomoro,
+    } = useStaffAccounts('tomoro', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'tomoro' });
+
+    const {
+        data: staffAccountsJanjijiwa,
+        isLoading: isLoadingStaffJanjijiwa,
+        isError: isErrorStaffJanjijiwa,
+    } = useStaffAccounts('janjijiwa', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'janjijiwa' });
 
     // Gabungkan berdasarkan role
     const allAccounts = useMemo(() => (
         isStaff
-            ? [...(staffAccountsKopken || []), ...(staffAccountsFore || [])]
+            ? [
+                ...(staffAccountsKopken || []),
+                ...(staffAccountsFore || []),
+                ...(staffAccountsTomoro || []),
+                ...(staffAccountsJanjijiwa || [])
+              ]
             : (allAccountsAdmin || [])
-    ), [isStaff, staffAccountsKopken, staffAccountsFore, allAccountsAdmin]);
+    ), [isStaff, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, allAccountsAdmin]);
     // isLoading harus true juga selama sesi auth belum selesai dipulihkan
     const isLoading = isAuthLoading || (isStaff
-        ? (isLoadingStaffKopken || isLoadingStaffFore)
+        ? (isLoadingStaffKopken || isLoadingStaffFore || isLoadingStaffTomoro || isLoadingStaffJanjijiwa)
         : isLoadingAdmin);
     const isError = isStaff
-        ? (isErrorStaffKopken || isErrorStaffFore)
+        ? (isErrorStaffKopken || isErrorStaffFore || isErrorStaffTomoro || isErrorStaffJanjijiwa)
         : isErrorAdmin;
 
     // Mutations
@@ -192,13 +221,18 @@ export default function InventoryPage() {
     // Value Priority Sorting Helper
     // -------------------------------------------------------------------------
     const getVoucherPriority = (account: Account): number => {
-        if (account.brand === 'fore') {
+        if (account.brand === 'fore' || account.brand === 'tomoro') {
             const hasBogo = account.is_bogo_ready === true;
             const hasDisc35 = account.is_discount35_ready === true;
-            if (hasBogo && hasDisc35) return 0; // Lengkap (BOGO + 35%)
+            if (hasBogo && hasDisc35) return 0; // Lengkap (BOGO + 35%/50%)
             if (hasBogo) return 1;              // Hanya BOGO
-            if (hasDisc35) return 2;            // Hanya 35%
+            if (hasDisc35) return 2;            // Hanya 35%/50%
             return 3;                           // Kosong
+        }
+        if (account.brand === 'janjijiwa') {
+            const hasDisc35 = account.is_discount35_ready === true;
+            if (hasDisc35) return 0;            // Ada voucher 50%
+            return 1;                           // Kosong
         }
         // KopKen
         if (account.is_nomin_ready && account.is_min50k_ready) return 0; // Complete
@@ -211,9 +245,11 @@ export default function InventoryPage() {
     const filteredAccounts = useMemo(() => {
         // Untuk Staff: data sudah di-filter server-side (ready, limit 6), tinggal filter per brand
         if (isStaff) {
-            const staffData = activeTab === 'kopken'
-                ? (staffAccountsKopken || [])
-                : (staffAccountsFore || []);
+            let staffData: Account[] = [];
+            if (activeTab === 'kopken') staffData = staffAccountsKopken || [];
+            else if (activeTab === 'fore') staffData = staffAccountsFore || [];
+            else if (activeTab === 'tomoro') staffData = staffAccountsTomoro || [];
+            else if (activeTab === 'janjijiwa') staffData = staffAccountsJanjijiwa || [];
 
             let result = staffData;
             if (deviceFilter === DEVICE_UNSET_VALUE) {
@@ -276,7 +312,7 @@ export default function InventoryPage() {
         });
 
         return result;
-    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, activeTab, searchQuery, statusFilter, deviceFilter, isStaff]);
+    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, activeTab, searchQuery, statusFilter, deviceFilter, isStaff]);
 
     // Action handlers
     const handleEdit = (account: Account) => {
@@ -444,90 +480,151 @@ export default function InventoryPage() {
 
             {/* Summary Stats Cards - disembunyikan untuk Staff */}
             {!isStaff && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 md:gap-4">
+                {/* KopKen No Min */}
+                <Card className="shadow-sm bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
+                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <div className="p-1 md:p-2 bg-emerald-100 rounded-lg">
+                                <Package className="h-3.5 w-3.5 md:h-4 md:w-4 text-emerald-600" />
+                            </div>
+                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
+                                KopKen NoMin
+                            </CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                        <p className="text-xl md:text-2xl font-bold tabular-nums">
+                            <span className="text-emerald-600">{voucherStats.kopkenNomin}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
+                        </p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">No Minimum</p>
+                    </CardContent>
+                </Card>
+
+                {/* KopKen Min 50k */}
+                <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-white border-blue-100">
+                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <div className="p-1 md:p-2 bg-blue-100 rounded-lg">
+                                <Package className="h-3.5 w-3.5 md:h-4 md:w-4 text-blue-600" />
+                            </div>
+                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
+                                KopKen 50k
+                            </CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                        <p className="text-xl md:text-2xl font-bold tabular-nums">
+                            <span className="text-blue-600">{voucherStats.kopkenMin50k}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
+                        </p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Min. 50rb</p>
+                    </CardContent>
+                </Card>
+
                 {/* Fore BOGO */}
                 <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
-                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
-                        <div className="flex items-center gap-2 md:gap-3">
-                            <div className="p-1.5 md:p-2.5 bg-amber-100 rounded-lg md:rounded-xl">
-                                <Coffee className="h-4 w-4 md:h-5 md:w-5 text-amber-600" />
+                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <div className="p-1 md:p-2 bg-amber-100 rounded-lg">
+                                <Coffee className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-600" />
                             </div>
-                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
+                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
                                 Fore BOGO
                             </CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
+                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                        <p className="text-xl md:text-2xl font-bold tabular-nums">
                             <span className="text-amber-600">{voucherStats.foreBogo}</span>
-                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
                         </p>
-                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Buy 1 Get 1</p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Buy 1 Get 1</p>
                     </CardContent>
                 </Card>
 
                 {/* Fore 35% */}
                 <Card className="shadow-sm bg-gradient-to-br from-orange-50 to-white border-orange-100">
-                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
-                        <div className="flex items-center gap-2 md:gap-3">
-                            <div className="p-1.5 md:p-2.5 bg-orange-100 rounded-lg md:rounded-xl">
-                                <Ticket className="h-4 w-4 md:h-5 md:w-5 text-orange-500" />
+                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <div className="p-1 md:p-2 bg-orange-100 rounded-lg">
+                                <Ticket className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-500" />
                             </div>
-                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
+                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
                                 Fore 35%
                             </CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
+                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                        <p className="text-xl md:text-2xl font-bold tabular-nums">
                             <span className="text-orange-500">{voucherStats.foreDisc35}</span>
-                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
                         </p>
-                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Diskon 35%</p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Diskon 35%</p>
                     </CardContent>
                 </Card>
 
-                {/* Sisa KopKen No Min */}
-                <Card className="shadow-sm bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
-                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
-                        <div className="flex items-center gap-2 md:gap-3">
-                            <div className="p-1.5 md:p-2.5 bg-emerald-100 rounded-lg md:rounded-xl">
-                                <Package className="h-4 w-4 md:h-5 md:w-5 text-emerald-600" />
+                {/* Tomoro BOGO */}
+                <Card className="shadow-sm bg-gradient-to-br from-red-50 to-white border-red-100">
+                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <div className="p-1 md:p-2 bg-red-100 rounded-lg">
+                                <Coffee className="h-3.5 w-3.5 md:h-4 md:w-4 text-red-600" />
                             </div>
-                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
-                                KopKen
-                                <span className="hidden md:inline"> No Min</span>
+                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
+                                Tomoro BOGO
                             </CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
-                            <span className="text-emerald-600">{voucherStats.kopkenNomin}</span>
-                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
+                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                        <p className="text-xl md:text-2xl font-bold tabular-nums">
+                            <span className="text-red-600">{voucherStats.tomoroBogo}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.tomoroTotal}</span>
                         </p>
-                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">No Minimum</p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Buy 1 Get 1</p>
                     </CardContent>
                 </Card>
 
-                {/* Sisa KopKen Min 50k */}
-                <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-white border-blue-100">
-                    <CardHeader className="pb-1 md:pb-2 p-3 md:p-6">
-                        <div className="flex items-center gap-2 md:gap-3">
-                            <div className="p-1.5 md:p-2.5 bg-blue-100 rounded-lg md:rounded-xl">
-                                <Package className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+                {/* Tomoro 50% */}
+                <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
+                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <div className="p-1 md:p-2 bg-amber-100 rounded-lg">
+                                <Ticket className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-600" />
                             </div>
-                            <CardTitle className="text-xs md:text-base font-medium text-slate-700 leading-tight">
-                                KopKen
-                                <span className="hidden md:inline"> Min 50k</span>
+                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
+                                Tomoro 50%
                             </CardTitle>
                         </div>
                     </CardHeader>
-                    <CardContent className="p-3 pt-0 md:p-6 md:pt-0">
-                        <p className="text-2xl md:text-4xl font-bold tabular-nums">
-                            <span className="text-blue-600">{voucherStats.kopkenMin50k}</span>
-                            <span className="text-sm md:text-xl text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
+                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                        <p className="text-xl md:text-2xl font-bold tabular-nums">
+                            <span className="text-amber-600">{voucherStats.tomoroDisc50}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.tomoroTotal}</span>
                         </p>
-                        <p className="text-[10px] md:text-sm text-slate-500 mt-0.5 md:mt-1">Min. 50rb</p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Diskon 50%</p>
+                    </CardContent>
+                </Card>
+
+                {/* Janji Jiwa 50% */}
+                <Card className="shadow-sm bg-gradient-to-br from-zinc-50 to-white border-zinc-200">
+                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                        <div className="flex items-center gap-1.5 md:gap-2">
+                            <div className="p-1 md:p-2 bg-zinc-200 rounded-lg">
+                                <Ticket className="h-3.5 w-3.5 md:h-4 md:w-4 text-zinc-800" />
+                            </div>
+                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
+                                Jiwa 50%
+                            </CardTitle>
+                        </div>
+                    </CardHeader>
+                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                        <p className="text-xl md:text-2xl font-bold tabular-nums">
+                            <span className="text-zinc-800">{voucherStats.janjijiwaDisc50}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.janjijiwaTotal}</span>
+                        </p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Diskon 50%</p>
                     </CardContent>
                 </Card>
                 </div>
@@ -543,7 +640,7 @@ export default function InventoryPage() {
                                 <CardDescription>
                                     Your coffee shop account collection
                                     <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                                        Total: {voucherStats.foreBogo + voucherStats.foreDisc35 + voucherStats.kopkenNomin + voucherStats.kopkenMin50k} akun siap
+                                        Total: {voucherStats.foreBogo + voucherStats.foreDisc35 + voucherStats.kopkenNomin + voucherStats.kopkenMin50k + voucherStats.tomoroBogo + voucherStats.tomoroDisc50 + voucherStats.janjijiwaDisc50} siap
                                     </span>
                                 </CardDescription>
                             )}
@@ -652,6 +749,14 @@ export default function InventoryPage() {
                                     <Coffee className="h-4 w-4" />
                                     Fore Coffee
                                 </TabsTrigger>
+                                <TabsTrigger value="tomoro" className="gap-2">
+                                    <Coffee className="h-4 w-4" />
+                                    Tomoro Coffee
+                                </TabsTrigger>
+                                <TabsTrigger value="janjijiwa" className="gap-2">
+                                    <Coffee className="h-4 w-4" />
+                                    Kopi Janji Jiwa
+                                </TabsTrigger>
                             </TabsList>
 
                             {!isStaff && (
@@ -693,6 +798,36 @@ export default function InventoryPage() {
                                     hideFilterInput={true}
                                     disablePagination={true}
                                     emptyMessage={getEmptyMessage('Fore Coffee')}
+                                />
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="tomoro">
+                            <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
+                                <DataTable
+                                    columns={columns}
+                                    data={filteredAccounts}
+                                    isLoading={isLoading}
+                                    filterColumnName={isStaff ? undefined : 'phone_number'}
+                                    filterValue={searchQuery}
+                                    hideFilterInput={true}
+                                    disablePagination={true}
+                                    emptyMessage={getEmptyMessage('Tomoro Coffee')}
+                                />
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="janjijiwa">
+                            <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
+                                <DataTable
+                                    columns={columns}
+                                    data={filteredAccounts}
+                                    isLoading={isLoading}
+                                    filterColumnName={isStaff ? undefined : 'phone_number'}
+                                    filterValue={searchQuery}
+                                    hideFilterInput={true}
+                                    disablePagination={true}
+                                    emptyMessage={getEmptyMessage('Kopi Janji Jiwa')}
                                 />
                             </div>
                         </TabsContent>

@@ -128,6 +128,8 @@ export async function fetchAccountStatistics(): Promise<AccountStatistics> {
         by_brand: {
             kopken: 0,
             fore: 0,
+            tomoro: 0,
+            janjijiwa: 0,
         },
         expiring_soon: 0,
         total_value: 0,
@@ -207,8 +209,8 @@ export async function updateAccount(
             if (currentAccount && currentAccount.status === 'ready') {
                 let shouldSell = false;
 
-                if (currentAccount.brand === 'fore') {
-                    // Fore: sold if both BOGO and discount35 are false
+                if (currentAccount.brand === 'fore' || currentAccount.brand === 'tomoro') {
+                    // Fore & Tomoro: sold if both BOGO and discount (50% for Tomoro) are false
                     const finalBogo = 'is_bogo_ready' in updates
                         ? updates.is_bogo_ready!
                         : (currentAccount.is_bogo_ready ?? false);
@@ -217,7 +219,7 @@ export async function updateAccount(
                         : (currentAccount.is_discount35_ready ?? false);
 
                     shouldSell = !finalBogo && !finalDisc35;
-                } else {
+                } else if (currentAccount.brand === 'kopken') {
                     // KopKen: sold if both nomin and min50k are false
                     const finalNomin = 'is_nomin_ready' in updates
                         ? updates.is_nomin_ready!
@@ -227,6 +229,13 @@ export async function updateAccount(
                         : currentAccount.is_min50k_ready;
 
                     shouldSell = !finalNomin && !finalMin50k;
+                } else if (currentAccount.brand === 'janjijiwa') {
+                    // Janji Jiwa: sold if discount (50%) is false
+                    const finalDisc35 = 'is_discount35_ready' in updates
+                        ? updates.is_discount35_ready!
+                        : (currentAccount.is_discount35_ready ?? false);
+
+                    shouldSell = !finalDisc35;
                 }
 
                 if (shouldSell) {
@@ -388,13 +397,22 @@ export async function batchUpdateVouchers(
  * (when all vouchers are exhausted - brand-aware)
  */
 export function shouldMarkAsSold(account: Account): boolean {
-    if (account.brand === 'fore') {
-        // Fore: sold if both BOGO and discount35 are gone
+    if (account.brand === 'fore' || account.brand === 'tomoro') {
+        // Fore & Tomoro: sold if both BOGO and discount (50% for Tomoro) are gone
         return !(account.is_bogo_ready ?? false) && !(account.is_discount35_ready ?? false);
     }
 
-    // KopKen: sold if both nomin and min50k are gone
-    return !account.is_nomin_ready && !account.is_min50k_ready;
+    if (account.brand === 'kopken') {
+        // KopKen: sold if both nomin and min50k are gone
+        return !account.is_nomin_ready && !account.is_min50k_ready;
+    }
+
+    if (account.brand === 'janjijiwa') {
+        // Janji Jiwa: sold if 50% discount is gone
+        return !(account.is_discount35_ready ?? false);
+    }
+
+    return false;
 }
 
 /**

@@ -160,13 +160,12 @@ export function useStaffAccounts(
                     .limit(3);
 
                 return [...(complete || []), ...(min50kOnly || [])] as Account[];
-            } else {
-                // Fore Coffee
-                // Grup 1: Voucher lengkap (BOGO=true AND 35%=true)
+            } else if (brand === 'fore' || brand === 'tomoro') {
+                // Grup 1: Voucher lengkap (BOGO=true AND 35%/50%=true)
                 let completeQuery = supabase
                     .from('accounts')
                     .select('*')
-                    .eq('brand', 'fore')
+                    .eq('brand', brand)
                     .eq('status', 'ready')
                     .eq('is_bogo_ready', true)
                     .eq('is_discount35_ready', true);
@@ -181,11 +180,11 @@ export function useStaffAccounts(
                     .order('expiry_date', { ascending: true })
                     .limit(3);
 
-                // Grup 2: Hanya 35% (BOGO=false AND 35%=true)
+                // Grup 2: Hanya 35%/50% (BOGO=false AND 35%/50%=true)
                 let disc35OnlyQuery = supabase
                     .from('accounts')
                     .select('*')
-                    .eq('brand', 'fore')
+                    .eq('brand', brand)
                     .eq('status', 'ready')
                     .eq('is_bogo_ready', false)
                     .eq('is_discount35_ready', true);
@@ -201,7 +200,29 @@ export function useStaffAccounts(
                     .limit(3);
 
                 return [...(complete || []), ...(disc35Only || [])] as Account[];
+            } else if (brand === 'janjijiwa') {
+                // Kopi Janji Jiwa (1 voucher 50% discount)
+                let query = supabase
+                    .from('accounts')
+                    .select('*')
+                    .eq('brand', 'janjijiwa')
+                    .eq('status', 'ready')
+                    .eq('is_discount35_ready', true);
+
+                if (deviceFilter === DEVICE_UNSET_VALUE) {
+                    query = query.or('device_name.is.null,device_name.eq.');
+                } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                    query = query.eq('device_name', deviceFilter);
+                }
+
+                const { data } = await query
+                    .order('expiry_date', { ascending: true })
+                    .limit(6);
+
+                return (data || []) as Account[];
             }
+
+            return [];
         },
         enabled: !!brand,
         ...options,
@@ -217,7 +238,13 @@ function getUpdateLog(
     account: Account
 ): { action: AccountLogAction; description: string; metadata?: Record<string, unknown> } {
     const phone = account.phone_number;
-    const brandLabel = account.brand === 'kopken' ? 'Kopi Kenangan' : 'Fore Coffee';
+    const brandLabelMap: Record<AccountBrand, string> = {
+        kopken: 'Kopi Kenangan',
+        fore: 'Fore Coffee',
+        tomoro: 'Tomoro Coffee',
+        janjijiwa: 'Kopi Janji Jiwa',
+    };
+    const brandLabel = brandLabelMap[account.brand] || account.brand;
     const voucherFields = ['is_nomin_ready', 'is_min50k_ready', 'is_bogo_ready', 'is_discount35_ready'];
 
     if (updates.status === 'in_use' && updates.in_use_by) {
@@ -245,7 +272,10 @@ function getUpdateLog(
             is_nomin_ready:      ['NoMin',  updates.is_nomin_ready      ?? false],
             is_min50k_ready:     ['Min50k', updates.is_min50k_ready     ?? false],
             is_bogo_ready:       ['BOGO',   updates.is_bogo_ready       ?? false],
-            is_discount35_ready: ['35%',    updates.is_discount35_ready ?? false],
+            is_discount35_ready: [
+                (account.brand === 'tomoro' || account.brand === 'janjijiwa') ? '50%' : '35%',
+                updates.is_discount35_ready ?? false
+            ],
         };
         const changedVouchers = changedVoucherFields.map(
             (f) => `${labelMap[f][0]}: ${labelMap[f][1] ? 'Siap' : 'Terpakai'}`
@@ -286,12 +316,19 @@ export function useAddAccount() {
             // Invalidate and refetch accounts list
             queryClient.invalidateQueries({ queryKey: queryKeys.accounts.all });
             toast.success(`Account ${newAccount.phone_number} added successfully`);
+            const brandLabelMap: Record<AccountBrand, string> = {
+                kopken: 'Kopi Kenangan',
+                fore: 'Fore Coffee',
+                tomoro: 'Tomoro Coffee',
+                janjijiwa: 'Kopi Janji Jiwa',
+            };
+            const brandLabel = brandLabelMap[newAccount.brand] || newAccount.brand;
             createAccountLog({
                 account_id: newAccount.id,
                 account_phone: newAccount.phone_number,
                 account_brand: newAccount.brand,
                 action: 'created',
-                description: `Akun ${newAccount.phone_number} (${newAccount.brand === 'kopken' ? 'Kopi Kenangan' : 'Fore Coffee'}) ditambahkan`,
+                description: `Akun ${newAccount.phone_number} (${brandLabel}) ditambahkan`,
             });
 
             // Auto-create expense transaction if purchase_price > 0
@@ -465,7 +502,13 @@ export function useDeleteAccount() {
 
         onSuccess: (_data, account) => {
             toast.success('Account deleted');
-            const brandLabel = account.brand === 'kopken' ? 'Kopi Kenangan' : 'Fore Coffee';
+            const brandLabelMap: Record<AccountBrand, string> = {
+                kopken: 'Kopi Kenangan',
+                fore: 'Fore Coffee',
+                tomoro: 'Tomoro Coffee',
+                janjijiwa: 'Kopi Janji Jiwa',
+            };
+            const brandLabel = brandLabelMap[account.brand] || account.brand;
             createAccountLog({
                 account_id: null,
                 account_phone: account.phone_number,
@@ -536,8 +579,11 @@ export function useFixStaleAccounts() {
                     if (a.brand === 'kopken') {
                         return !a.is_nomin_ready && !a.is_min50k_ready;
                     }
-                    if (a.brand === 'fore') {
+                    if (a.brand === 'fore' || a.brand === 'tomoro') {
                         return !a.is_bogo_ready && !a.is_discount35_ready;
+                    }
+                    if (a.brand === 'janjijiwa') {
+                        return !a.is_discount35_ready;
                     }
                     return false;
                 })

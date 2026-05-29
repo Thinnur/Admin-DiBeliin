@@ -171,6 +171,18 @@ export function AddAccountDialog({
                 setIsNominReady(false);
                 setIsBogoReady(true);
                 setIsDiscount35Ready(true);
+            } else if (brand === 'tomoro') {
+                // Tomoro uses BOGO & 50%, not NoMin/50k
+                setIsMin50kReady(false);
+                setIsNominReady(false);
+                setIsBogoReady(true);
+                setIsDiscount35Ready(true);
+            } else if (brand === 'janjijiwa') {
+                // Janji Jiwa uses 50% only, not BOGO, NoMin/50k
+                setIsMin50kReady(false);
+                setIsNominReady(false);
+                setIsBogoReady(false);
+                setIsDiscount35Ready(true);
             } else {
                 // KopKen uses NoMin & 50k
                 setIsNominReady(true);
@@ -242,10 +254,10 @@ export function AddAccountDialog({
                         expiry_date: expiryDate,
                         purchase_price: Number(purchasePrice) || 0,
                         // Brand-aware voucher payload
-                        is_nomin_ready: brand === 'fore' ? false : isNominReady,
-                        is_min50k_ready: brand === 'fore' ? false : isMin50kReady,
-                        is_bogo_ready: brand === 'fore' ? isBogoReady : false,
-                        is_discount35_ready: brand === 'fore' ? isDiscount35Ready : false,
+                        is_nomin_ready: brand === 'kopken' ? isNominReady : false,
+                        is_min50k_ready: brand === 'kopken' ? isMin50kReady : false,
+                        is_bogo_ready: (brand === 'fore' || brand === 'tomoro') ? isBogoReady : false,
+                        is_discount35_ready: (brand === 'fore' || brand === 'tomoro' || brand === 'janjijiwa') ? isDiscount35Ready : false,
                         notes: notes || null,
                     },
                 });
@@ -261,10 +273,10 @@ export function AddAccountDialog({
                     purchase_price: Number(purchasePrice) || 0,
                     status: 'ready',
                     // Brand-aware voucher payload
-                    is_nomin_ready: brand === 'fore' ? false : isNominReady,
-                    is_min50k_ready: brand === 'fore' ? false : isMin50kReady,
-                    is_bogo_ready: brand === 'fore' ? isBogoReady : false,
-                    is_discount35_ready: brand === 'fore' ? isDiscount35Ready : false,
+                    is_nomin_ready: brand === 'kopken' ? isNominReady : false,
+                    is_min50k_ready: brand === 'kopken' ? isMin50kReady : false,
+                    is_bogo_ready: (brand === 'fore' || brand === 'tomoro') ? isBogoReady : false,
+                    is_discount35_ready: (brand === 'fore' || brand === 'tomoro' || brand === 'janjijiwa') ? isDiscount35Ready : false,
                     notes: notes || null,
                     in_use_by: null,
                 });
@@ -298,10 +310,10 @@ export function AddAccountDialog({
                     purchase_price: price,
                     status: 'ready',
                     // Brand-aware voucher payload
-                    is_nomin_ready: bulkBrand === 'fore' ? false : true,
-                    is_min50k_ready: bulkBrand === 'fore' ? false : true,
-                    is_bogo_ready: bulkBrand === 'fore' ? true : false,
-                    is_discount35_ready: bulkBrand === 'fore' ? true : false,
+                    is_nomin_ready: bulkBrand === 'kopken',
+                    is_min50k_ready: bulkBrand === 'kopken',
+                    is_bogo_ready: bulkBrand === 'fore' || bulkBrand === 'tomoro',
+                    is_discount35_ready: bulkBrand === 'fore' || bulkBrand === 'tomoro' || bulkBrand === 'janjijiwa',
                     notes: null,
                     in_use_by: null,
                 });
@@ -351,6 +363,8 @@ export function AddAccountDialog({
                         <SelectContent>
                             <SelectItem value="kopken">Kopi Kenangan</SelectItem>
                             <SelectItem value="fore">Fore Coffee</SelectItem>
+                            <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
+                            <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -405,37 +419,41 @@ export function AddAccountDialog({
             <div className="space-y-3">
                 <Label>Available Vouchers</Label>
                 <div className="flex flex-col gap-2">
-                    {brand === 'fore' ? (
-                        <>
-                            {/* BOGO Checkbox - Fore only */}
-                            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                                <input
-                                    type="checkbox"
-                                    checked={isBogoReady}
-                                    onChange={(e) => setIsBogoReady(e.target.checked)}
-                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                                />
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-slate-900">Voucher BOGO</span>
-                                    <span className="text-xs text-slate-500">Buy 1 Get 1 Free</span>
-                                </div>
-                            </label>
+                    {(brand === 'fore' || brand === 'tomoro') && (
+                        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                            <input
+                                type="checkbox"
+                                checked={isBogoReady}
+                                onChange={(e) => setIsBogoReady(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-slate-900">Voucher BOGO</span>
+                                <span className="text-xs text-slate-500">Buy 1 Get 1 Free</span>
+                            </div>
+                        </label>
+                    )}
 
-                            {/* 35% Discount Checkbox - Fore only */}
-                            <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
-                                <input
-                                    type="checkbox"
-                                    checked={isDiscount35Ready}
-                                    onChange={(e) => setIsDiscount35Ready(e.target.checked)}
-                                    className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                                />
-                                <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-slate-900">Voucher Diskon 35%</span>
-                                    <span className="text-xs text-slate-500">Diskon 35% untuk semua menu</span>
-                                </div>
-                            </label>
-                        </>
-                    ) : (
+                    {(brand === 'fore' || brand === 'tomoro' || brand === 'janjijiwa') && (
+                        <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                            <input
+                                type="checkbox"
+                                checked={isDiscount35Ready}
+                                onChange={(e) => setIsDiscount35Ready(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                            />
+                            <div className="flex flex-col">
+                                <span className="text-sm font-medium text-slate-900">
+                                    Voucher Diskon {brand === 'fore' ? '35%' : '50%'}
+                                </span>
+                                <span className="text-xs text-slate-500">
+                                    {brand === 'fore' ? 'Diskon 35% untuk semua menu' : 'Diskon 50%'}
+                                </span>
+                            </div>
+                        </label>
+                    )}
+
+                    {brand === 'kopken' && (
                         <>
                             {/* No Min Checkbox - KopKen */}
                             <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
@@ -542,6 +560,8 @@ export function AddAccountDialog({
                         <SelectContent>
                             <SelectItem value="kopken">Kopi Kenangan</SelectItem>
                             <SelectItem value="fore">Fore Coffee</SelectItem>
+                            <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
+                            <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>

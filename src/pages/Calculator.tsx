@@ -70,13 +70,15 @@ function ItemRow({
     item,
     onUpdate,
     onDelete,
-    isFore,
+    brand,
 }: {
     item: EditableItem;
     onUpdate: (id: string, updates: Partial<EditableItem>) => void;
     onDelete: (id: string) => void;
-    isFore?: boolean;
+    brand?: AccountBrand;
 }) {
+    const showBasePrice = brand === 'fore' || brand === 'tomoro';
+    const showDeli = brand === 'fore';
     return (
         <tr className="border-b border-slate-100 hover:bg-slate-50/50 hidden md:table-row">
             <td className="py-2 px-2">
@@ -113,7 +115,7 @@ function ItemRow({
                     className={`h-8 text-sm text-right ${item.hasError ? 'border-amber-400 bg-amber-50' : ''}`}
                 />
             </td>
-            {isFore && (
+            {showBasePrice && (
                 <td className="py-2 px-2 w-28">
                     <Input
                         type="number"
@@ -126,7 +128,7 @@ function ItemRow({
                     />
                 </td>
             )}
-            {isFore && (
+            {showDeli && (
                 <td className="py-2 px-2 w-20 text-center">
                     <button
                         onClick={() => onUpdate(item.id, { isForeDeli: !item.isForeDeli })}
@@ -162,13 +164,15 @@ function ItemCard({
     item,
     onUpdate,
     onDelete,
-    isFore,
+    brand,
 }: {
     item: EditableItem;
     onUpdate: (id: string, updates: Partial<EditableItem>) => void;
     onDelete: (id: string) => void;
-    isFore?: boolean;
+    brand?: AccountBrand;
 }) {
+    const showBasePrice = brand === 'fore' || brand === 'tomoro';
+    const showDeli = brand === 'fore';
     return (
         <div className={`md:hidden p-3 rounded-xl border bg-white space-y-2 ${item.hasError ? 'border-amber-300 bg-amber-50/30' : 'border-slate-100'}`}>
             <div className="flex items-center gap-2">
@@ -178,7 +182,7 @@ function ItemCard({
                     className="h-8 text-sm flex-1"
                     placeholder="Item name"
                 />
-                {isFore && (
+                {showDeli && (
                     <button
                         onClick={() => onUpdate(item.id, { isForeDeli: !item.isForeDeli })}
                         className={`px-2 py-1 rounded-full text-xs font-medium border shrink-0 transition-colors ${item.isForeDeli
@@ -230,7 +234,7 @@ function ItemCard({
                     </p>
                 ))}
             </div>
-            {isFore && (
+            {showBasePrice && (
                 <div className="flex items-center gap-2">
                     <span className="text-xs text-slate-400 w-20">Base Price</span>
                     <Input
@@ -264,9 +268,12 @@ function StrategyCard({
         min50k: { label: 'Min 50k', color: 'bg-blue-50 text-blue-700 border-blue-200' },
         fore_35pct: { label: 'Diskon 35%', color: 'bg-violet-50 text-violet-700 border-violet-200' },
         fore_bogo: { label: 'BOGO', color: 'bg-amber-50 text-amber-700 border-amber-300' },
+        tomoro_bogo: { label: 'Tomoro BOGO', color: 'bg-orange-50 text-orange-700 border-orange-200' },
+        tomoro_50: { label: 'Tomoro 50%', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+        jiwa_50: { label: 'Janji Jiwa 50%', color: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
     };
     const { label: voucherLabel, color: voucherColor } = voucherMeta[group.recommendedVoucher] ?? voucherMeta.nomin;
-    const isBogo = group.recommendedVoucher === 'fore_bogo';
+    const isBogo = group.recommendedVoucher === 'fore_bogo' || group.recommendedVoucher === 'tomoro_bogo';
 
     return (
         <Card className="shadow-sm">
@@ -433,7 +440,7 @@ export default function CalculatorPage() {
         }
 
         // Determine which DB brand to search against
-        const dbBrand = brand === 'kopken' ? 'kenangan' : 'fore';
+        const dbBrand = brand === 'kopken' ? 'kenangan' : brand;
 
         const editableItems: EditableItem[] = parsed.items.map((item) => {
             // Sanitize the parsed name: lowercase + strip size/temp modifiers
@@ -560,8 +567,10 @@ export default function CalculatorPage() {
             price: item.price,
             qty: item.qty,
             addons: item.addons ?? [],
-            ...(brand === 'fore' ? {
+            ...((brand === 'fore' || brand === 'tomoro') ? {
                 basePrice: item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price,
+            } : {}),
+            ...(brand === 'fore' ? {
                 isForeDeli: item.isForeDeli ?? isForeDeli(item.name),
             } : {}),
         }));
@@ -578,6 +587,16 @@ export default function CalculatorPage() {
     const handleCopyResult = () => {
         if (!result) return;
 
+        const VOUCHER_LABELS: Record<string, string> = {
+            nomin: 'No Min',
+            min50k: 'Min 50k',
+            fore_35pct: 'Diskon 35%',
+            fore_bogo: 'BOGO',
+            tomoro_bogo: 'Tomoro BOGO',
+            tomoro_50: 'Tomoro 50%',
+            jiwa_50: 'Janji Jiwa 50%',
+        };
+
         const text = result.groups
             .map((g, i) => {
                 const items = g.items.map((item) => {
@@ -585,7 +604,8 @@ export default function CalculatorPage() {
                     const addonLines = (item.addons ?? []).map((addon) => `    + ${addon}`);
                     return [headerLine, ...addonLines].join('\n');
                 }).join('\n');
-                return `Group ${i + 1} (${g.recommendedVoucher === 'nomin' ? 'No Min' : 'Min 50k'}):\n${items}\n  Subtotal: ${formatPrice(g.totalPrice)}\n  Discount: -${formatPrice(g.estimatedDiscount)}`;
+                const label = VOUCHER_LABELS[g.recommendedVoucher] ?? g.recommendedVoucher;
+                return `Group ${i + 1} (${label}):\n${items}\n  Subtotal: ${formatPrice(g.totalPrice)}\n  Discount: -${formatPrice(g.estimatedDiscount)}`;
             })
             .join('\n\n');
 
@@ -654,6 +674,8 @@ Example:
                                     <SelectContent>
                                         <SelectItem value="kopken">Kopi Kenangan</SelectItem>
                                         <SelectItem value="fore">Fore Coffee</SelectItem>
+                                        <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
+                                        <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -692,7 +714,7 @@ Example:
                                                 <th className="text-left py-2 px-2 font-medium">Nama</th>
                                                 <th className="text-center py-2 px-2 font-medium w-20">Qty</th>
                                                 <th className="text-right py-2 px-2 font-medium w-28">Harga Bayar</th>
-                                                {brand === 'fore' && (
+                                                {(brand === 'fore' || brand === 'tomoro') && (
                                                     <th className="text-right py-2 px-2 font-medium w-28">
                                                         Base Price
                                                         <span className="block font-normal text-slate-400">(harga Regular)</span>
@@ -712,7 +734,7 @@ Example:
                                                     item={item}
                                                     onUpdate={handleUpdateItem}
                                                     onDelete={handleDeleteItem}
-                                                    isFore={brand === 'fore'}
+                                                    brand={brand}
                                                 />
                                             ))}
                                         </tbody>
@@ -738,7 +760,7 @@ Example:
                                             item={item}
                                             onUpdate={handleUpdateItem}
                                             onDelete={handleDeleteItem}
-                                            isFore={brand === 'fore'}
+                                            brand={brand}
                                         />
                                     ))}
                                     <div className="flex items-center justify-between pt-3 border-t-2 border-slate-200">

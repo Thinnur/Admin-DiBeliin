@@ -33,6 +33,7 @@ export interface CartItem {
      * Hanya relevan untuk Fore Coffee.
      */
     isForeDeli?: boolean;
+    size?: 'small' | 'regular' | 'large';
 }
 
 export interface OptimizedGroup {
@@ -49,7 +50,7 @@ export interface OptimizedGroup {
         isBogoDFree?: boolean;
     }[];
     totalPrice: number;
-    recommendedVoucher: 'nomin' | 'min50k' | 'fore_35pct' | 'fore_bogo';
+    recommendedVoucher: 'nomin' | 'min50k' | 'fore_35pct' | 'fore_bogo' | 'tomoro_bogo' | 'tomoro_50' | 'jiwa_50';
     estimatedDiscount: number;
     /** For BOGO groups: the base-price discount applied */
     bogoDiscount?: number;
@@ -437,10 +438,243 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
     return groups;
 }
 
+// ==========================================
+// LOGIC 3: TOMORO COFFEE (BOGO & 50%)
+// ==========================================
+
+export function isTomoroEligible(name: string): boolean {
+    return !/ice\s*cream|master\s*of\s*s\.?o\.?e|frappe|lto/i.test(name);
+}
+
+type TomoroItem = {
+    name: string;
+    price: number;
+    basePrice: number;
+    size?: 'small' | 'regular' | 'large';
+    addons: string[];
+    isEligible: boolean;
+};
+
+function expandTomoroItems(items: CartItem[]): TomoroItem[] {
+    const expanded: TomoroItem[] = [];
+    for (const item of items) {
+        const bp = item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price;
+        const eligible = isTomoroEligible(item.name);
+        const addons = item.addons ?? [];
+        for (let i = 0; i < item.qty; i++) {
+            expanded.push({
+                name: item.name,
+                price: item.price,
+                basePrice: bp,
+                size: item.size,
+                addons: [...addons],
+                isEligible: eligible,
+            });
+        }
+    }
+    return expanded;
+}
+
+function optimizeTomoro(
+    expandedItems: TomoroItem[],
+    accountCost: number
+): OptimizedGroup[] {
+    if (expandedItems.length === 0) return [];
+
+    const eligibleItems = expandedItems.filter(i => i.isEligible);
+    const maxK = Math.floor(eligibleItems.length / 2);
+
+    let bestNetBenefit = -Infinity;
+    let bestGroups: OptimizedGroup[] = [];
+
+    for (let k = 0; k <= maxK; k++) {
+        const result = simulateTomoroScenario(expandedItems, k, accountCost);
+        if (result.netBenefit > bestNetBenefit) {
+            bestNetBenefit = result.netBenefit;
+            bestGroups = result.groups;
+        }
+    }
+
+    return bestGroups;
+}
+
+function simulateTomoroScenario(
+    allItems: TomoroItem[],
+    k: number,
+    accountCost: number
+): { groups: OptimizedGroup[]; netBenefit: number } {
+    const itemsWithIndex = allItems.map((item, idx) => ({ ...item, idx }));
+    const eligibleWithIndex = itemsWithIndex.filter(i => i.isEligible);
+    const sortedEligible = [...eligibleWithIndex].sort((a, b) => a.basePrice - b.basePrice);
+
+    const groups: OptimizedGroup[] = [];
+    let totalBogoDisc = 0;
+    const usedIndices = new Set<number>();
+
+    // Build k BOGO pairs
+    for (let p = 0; p < k; p++) {
+        if (sortedEligible.length - usedIndices.size < 2) break;
+
+        let freeItem: typeof sortedEligible[0] | null = null;
+        for (let i = 0; i < sortedEligible.length; i++) {
+            if (!usedIndices.has(sortedEligible[i].idx)) {
+                freeItem = sortedEligible[i];
+                break;
+            }
+        }
+        if (!freeItem) break;
+
+        let triggerItem: typeof sortedEligible[0] | null = null;
+        for (let i = 0; i < sortedEligible.length; i++) {
+            if (!usedIndices.has(sortedEligible[i].idx) && sortedEligible[i].idx !== freeItem.idx) {
+                triggerItem = sortedEligible[i];
+                break;
+            }
+        }
+        if (!triggerItem) break;
+
+        usedIndices.add(freeItem.idx);
+        usedIndices.add(triggerItem.idx);
+
+        const bogoDisc = freeItem.basePrice;
+        totalBogoDisc += bogoDisc;
+
+        groups.push({
+            id: generateId(),
+            items: [
+                {
+                    name: triggerItem.name,
+                    addons: triggerItem.addons,
+                    price: triggerItem.price,
+                    basePrice: triggerItem.basePrice,
+                    isForeDeli: false,
+                    isBogoDFree: false,
+                },
+                {
+                    name: freeItem.name,
+                    addons: freeItem.addons,
+                    price: freeItem.price,
+                    basePrice: freeItem.basePrice,
+                    isForeDeli: false,
+                    isBogoDFree: true,
+                },
+            ],
+            totalPrice: triggerItem.price + freeItem.price,
+            recommendedVoucher: 'tomoro_bogo',
+            estimatedDiscount: bogoDisc,
+            bogoDiscount: bogoDisc,
+        });
+    }
+
+    // Remaining items
+    const remainingItems = itemsWithIndex.filter(i => !usedIndices.has(i.idx));
+    let disc50 = 0;
+    let has50Acct = false;
+
+    if (remainingItems.length > 0) {
+        const qualifyingItems = remainingItems.filter(i => i.isEligible && i.size === 'small');
+        const qualifyingTotal = qualifyingItems.reduce((s, i) => s + i.price, 0);
+        disc50 = qualifyingTotal * 0.5;
+
+        if (disc50 > accountCost) {
+            has50Acct = true;
+            groups.push({
+                id: generateId(),
+                items: remainingItems.map(i => ({
+                    name: i.name,
+                    addons: i.addons,
+                    price: i.price,
+                    basePrice: i.basePrice,
+                    isForeDeli: false,
+                })),
+                totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
+                recommendedVoucher: 'tomoro_50',
+                estimatedDiscount: disc50,
+            });
+        } else {
+            groups.push({
+                id: generateId(),
+                items: remainingItems.map(i => ({
+                    name: i.name,
+                    addons: i.addons,
+                    price: i.price,
+                    basePrice: i.basePrice,
+                    isForeDeli: false,
+                })),
+                totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
+                recommendedVoucher: 'tomoro_50',
+                estimatedDiscount: 0,
+            });
+            disc50 = 0;
+        }
+    }
+
+    const totalDisc = totalBogoDisc + disc50;
+    const totalAdminAccts = k + (has50Acct ? 1 : 0);
+    const totalAdmin = totalAdminAccts * accountCost;
+    const netBenefit = totalDisc - totalAdmin;
+
+    return { groups, netBenefit };
+}
+
+// ==========================================
+// LOGIC 4: KOPI JANJI JIWA (50% max 20k)
+// ==========================================
+
+function optimizeJanjiJiwa(
+    expandedItems: { name: string; price: number; addons: string[] }[],
+    accountCost: number
+): OptimizedGroup[] {
+    if (expandedItems.length === 0) return [];
+
+    const total = expandedItems.reduce((a, b) => a + b.price, 0);
+    const sorted = [...expandedItems].sort((a, b) => b.price - a.price);
+
+    const maxG = Math.max(1, Math.ceil(total / 40000));
+    let bestNetBenefit = -Infinity;
+    let bestGroups: OptimizedGroup[] = [];
+
+    for (let g = 1; g <= maxG; g++) {
+        const baskets: OptimizedGroup[] = Array(g).fill(null).map(() => ({
+            id: generateId(),
+            items: [],
+            totalPrice: 0,
+            recommendedVoucher: 'jiwa_50' as const,
+            estimatedDiscount: 0,
+        }));
+
+        for (const item of sorted) {
+            baskets.sort((a, b) => a.totalPrice - b.totalPrice);
+            baskets[0].items.push({
+                name: item.name,
+                addons: item.addons,
+                price: item.price,
+                basePrice: item.price,
+                isForeDeli: false,
+            });
+            baskets[0].totalPrice += item.price;
+        }
+
+        let totalDisc = 0;
+        for (const b of baskets) {
+            b.estimatedDiscount = Math.min(b.totalPrice * 0.5, 20000);
+            totalDisc += b.estimatedDiscount;
+        }
+
+        const netBenefit = totalDisc - g * accountCost;
+        if (netBenefit > bestNetBenefit) {
+            bestNetBenefit = netBenefit;
+            bestGroups = baskets;
+        }
+    }
+
+    return bestGroups;
+}
+
 // --- MAIN EXPORT ---
 export function optimizeOrder(
     items: CartItem[],
-    brand: 'fore' | 'kopken',
+    brand: 'fore' | 'kopken' | 'tomoro' | 'janjijiwa',
     accountCost: number
 ): OptimizationResult {
     if (!items || !Array.isArray(items) || items.length === 0) {
@@ -462,10 +696,18 @@ export function optimizeOrder(
             const foreItems = expandCartItems(items);
             totalBill = foreItems.reduce((s, i) => s + i.price, 0);
             groups = optimizeFore(foreItems);
-        } else {
+        } else if (brand === 'kopken') {
             const kopItems = expandKopKenItems(items);
             totalBill = kopItems.reduce((s, i) => s + i.price, 0);
             groups = optimizeKopKen(kopItems);
+        } else if (brand === 'tomoro') {
+            const tomoroItems = expandTomoroItems(items);
+            totalBill = tomoroItems.reduce((s, i) => s + i.price, 0);
+            groups = optimizeTomoro(tomoroItems, accountCost);
+        } else {
+            const jiwaItems = expandKopKenItems(items); // Reuses expandKopKenItems as it is brand-agnostic
+            totalBill = jiwaItems.reduce((s, i) => s + i.price, 0);
+            groups = optimizeJanjiJiwa(jiwaItems, accountCost);
         }
 
         const totalDiscount = groups.reduce((sum, g) => sum + g.estimatedDiscount, 0);
@@ -475,25 +717,21 @@ export function optimizeOrder(
             const nominCount = groups.filter(g => g.recommendedVoucher === 'nomin').length;
             const min50kCount = groups.filter(g => g.recommendedVoucher === 'min50k').length;
             accountsNeeded = Math.max(nominCount, min50kCount);
+        } else if (brand === 'fore' || brand === 'tomoro') {
+            const noDiscountGroupsCount = groups.filter(g => g.estimatedDiscount === 0).length;
+            accountsNeeded = groups.length - noDiscountGroupsCount;
         } else {
-            // For Fore: only count accounts that actually have a discount (estimatedDiscount > 0)
-            // Groups with estimatedDiscount === 0 still need ordering but no separate account voucher beyond base order
-            // However we count all groups as separate orders (each needs an account)
             accountsNeeded = groups.length;
         }
 
-        // For Fore, override accountCost with the hardcoded FORE_ADMIN_COST
         const effectiveAdminCost = brand === 'fore' ? FORE_ADMIN_COST : accountCost;
 
-        // For Fore: only charge admin cost for groups that have actual discount.
-        // Groups with estimatedDiscount === 0 (items not profitably vouchered) don't incur an extra admin fee.
-        // Per system prompt: only open a 35% account if disc35 > ADMIN_COST.
         let totalAdminCost: number;
-        if (brand === 'fore') {
+        if (brand === 'fore' || brand === 'tomoro') {
             const noDiscountGroupsCount = groups.filter(g => g.estimatedDiscount === 0).length;
             const discountedGroupsCount = groups.length - noDiscountGroupsCount;
             totalAdminCost = discountedGroupsCount * effectiveAdminCost;
-            accountsNeeded = discountedGroupsCount; // only discounted groups need a voucher account
+            accountsNeeded = discountedGroupsCount;
         } else {
             totalAdminCost = accountsNeeded * effectiveAdminCost;
         }
@@ -523,7 +761,7 @@ export function optimizeOrder(
                         isForeDeli: i.isForeDeli ?? false,
                     })),
                     totalPrice: totalBill,
-                    recommendedVoucher: 'fore_35pct',
+                    recommendedVoucher: brand === 'kopken' ? 'nomin' : brand === 'fore' ? 'fore_35pct' : brand === 'tomoro' ? 'tomoro_50' : 'jiwa_50',
                     estimatedDiscount: 0,
                 },
             ],

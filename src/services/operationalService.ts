@@ -15,7 +15,7 @@ export interface Voucher {
     min_purchase: number;
     max_purchase: number | null;
     discount_amount: number;
-    valid_for: 'all' | 'fore' | 'kenangan';
+    valid_for: 'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa';
     quota: number;
     is_active: boolean;
 }
@@ -157,8 +157,14 @@ export async function deleteVoucher(id: number): Promise<void> {
  * @param brand - 'fore' or 'kenangan'
  * @returns boolean - true if service is open, false if closed
  */
-export async function getServiceStatus(brand: 'fore' | 'kenangan'): Promise<boolean> {
-    const key = brand === 'fore' ? 'is_fore_open' : 'is_kenangan_open';
+export async function getServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'): Promise<boolean> {
+    const keyMap = {
+        fore: 'is_fore_open',
+        kenangan: 'is_kenangan_open',
+        tomoro: 'is_tomoro_open',
+        janjijiwa: 'is_janjijiwa_open',
+    };
+    const key = keyMap[brand];
 
     try {
         const { data, error } = await supabase
@@ -184,8 +190,14 @@ export async function getServiceStatus(brand: 'fore' | 'kenangan'): Promise<bool
  * @param brand - 'fore' or 'kenangan'
  * @param isOpen - true to open service, false to close
  */
-export async function updateServiceStatus(brand: 'fore' | 'kenangan', isOpen: boolean): Promise<void> {
-    const key = brand === 'fore' ? 'is_fore_open' : 'is_kenangan_open';
+export async function updateServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa', isOpen: boolean): Promise<void> {
+    const keyMap = {
+        fore: 'is_fore_open',
+        kenangan: 'is_kenangan_open',
+        tomoro: 'is_tomoro_open',
+        janjijiwa: 'is_janjijiwa_open',
+    };
+    const key = keyMap[brand];
 
     const { error } = await supabase
         .from('app_settings')
@@ -237,6 +249,8 @@ export async function getAntrianPesanan(): Promise<AntrianPesanan[]> {
 export interface AdminFees {
     fee_jasdor_fore: number;
     fee_jasdor_kopken: number;
+    fee_jasdor_tomoro: number;
+    fee_jasdor_janjijiwa: number;
 }
 
 /**
@@ -247,32 +261,39 @@ export async function getAdminFees(): Promise<AdminFees> {
         const { data, error } = await supabase
             .from('app_settings')
             .select('key, value')
-            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken']);
+            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken', 'fee_jasdor_tomoro', 'fee_jasdor_janjijiwa']);
 
         if (error) {
             console.error('Error fetching admin fees:', error);
-            return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000 };
+            return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000 };
         }
 
-        const fees: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000 };
+        const fees: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000 };
         data?.forEach((row) => {
             if (row.key === 'fee_jasdor_fore') {
                 fees.fee_jasdor_fore = Number(row.value) || 5000;
             } else if (row.key === 'fee_jasdor_kopken') {
                 fees.fee_jasdor_kopken = Number(row.value) || 5000;
+            } else if (row.key === 'fee_jasdor_tomoro') {
+                fees.fee_jasdor_tomoro = Number(row.value) || 2000;
+            } else if (row.key === 'fee_jasdor_janjijiwa') {
+                fees.fee_jasdor_janjijiwa = Number(row.value) || 2000;
             }
         });
         return fees;
     } catch (error) {
         console.error('Error fetching admin fees:', error);
-        return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000 };
+        return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000 };
     }
 }
 
 /**
  * Update a specific admin fee in app_settings
  */
-export async function updateAdminFee(key: 'fee_jasdor_fore' | 'fee_jasdor_kopken', value: string): Promise<void> {
+export async function updateAdminFee(
+    key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa',
+    value: string
+): Promise<void> {
     const { error } = await supabase
         .from('app_settings')
         .upsert(
