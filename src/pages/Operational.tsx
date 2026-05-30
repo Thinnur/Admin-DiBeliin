@@ -4,8 +4,9 @@
 // Store status control, service toggles, voucher management, and banner management
 
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, Store, Power, Tag, Coffee } from 'lucide-react';
+import { Trash2, Plus, Store, Power, Tag, Coffee, Settings, Key, Server, Save } from 'lucide-react';
 import { toast } from 'sonner';
+import { supabase } from '@/lib/supabase';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -680,6 +681,170 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
 }
 
 // -----------------------------------------------------------------------------
+// API Sync Kopi Kenangan Section
+// -----------------------------------------------------------------------------
+
+function ApiSyncSection() {
+    const [authToken, setAuthToken] = useState('');
+    const [wtoken, setWtoken] = useState('');
+    const [clsignature, setClsignature] = useState('');
+    const [deviceId, setDeviceId] = useState('');
+    const [isSaving, setIsSaving] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+
+    useEffect(() => {
+        async function loadConfig() {
+            try {
+                const { data, error } = await supabase
+                    .from('api_configs')
+                    .select('*')
+                    .eq('id', 1)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    throw error;
+                }
+
+                if (data) {
+                    setAuthToken(data.auth_token || '');
+                    setWtoken(data.wtoken || '');
+                    setClsignature(data.clsignature || '');
+                    setDeviceId(data.deviceid || '');
+                }
+            } catch (err: any) {
+                console.error('Error fetching api config:', err);
+                toast.error('Gagal memuat konfigurasi API Kopi Kenangan');
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        loadConfig();
+    }, []);
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        setIsSaving(true);
+
+        try {
+            const { error } = await supabase
+                .from('api_configs')
+                .upsert({
+                    id: 1,
+                    auth_token: authToken.trim(),
+                    wtoken: wtoken.trim(),
+                    clsignature: clsignature.trim(),
+                    deviceid: deviceId.trim(),
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'id' });
+
+            if (error) throw error;
+            toast.success('Konfigurasi API Kopi Kenangan berhasil disimpan!');
+        } catch (err: any) {
+            console.error('Error saving config:', err);
+            toast.error(`Gagal menyimpan: ${err.message || 'Error tidak diketahui'}`);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
+            <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-br from-red-800 to-amber-900 rounded-xl shadow-lg">
+                        <Settings className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-lg">Integrasi API Kopi Kenangan</CardTitle>
+                        <CardDescription>Atur header otentikasi untuk sinkronisasi menu secara real-time</CardDescription>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="text-center py-6 text-slate-500">
+                        <div className="animate-pulse">Memuat konfigurasi...</div>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="auth_token" className="flex items-center gap-1.5 font-medium text-slate-700">
+                                <Key className="h-4 w-4 text-slate-500" /> Auth Token (Authorization Header)
+                            </Label>
+                            <Input
+                                id="auth_token"
+                                value={authToken}
+                                onChange={(e) => setAuthToken(e.target.value)}
+                                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX..."
+                                disabled={isSaving}
+                                className="font-mono text-xs"
+                                required
+                            />
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="wtoken" className="flex items-center gap-1.5 font-medium text-slate-700">
+                                <Server className="h-4 w-4 text-slate-500" /> WToken Header
+                            </Label>
+                            <Input
+                                id="wtoken"
+                                value={wtoken}
+                                onChange={(e) => setWtoken(e.target.value)}
+                                placeholder="0005_9E7436C1DB348FE8617..."
+                                disabled={isSaving}
+                                className="font-mono text-xs"
+                                required
+                            />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                                <Label htmlFor="clsignature" className="flex items-center gap-1.5 font-medium text-slate-700">
+                                    <Key className="h-4 w-4 text-slate-500" /> CLSignature Header
+                                </Label>
+                                <Input
+                                    id="clsignature"
+                                    value={clsignature}
+                                    onChange={(e) => setClsignature(e.target.value)}
+                                    placeholder="71b56da6a2d51a4d66..."
+                                    disabled={isSaving}
+                                    className="font-mono text-xs"
+                                    required
+                                />
+                            </div>
+
+                            <div className="space-y-2">
+                                <Label htmlFor="deviceid" className="flex items-center gap-1.5 font-medium text-slate-700">
+                                    <Server className="h-4 w-4 text-slate-500" /> Device ID Header
+                                </Label>
+                                <Input
+                                    id="deviceid"
+                                    value={deviceId}
+                                    onChange={(e) => setDeviceId(e.target.value)}
+                                    placeholder="ba5f2493777de32a"
+                                    disabled={isSaving}
+                                    className="font-mono text-xs"
+                                    required
+                                />
+                            </div>
+                        </div>
+
+                        <Button type="submit" disabled={isSaving} className="w-full sm:w-auto bg-red-800 hover:bg-red-950 text-white gap-2">
+                            {isSaving ? 'Menyimpan...' : (
+                                <>
+                                    <Save className="h-4 w-4" /> Simpan Konfigurasi
+                                </>
+                            )}
+                        </Button>
+                    </form>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+// -----------------------------------------------------------------------------
 // Main Operational Page
 // -----------------------------------------------------------------------------
 
@@ -889,6 +1054,9 @@ export default function Operational() {
                 <TabsTrigger value="riwayat-antrian" className="flex-1 sm:flex-none">
                     Riwayat Antrian
                 </TabsTrigger>
+                <TabsTrigger value="api-sync" className="flex-1 sm:flex-none">
+                    API Sync Kopi Kenangan
+                </TabsTrigger>
             </TabsList>
 
             {/* ── Tab: Operasional ─────────────────────────────────────── */}
@@ -959,6 +1127,11 @@ export default function Operational() {
             {/* ── Tab: Riwayat Antrian ──────────────────────────────────── */}
             <TabsContent value="riwayat-antrian" className="mt-0">
                 <AntrianPesananTable />
+            </TabsContent>
+
+            {/* ── Tab: API Sync Kopi Kenangan ───────────────────────────── */}
+            <TabsContent value="api-sync" className="mt-0">
+                <ApiSyncSection />
             </TabsContent>
         </Tabs>
     );
