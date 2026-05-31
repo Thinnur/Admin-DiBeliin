@@ -32,7 +32,8 @@ export async function getOutlets(): Promise<Outlet[]> {
     const { data, error } = await supabase
         .from('outlets')
         .select('*')
-        .order('name', { ascending: true });
+        .order('name', { ascending: true })
+        .limit(2000);
 
     if (error) {
         console.error('Error fetching outlets:', error);
