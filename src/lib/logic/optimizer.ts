@@ -459,14 +459,15 @@ function expandTomoroItems(items: CartItem[]): TomoroItem[] {
     const expanded: TomoroItem[] = [];
     for (const item of items) {
         const bp = item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price;
-        const eligible = isTomoroEligible(item.name);
+        const size = item.size || (/small/i.test(item.name) ? 'small' : (/large/i.test(item.name) ? 'large' : 'regular'));
+        const eligible = isTomoroEligible(item.name) && size === 'small';
         const addons = item.addons ?? [];
         for (let i = 0; i < item.qty; i++) {
             expanded.push({
                 name: item.name,
                 price: item.price,
                 basePrice: bp,
-                size: item.size,
+                size: size,
                 addons: [...addons],
                 isEligible: eligible,
             });
@@ -505,7 +506,7 @@ function simulateTomoroScenario(
 ): { groups: OptimizedGroup[]; netBenefit: number } {
     const itemsWithIndex = allItems.map((item, idx) => ({ ...item, idx }));
     const eligibleWithIndex = itemsWithIndex.filter(i => i.isEligible);
-    const sortedEligible = [...eligibleWithIndex].sort((a, b) => a.basePrice - b.basePrice);
+    const sortedEligible = [...eligibleWithIndex].sort((a, b) => b.basePrice - a.basePrice);
 
     const groups: OptimizedGroup[] = [];
     let totalBogoDisc = 0;
@@ -515,27 +516,29 @@ function simulateTomoroScenario(
     for (let p = 0; p < k; p++) {
         if (sortedEligible.length - usedIndices.size < 2) break;
 
-        let freeItem: typeof sortedEligible[0] | null = null;
+        let item1: typeof sortedEligible[0] | null = null;
         for (let i = 0; i < sortedEligible.length; i++) {
             if (!usedIndices.has(sortedEligible[i].idx)) {
-                freeItem = sortedEligible[i];
+                item1 = sortedEligible[i];
                 break;
             }
         }
-        if (!freeItem) break;
+        if (!item1) break;
 
-        let triggerItem: typeof sortedEligible[0] | null = null;
+        let item2: typeof sortedEligible[0] | null = null;
         for (let i = 0; i < sortedEligible.length; i++) {
-            if (!usedIndices.has(sortedEligible[i].idx) && sortedEligible[i].idx !== freeItem.idx) {
-                triggerItem = sortedEligible[i];
+            if (!usedIndices.has(sortedEligible[i].idx) && sortedEligible[i].idx !== item1.idx) {
+                item2 = sortedEligible[i];
                 break;
             }
         }
-        if (!triggerItem) break;
+        if (!item2) break;
 
-        usedIndices.add(freeItem.idx);
-        usedIndices.add(triggerItem.idx);
+        usedIndices.add(item1.idx);
+        usedIndices.add(item2.idx);
 
+        const triggerItem = item1.basePrice >= item2.basePrice ? item1 : item2;
+        const freeItem = item1.basePrice >= item2.basePrice ? item2 : item1;
         const bogoDisc = freeItem.basePrice;
         totalBogoDisc += bogoDisc;
 
@@ -573,8 +576,11 @@ function simulateTomoroScenario(
 
     if (remainingItems.length > 0) {
         const qualifyingItems = remainingItems.filter(i => i.isEligible && i.size === 'small');
-        const qualifyingTotal = qualifyingItems.reduce((s, i) => s + i.price, 0);
-        disc50 = qualifyingTotal * 0.5;
+        if (qualifyingItems.length > 0) {
+            const prices = qualifyingItems.map(i => i.price);
+            const maxPrice = Math.max(...prices);
+            disc50 = maxPrice * 0.5;
+        }
 
         if (disc50 > accountCost) {
             has50Acct = true;

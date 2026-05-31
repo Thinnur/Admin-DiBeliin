@@ -42,6 +42,7 @@ import {
     type ParsedItem,
 } from '@/lib/logic/orderParser';
 import { getMenuItems, type MenuItem } from '@/services/menuService';
+import { getAdminFees, type AdminFees } from '@/services/operationalService';
 import {
     optimizeOrder,
     isForeDeli,
@@ -413,6 +414,7 @@ export default function CalculatorPage() {
     const [items, setItems] = useState<EditableItem[]>([]);
     const [brand, setBrand] = useState<AccountBrand>('kopken');
     const [adminCost, setAdminCost] = useState(5000);
+    const [dbAdminFees, setDbAdminFees] = useState<AdminFees | null>(null);
 
     // Result state
     const [result, setResult] = useState<OptimizationResult | null>(null);
@@ -426,6 +428,35 @@ export default function CalculatorPage() {
             .then(setDbMenuItems)
             .catch(() => toast.error('Gagal memuat database harga menu'));
     }, []);
+
+    useEffect(() => {
+        getAdminFees()
+            .then(setDbAdminFees)
+            .catch(() => toast.error('Gagal memuat database biaya admin'));
+    }, []);
+
+    useEffect(() => {
+        const fallbackFees: Record<AccountBrand, number> = {
+            fore: 5000,
+            kopken: 5000,
+            tomoro: 2000,
+            janjijiwa: 2000,
+        };
+
+        if (!dbAdminFees) {
+            setAdminCost(fallbackFees[brand]);
+            return;
+        }
+
+        const feeKeyMap: Record<AccountBrand, keyof AdminFees> = {
+            fore: 'fee_jasdor_fore',
+            kopken: 'fee_jasdor_kopken',
+            tomoro: 'fee_jasdor_tomoro',
+            janjijiwa: 'fee_jasdor_janjijiwa',
+        };
+        const key = feeKeyMap[brand];
+        setAdminCost(dbAdminFees[key] ?? fallbackFees[brand]);
+    }, [brand, dbAdminFees]);
 
     // Generate unique ID
     const generateId = () => Math.random().toString(36).substring(2, 9);
@@ -791,11 +822,13 @@ Example:
                                     <Input
                                         id="adminCost"
                                         type="number"
-                                        min="0"
-                                        step="1000"
                                         value={adminCost}
-                                        onChange={(e) => setAdminCost(parseInt(e.target.value) || 0)}
+                                        disabled
+                                        className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 cursor-not-allowed border-slate-200 dark:border-slate-800"
                                     />
+                                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">
+                                        * Diambil otomatis dari pengaturan database jastip.
+                                    </p>
                                 </div>
 
                                 <Button

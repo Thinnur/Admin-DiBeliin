@@ -21,6 +21,11 @@ export interface MenuItem {
     large_price: number | null;
     regular_discount_price: number | null;
     large_discount_price: number | null;
+    small_price: number | null;
+    small_discount: number | null;
+    is_small_available: boolean;
+    is_regular_available: boolean;
+    is_large_available: boolean;
     badge: string | null;
     category_sort: number | null;
     is_available: boolean;
@@ -40,6 +45,11 @@ export interface MenuItemUpdate {
     large_price?: number | null;
     regular_discount_price?: number | null;
     large_discount_price?: number | null;
+    small_price?: number | null;
+    small_discount?: number | null;
+    is_small_available?: boolean;
+    is_regular_available?: boolean;
+    is_large_available?: boolean;
     badge?: string | null;
     category_sort?: number | null;
     is_available?: boolean;
@@ -118,6 +128,21 @@ export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<
     }
     if (data.large_price !== undefined) {
         cleanPayload.large_price = data.large_price;
+    }
+    if (data.small_price !== undefined) {
+        cleanPayload.small_price = data.small_price;
+    }
+    if (data.small_discount !== undefined) {
+        cleanPayload.small_discount = data.small_discount;
+    }
+    if (data.is_small_available !== undefined) {
+        cleanPayload.is_small_available = data.is_small_available;
+    }
+    if (data.is_regular_available !== undefined) {
+        cleanPayload.is_regular_available = data.is_regular_available;
+    }
+    if (data.is_large_available !== undefined) {
+        cleanPayload.is_large_available = data.is_large_available;
     }
     if (data.description !== undefined) {
         cleanPayload.description = data.description;

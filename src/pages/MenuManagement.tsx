@@ -179,6 +179,11 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
     const [largePrice, setLargePrice] = useState('');
     const [regularDiscountPrice, setRegularDiscountPrice] = useState('');
     const [largeDiscountPrice, setLargeDiscountPrice] = useState('');
+    const [smallPrice, setSmallPrice] = useState('');
+    const [smallDiscount, setSmallDiscount] = useState('');
+    const [isSmallAvailable, setIsSmallAvailable] = useState(false);
+    const [isRegularAvailable, setIsRegularAvailable] = useState(true);
+    const [isLargeAvailable, setIsLargeAvailable] = useState(true);
     const [badge, setBadge] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
     const [isSpecialFee, setIsSpecialFee] = useState(false);
@@ -196,6 +201,11 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
             setLargePrice(item.large_price?.toString() || '');
             setRegularDiscountPrice(item.regular_discount_price?.toString() || '');
             setLargeDiscountPrice(item.large_discount_price?.toString() || '');
+            setSmallPrice(item.small_price?.toString() || '');
+            setSmallDiscount(item.small_discount?.toString() || '');
+            setIsSmallAvailable(item.is_small_available ?? false);
+            setIsRegularAvailable(item.is_regular_available ?? true);
+            setIsLargeAvailable(item.is_large_available ?? true);
             setBadge(item.badge || '');
             setIsAvailable(item.is_available);
             setIsSpecialFee(item.is_special_fee ?? false);
@@ -233,6 +243,11 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
             large_price: largePrice ? Number(largePrice) : null,
             regular_discount_price: regularDiscountPrice ? Number(regularDiscountPrice) : null,
             large_discount_price: largeDiscountPrice ? Number(largeDiscountPrice) : null,
+            small_price: smallPrice ? Number(smallPrice) : null,
+            small_discount: smallDiscount ? Number(smallDiscount) : null,
+            is_small_available: isSmallAvailable,
+            is_regular_available: isRegularAvailable,
+            is_large_available: isLargeAvailable,
             badge: badge.trim() || null,
             is_available: isAvailable,
             is_special_fee: isSpecialFee,
@@ -314,7 +329,17 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                     </div>
 
                     {/* Prices */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-smallPrice">Harga Small (Rp)</Label>
+                            <Input
+                                id="edit-smallPrice"
+                                type="number"
+                                placeholder="0"
+                                value={smallPrice}
+                                onChange={(e) => setSmallPrice(e.target.value)}
+                            />
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="edit-regularPrice">Harga Regular (Rp)</Label>
                             <Input
@@ -338,7 +363,17 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                     </div>
 
                     {/* Discount Prices */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="edit-smallDiscount">Diskon Small (Rp)</Label>
+                            <Input
+                                id="edit-smallDiscount"
+                                type="number"
+                                placeholder="0"
+                                value={smallDiscount}
+                                onChange={(e) => setSmallDiscount(e.target.value)}
+                            />
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="edit-regularDiscountPrice">Diskon Regular (Rp)</Label>
                             <Input
@@ -365,11 +400,42 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                     <div className="space-y-2">
                         <Label htmlFor="edit-badge">Badge (Opsional)</Label>
                         <Input
-                            id="edit-badge"
-                            placeholder="Contoh: Best Seller, Baru, Promo"
-                            value={badge}
-                            onChange={(e) => setBadge(e.target.value)}
+                             id="edit-badge"
+                             placeholder="Contoh: Best Seller, Baru, Promo"
+                             value={badge}
+                             onChange={(e) => setBadge(e.target.value)}
                         />
+                    </div>
+
+                    {/* Size Availability */}
+                    <div className="space-y-3 p-4 rounded-lg bg-slate-50 border">
+                        <Label className="font-medium text-sm">Ketersediaan Ukuran</Label>
+                        <div className="grid grid-cols-3 gap-4 pt-1">
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="edit-isSmallAvailable"
+                                    checked={isSmallAvailable}
+                                    onCheckedChange={setIsSmallAvailable}
+                                />
+                                <Label htmlFor="edit-isSmallAvailable" className="cursor-pointer text-sm font-normal">Small</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="edit-isRegularAvailable"
+                                    checked={isRegularAvailable}
+                                    onCheckedChange={setIsRegularAvailable}
+                                />
+                                <Label htmlFor="edit-isRegularAvailable" className="cursor-pointer text-sm font-normal">Regular</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="edit-isLargeAvailable"
+                                    checked={isLargeAvailable}
+                                    onCheckedChange={setIsLargeAvailable}
+                                />
+                                <Label htmlFor="edit-isLargeAvailable" className="cursor-pointer text-sm font-normal">Large</Label>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Availability */}
@@ -449,6 +515,11 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
     const [largePrice, setLargePrice] = useState('');
     const [regularDiscountPrice, setRegularDiscountPrice] = useState('');
     const [largeDiscountPrice, setLargeDiscountPrice] = useState('');
+    const [smallPrice, setSmallPrice] = useState('');
+    const [smallDiscount, setSmallDiscount] = useState('');
+    const [isSmallAvailable, setIsSmallAvailable] = useState(false);
+    const [isRegularAvailable, setIsRegularAvailable] = useState(true);
+    const [isLargeAvailable, setIsLargeAvailable] = useState(true);
     const [badge, setBadge] = useState('');
     const [imageUrl, setImageUrl] = useState('');
     const [isAvailable, setIsAvailable] = useState(true);
@@ -464,6 +535,11 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
         setLargePrice('');
         setRegularDiscountPrice('');
         setLargeDiscountPrice('');
+        setSmallPrice('');
+        setSmallDiscount('');
+        setIsSmallAvailable(false);
+        setIsRegularAvailable(true);
+        setIsLargeAvailable(true);
         setBadge('');
         setImageUrl('');
         setIsAvailable(true);
@@ -499,6 +575,11 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
             large_price: largePrice ? Number(largePrice) : null,
             regular_discount_price: regularDiscountPrice ? Number(regularDiscountPrice) : null,
             large_discount_price: largeDiscountPrice ? Number(largeDiscountPrice) : null,
+            small_price: smallPrice ? Number(smallPrice) : null,
+            small_discount: smallDiscount ? Number(smallDiscount) : null,
+            is_small_available: isSmallAvailable,
+            is_regular_available: isRegularAvailable,
+            is_large_available: isLargeAvailable,
             badge: badge.trim() || null,
             category_sort: null,
             is_available: isAvailable,
@@ -571,7 +652,17 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                     </div>
 
                     {/* Prices */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="smallPrice">Harga Small (Rp)</Label>
+                            <Input
+                                id="smallPrice"
+                                type="number"
+                                placeholder="0"
+                                value={smallPrice}
+                                onChange={(e) => setSmallPrice(e.target.value)}
+                            />
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="regularPrice">Harga Regular (Rp)</Label>
                             <Input
@@ -595,7 +686,17 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                     </div>
 
                     {/* Discount Prices */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-3 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="smallDiscount">Diskon Small (Rp)</Label>
+                            <Input
+                                id="smallDiscount"
+                                type="number"
+                                placeholder="0"
+                                value={smallDiscount}
+                                onChange={(e) => setSmallDiscount(e.target.value)}
+                            />
+                        </div>
                         <div className="space-y-2">
                             <Label htmlFor="regularDiscountPrice">Diskon Regular (Rp)</Label>
                             <Input
@@ -639,6 +740,37 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                             value={imageUrl}
                             onChange={(e) => setImageUrl(e.target.value)}
                         />
+                    </div>
+
+                    {/* Size Availability */}
+                    <div className="space-y-3 p-4 rounded-lg bg-slate-50 border">
+                        <Label className="font-medium text-sm">Ketersediaan Ukuran</Label>
+                        <div className="grid grid-cols-3 gap-4 pt-1">
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="isSmallAvailable"
+                                    checked={isSmallAvailable}
+                                    onCheckedChange={setIsSmallAvailable}
+                                />
+                                <Label htmlFor="isSmallAvailable" className="cursor-pointer text-sm font-normal">Small</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="isRegularAvailable"
+                                    checked={isRegularAvailable}
+                                    onCheckedChange={setIsRegularAvailable}
+                                />
+                                <Label htmlFor="isRegularAvailable" className="cursor-pointer text-sm font-normal">Regular</Label>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <Switch
+                                    id="isLargeAvailable"
+                                    checked={isLargeAvailable}
+                                    onCheckedChange={setIsLargeAvailable}
+                                />
+                                <Label htmlFor="isLargeAvailable" className="cursor-pointer text-sm font-normal">Large</Label>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Availability */}
@@ -937,6 +1069,7 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
                             <TableHead>Nama Menu</TableHead>
                             <TableHead>Brand</TableHead>
                             <TableHead>Kategori</TableHead>
+                            <TableHead className="text-right">Harga Small</TableHead>
                             <TableHead className="text-right">Harga Regular</TableHead>
                             <TableHead className="text-right">Harga Large</TableHead>
                             <TableHead>Status</TableHead>
@@ -960,6 +1093,9 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
                                             </Badge>
                                         ))}
                                     </div>
+                                </TableCell>
+                                <TableCell className="text-right font-mono">
+                                    {formatCurrency(item.small_price)}
                                 </TableCell>
                                 <TableCell className="text-right font-mono">
                                     {formatCurrency(item.regular_price)}
@@ -1030,8 +1166,13 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
                                 </div>
                             </div>
                             <div className="text-right shrink-0">
+                                {item.small_price !== null && item.small_price > 0 && (
+                                    <p className="text-[10px] text-slate-400 tabular-nums">
+                                        S: {formatCurrency(item.small_price)}
+                                    </p>
+                                )}
                                 <p className="text-sm font-bold text-slate-900 tabular-nums">
-                                    {formatCurrency(item.regular_price)}
+                                    R: {formatCurrency(item.regular_price)}
                                 </p>
                                 {item.large_price !== null && (
                                     <p className="text-[10px] text-slate-400 tabular-nums">
@@ -1746,8 +1887,10 @@ export default function MenuManagement() {
             // Sanitize price inputs - force to integer or null
             const regularPrice = sanitizePrice(data.regular_price);
             const largePrice = sanitizePrice(data.large_price);
+            const smallPrice = sanitizePrice(data.small_price);
             const regularDiscountPrice = sanitizePrice(data.regular_discount_price);
             const largeDiscountPrice = sanitizePrice(data.large_discount_price);
+            const smallDiscount = sanitizePrice(data.small_discount);
 
             // Construct clean payload
             const payload: MenuItemUpdate = {
@@ -1758,8 +1901,13 @@ export default function MenuManagement() {
                 image_url: data.image_url,
                 regular_price: regularPrice,
                 large_price: largePrice,
+                small_price: smallPrice,
                 regular_discount_price: regularDiscountPrice,
                 large_discount_price: largeDiscountPrice,
+                small_discount: smallDiscount,
+                is_small_available: data.is_small_available ?? false,
+                is_regular_available: data.is_regular_available ?? true,
+                is_large_available: data.is_large_available ?? true,
                 badge: data.badge,
                 is_available: data.is_available ?? true,
                 is_special_fee: data.is_special_fee,
