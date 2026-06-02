@@ -111,15 +111,6 @@ function calculateVoucherStats(accounts: Account[]): VoucherStats {
 // -----------------------------------------------------------------------------
 
 export default function InventoryPage() {
-
-    // LANGSUNG RETURN DI ATAS
-    return (
-        <div className="flex flex-col items-center justify-center min-h-[70vh] space-y-4 text-center px-4">
-            <h2 className="text-2xl font-bold text-slate-700">Maaf, halaman tidak dapat diakses</h2>
-            <p className="text-slate-500">Halaman ini tidak perlu ditampilkan.</p>
-        </div>
-    );
-
     // Deteksi role user + status pemulihan sesi auth
     const { isStaff, isSuperAdmin, isLoading: isAuthLoading } = useAuth();
 
