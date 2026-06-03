@@ -44,6 +44,7 @@ import {
     createAccountColumns,
     type AccountColumnActions,
 } from '@/components/inventory/AccountColumns';
+import { ENABLE_FORE_35PCT } from '@/lib/logic/optimizer';
 import {
     useAccounts,
     useDeleteAccount,
@@ -221,12 +222,25 @@ export default function InventoryPage() {
     // Value Priority Sorting Helper
     // -------------------------------------------------------------------------
     const getVoucherPriority = (account: Account): number => {
-        if (account.brand === 'fore' || account.brand === 'tomoro') {
+        if (account.brand === 'fore') {
             const hasBogo = account.is_bogo_ready === true;
             const hasDisc35 = account.is_discount35_ready === true;
-            if (hasBogo && hasDisc35) return 0; // Lengkap (BOGO + 35%/50%)
+            if (ENABLE_FORE_35PCT) {
+                if (hasBogo && hasDisc35) return 0; // Lengkap (BOGO + 35%)
+                if (hasBogo) return 1;              // Hanya BOGO
+                if (hasDisc35) return 2;            // Hanya 35%
+                return 3;                           // Kosong
+            } else {
+                if (hasBogo) return 0;              // Hanya BOGO
+                return 1;                           // Kosong
+            }
+        }
+        if (account.brand === 'tomoro') {
+            const hasBogo = account.is_bogo_ready === true;
+            const hasDisc35 = account.is_discount35_ready === true;
+            if (hasBogo && hasDisc35) return 0; // Lengkap (BOGO + 50%)
             if (hasBogo) return 1;              // Hanya BOGO
-            if (hasDisc35) return 2;            // Hanya 35%/50%
+            if (hasDisc35) return 2;            // Hanya 50%
             return 3;                           // Kosong
         }
         if (account.brand === 'janjijiwa') {
@@ -480,7 +494,7 @@ export default function InventoryPage() {
 
             {/* Summary Stats Cards - disembunyikan untuk Staff */}
             {!isStaff && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 md:gap-4">
+                <div className={`grid grid-cols-2 sm:grid-cols-4 ${ENABLE_FORE_35PCT ? 'lg:grid-cols-7' : 'lg:grid-cols-6'} gap-2 md:gap-4`}>
                 {/* KopKen No Min */}
                 <Card className="shadow-sm bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
                     <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
@@ -501,7 +515,7 @@ export default function InventoryPage() {
                         <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">No Minimum</p>
                     </CardContent>
                 </Card>
-
+ 
                 {/* KopKen Min 50k */}
                 <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-white border-blue-100">
                     <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
@@ -522,7 +536,7 @@ export default function InventoryPage() {
                         <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Min. 50rb</p>
                     </CardContent>
                 </Card>
-
+ 
                 {/* Fore BOGO */}
                 <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
                     <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
@@ -543,27 +557,29 @@ export default function InventoryPage() {
                         <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Buy 1 Get 1</p>
                     </CardContent>
                 </Card>
-
+ 
                 {/* Fore 35% */}
-                <Card className="shadow-sm bg-gradient-to-br from-orange-50 to-white border-orange-100">
-                    <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
-                        <div className="flex items-center gap-1.5 md:gap-2">
-                            <div className="p-1 md:p-2 bg-orange-100 rounded-lg">
-                                <Ticket className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-500" />
+                {ENABLE_FORE_35PCT && (
+                    <Card className="shadow-sm bg-gradient-to-br from-orange-50 to-white border-orange-100">
+                        <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
+                            <div className="flex items-center gap-1.5 md:gap-2">
+                                <div className="p-1 md:p-2 bg-orange-100 rounded-lg">
+                                    <Ticket className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-500" />
+                                </div>
+                                <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
+                                    Fore 35%
+                                </CardTitle>
                             </div>
-                            <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
-                                Fore 35%
-                            </CardTitle>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
-                        <p className="text-xl md:text-2xl font-bold tabular-nums">
-                            <span className="text-orange-500">{voucherStats.foreDisc35}</span>
-                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
-                        </p>
-                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Diskon 35%</p>
-                    </CardContent>
-                </Card>
+                        </CardHeader>
+                        <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
+                            <p className="text-xl md:text-2xl font-bold tabular-nums">
+                                <span className="text-orange-500">{voucherStats.foreDisc35}</span>
+                                <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
+                            </p>
+                            <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Diskon 35%</p>
+                        </CardContent>
+                    </Card>
+                )}
 
                 {/* Tomoro BOGO */}
                 <Card className="shadow-sm bg-gradient-to-br from-red-50 to-white border-red-100">
@@ -640,7 +656,7 @@ export default function InventoryPage() {
                                 <CardDescription>
                                     Your coffee shop account collection
                                     <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                                        Total: {voucherStats.foreBogo + voucherStats.foreDisc35 + voucherStats.kopkenNomin + voucherStats.kopkenMin50k + voucherStats.tomoroBogo + voucherStats.tomoroDisc50 + voucherStats.janjijiwaDisc50} siap
+                                        Total: {voucherStats.foreBogo + (ENABLE_FORE_35PCT ? voucherStats.foreDisc35 : 0) + voucherStats.kopkenNomin + voucherStats.kopkenMin50k + voucherStats.tomoroBogo + voucherStats.tomoroDisc50 + voucherStats.janjijiwaDisc50} siap
                                     </span>
                                 </CardDescription>
                             )}

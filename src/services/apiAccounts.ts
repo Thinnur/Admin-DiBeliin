@@ -4,6 +4,7 @@
 // Supabase API wrapper functions for account operations
 
 import { supabase } from '../lib/supabase';
+import { ENABLE_FORE_35PCT } from '../lib/logic/optimizer';
 import type {
     Account,
     AccountInsert,
@@ -209,8 +210,17 @@ export async function updateAccount(
             if (currentAccount && currentAccount.status === 'ready') {
                 let shouldSell = false;
 
-                if (currentAccount.brand === 'fore' || currentAccount.brand === 'tomoro') {
-                    // Fore & Tomoro: sold if both BOGO and discount (50% for Tomoro) are false
+                if (currentAccount.brand === 'fore') {
+                    const finalBogo = 'is_bogo_ready' in updates
+                        ? updates.is_bogo_ready!
+                        : (currentAccount.is_bogo_ready ?? false);
+                    const finalDisc35 = 'is_discount35_ready' in updates
+                        ? updates.is_discount35_ready!
+                        : (currentAccount.is_discount35_ready ?? false);
+
+                    shouldSell = !finalBogo && (!ENABLE_FORE_35PCT || !finalDisc35);
+                } else if (currentAccount.brand === 'tomoro') {
+                    // Tomoro: sold if both BOGO and discount (50% for Tomoro) are false
                     const finalBogo = 'is_bogo_ready' in updates
                         ? updates.is_bogo_ready!
                         : (currentAccount.is_bogo_ready ?? false);
@@ -397,8 +407,11 @@ export async function batchUpdateVouchers(
  * (when all vouchers are exhausted - brand-aware)
  */
 export function shouldMarkAsSold(account: Account): boolean {
-    if (account.brand === 'fore' || account.brand === 'tomoro') {
-        // Fore & Tomoro: sold if both BOGO and discount (50% for Tomoro) are gone
+    if (account.brand === 'fore') {
+        return !(account.is_bogo_ready ?? false) && (!ENABLE_FORE_35PCT || !(account.is_discount35_ready ?? false));
+    }
+    if (account.brand === 'tomoro') {
+        // Tomoro: sold if both BOGO and discount (50% for Tomoro) are gone
         return !(account.is_bogo_ready ?? false) && !(account.is_discount35_ready ?? false);
     }
 

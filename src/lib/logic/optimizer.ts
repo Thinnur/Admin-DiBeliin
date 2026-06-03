@@ -65,6 +65,9 @@ export interface OptimizationResult {
     accountsNeeded: number;
 }
 
+// --- Toggle flags ---
+export const ENABLE_FORE_35PCT = false; // Disable temporarily per user request
+
 // --- Constants ---
 const FORE_ADMIN_COST = 5000;
 const FORE_35PCT_MAX = 50000;
@@ -233,33 +236,52 @@ function simulateForeScenario(
         });
     }
 
-    // Remaining items (not used in BOGO) -> 35% account
+    // Remaining items (not used in BOGO) -> 35% account (if enabled) or no voucher
     const remainingItems = sorted.filter((_, i) => !usedIndices.has(i));
 
     let disc35 = 0;
     let has35Acct = false;
 
     if (remainingItems.length > 0) {
-        disc35 = calc35Discount(remainingItems);
-        // Only add 35% account if the discount outweighs admin cost
-        if (disc35 > FORE_ADMIN_COST) {
-            has35Acct = true;
-            const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
-            groups.push({
-                id: generateId(),
-                items: remainingItems.map(i => ({
-                    name: i.name,
-                    addons: i.addons,
-                    price: i.price,
-                    basePrice: i.basePrice,
-                    isForeDeli: i.isForeDeli,
-                })),
-                totalPrice: total35,
-                recommendedVoucher: 'fore_35pct',
-                estimatedDiscount: disc35,
-            });
+        if (ENABLE_FORE_35PCT) {
+            disc35 = calc35Discount(remainingItems);
+            // Only add 35% account if the discount outweighs admin cost
+            if (disc35 > FORE_ADMIN_COST) {
+                has35Acct = true;
+                const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
+                groups.push({
+                    id: generateId(),
+                    items: remainingItems.map(i => ({
+                        name: i.name,
+                        addons: i.addons,
+                        price: i.price,
+                        basePrice: i.basePrice,
+                        isForeDeli: i.isForeDeli,
+                    })),
+                    totalPrice: total35,
+                    recommendedVoucher: 'fore_35pct',
+                    estimatedDiscount: disc35,
+                });
+            } else {
+                // Items exist but no discount worth it - show as group with 0 discount (no voucher)
+                const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
+                groups.push({
+                    id: generateId(),
+                    items: remainingItems.map(i => ({
+                        name: i.name,
+                        addons: i.addons,
+                        price: i.price,
+                        basePrice: i.basePrice,
+                        isForeDeli: i.isForeDeli,
+                    })),
+                    totalPrice: total35,
+                    recommendedVoucher: 'fore_35pct',
+                    estimatedDiscount: 0,
+                });
+                disc35 = 0; // Not counted toward NetBenefit
+            }
         } else {
-            // Items exist but no discount worth it - show as group with 0 discount (no voucher)
+            // 35% disabled -> show remaining items as a group with 0 discount under BOGO
             const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
             groups.push({
                 id: generateId(),
@@ -271,10 +293,9 @@ function simulateForeScenario(
                     isForeDeli: i.isForeDeli,
                 })),
                 totalPrice: total35,
-                recommendedVoucher: 'fore_35pct',
+                recommendedVoucher: 'fore_bogo',
                 estimatedDiscount: 0,
             });
-            disc35 = 0; // Not counted toward NetBenefit
         }
     }
 
@@ -767,7 +788,7 @@ export function optimizeOrder(
                         isForeDeli: i.isForeDeli ?? false,
                     })),
                     totalPrice: totalBill,
-                    recommendedVoucher: brand === 'kopken' ? 'nomin' : brand === 'fore' ? 'fore_35pct' : brand === 'tomoro' ? 'tomoro_50' : 'jiwa_50',
+                    recommendedVoucher: brand === 'kopken' ? 'nomin' : brand === 'fore' ? (ENABLE_FORE_35PCT ? 'fore_35pct' : 'fore_bogo') : brand === 'tomoro' ? 'tomoro_50' : 'jiwa_50',
                     estimatedDiscount: 0,
                 },
             ],

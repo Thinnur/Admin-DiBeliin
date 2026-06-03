@@ -30,6 +30,7 @@ import {
 import { createTransaction as createExpenseTransaction } from '../services/apiTransactions';
 import { createAccountLog, type AccountLogAction } from '../services/accountLogService';
 import { autoAssign as autoAssignLogic } from '../lib/logic/autoAssign';
+import { ENABLE_FORE_35PCT } from '../lib/logic/optimizer';
 import type {
     Account,
     AccountFilters,
@@ -160,12 +161,74 @@ export function useStaffAccounts(
                     .limit(3);
 
                 return [...(complete || []), ...(min50kOnly || [])] as Account[];
-            } else if (brand === 'fore' || brand === 'tomoro') {
-                // Grup 1: Voucher lengkap (BOGO=true AND 35%/50%=true)
+            } else if (brand === 'fore') {
+                if (ENABLE_FORE_35PCT) {
+                    // Grup 1: Voucher lengkap (BOGO=true AND 35%=true)
+                    let completeQuery = supabase
+                        .from('accounts')
+                        .select('*')
+                        .eq('brand', 'fore')
+                        .eq('status', 'ready')
+                        .eq('is_bogo_ready', true)
+                        .eq('is_discount35_ready', true);
+
+                    if (deviceFilter === DEVICE_UNSET_VALUE) {
+                        completeQuery = completeQuery.or('device_name.is.null,device_name.eq.');
+                    } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                        completeQuery = completeQuery.eq('device_name', deviceFilter);
+                    }
+
+                    const { data: complete } = await completeQuery
+                        .order('expiry_date', { ascending: true })
+                        .limit(3);
+
+                    // Grup 2: Hanya 35% (BOGO=false AND 35%=true)
+                    let disc35OnlyQuery = supabase
+                        .from('accounts')
+                        .select('*')
+                        .eq('brand', 'fore')
+                        .eq('status', 'ready')
+                        .eq('is_bogo_ready', false)
+                        .eq('is_discount35_ready', true);
+
+                    if (deviceFilter === DEVICE_UNSET_VALUE) {
+                        disc35OnlyQuery = disc35OnlyQuery.or('device_name.is.null,device_name.eq.');
+                    } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                        disc35OnlyQuery = disc35OnlyQuery.eq('device_name', deviceFilter);
+                    }
+
+                    const { data: disc35Only } = await disc35OnlyQuery
+                        .order('expiry_date', { ascending: true })
+                        .limit(3);
+
+                    return [...(complete || []), ...(disc35Only || [])] as Account[];
+                } else {
+                    // Fore BOGO only: show up to 6 ready accounts with BOGO voucher
+                    let query = supabase
+                        .from('accounts')
+                        .select('*')
+                        .eq('brand', 'fore')
+                        .eq('status', 'ready')
+                        .eq('is_bogo_ready', true);
+
+                    if (deviceFilter === DEVICE_UNSET_VALUE) {
+                        query = query.or('device_name.is.null,device_name.eq.');
+                    } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                        query = query.eq('device_name', deviceFilter);
+                    }
+
+                    const { data } = await query
+                        .order('expiry_date', { ascending: true })
+                        .limit(6);
+
+                    return (data || []) as Account[];
+                }
+            } else if (brand === 'tomoro') {
+                // Grup 1: Voucher lengkap (BOGO=true AND 50%=true)
                 let completeQuery = supabase
                     .from('accounts')
                     .select('*')
-                    .eq('brand', brand)
+                    .eq('brand', 'tomoro')
                     .eq('status', 'ready')
                     .eq('is_bogo_ready', true)
                     .eq('is_discount35_ready', true);
@@ -180,11 +243,11 @@ export function useStaffAccounts(
                     .order('expiry_date', { ascending: true })
                     .limit(3);
 
-                // Grup 2: Hanya 35%/50% (BOGO=false AND 35%/50%=true)
+                // Grup 2: Hanya 50% (BOGO=false AND 50%=true)
                 let disc35OnlyQuery = supabase
                     .from('accounts')
                     .select('*')
-                    .eq('brand', brand)
+                    .eq('brand', 'tomoro')
                     .eq('status', 'ready')
                     .eq('is_bogo_ready', false)
                     .eq('is_discount35_ready', true);
@@ -579,7 +642,10 @@ export function useFixStaleAccounts() {
                     if (a.brand === 'kopken') {
                         return !a.is_nomin_ready && !a.is_min50k_ready;
                     }
-                    if (a.brand === 'fore' || a.brand === 'tomoro') {
+                    if (a.brand === 'fore') {
+                        return ENABLE_FORE_35PCT ? (!a.is_bogo_ready && !a.is_discount35_ready) : !a.is_bogo_ready;
+                    }
+                    if (a.brand === 'tomoro') {
                         return !a.is_bogo_ready && !a.is_discount35_ready;
                     }
                     if (a.brand === 'janjijiwa') {

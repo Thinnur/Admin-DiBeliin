@@ -42,6 +42,7 @@ import {
     toDeviceSelectValue,
     type DeviceSelectValue,
 } from '@/lib/deviceOptions';
+import { ENABLE_FORE_35PCT } from '@/lib/logic/optimizer';
 import type { Account, AccountBrand } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -166,11 +167,11 @@ export function AddAccountDialog({
     useEffect(() => {
         if (!isEditMode) {
             if (brand === 'fore') {
-                // Fore uses BOGO & 35%, not NoMin/50k
+                // Fore uses BOGO & 35% (if enabled), not NoMin/50k
                 setIsMin50kReady(false);
                 setIsNominReady(false);
                 setIsBogoReady(true);
-                setIsDiscount35Ready(true);
+                setIsDiscount35Ready(ENABLE_FORE_35PCT);
             } else if (brand === 'tomoro') {
                 // Tomoro uses BOGO & 50%, not NoMin/50k
                 setIsMin50kReady(false);
@@ -257,7 +258,7 @@ export function AddAccountDialog({
                         is_nomin_ready: brand === 'kopken' ? isNominReady : false,
                         is_min50k_ready: brand === 'kopken' ? isMin50kReady : false,
                         is_bogo_ready: (brand === 'fore' || brand === 'tomoro') ? isBogoReady : false,
-                        is_discount35_ready: (brand === 'fore' || brand === 'tomoro' || brand === 'janjijiwa') ? isDiscount35Ready : false,
+                        is_discount35_ready: brand === 'fore' ? (ENABLE_FORE_35PCT && isDiscount35Ready) : (brand === 'tomoro' || brand === 'janjijiwa') ? isDiscount35Ready : false,
                         notes: notes || null,
                     },
                 });
@@ -276,7 +277,7 @@ export function AddAccountDialog({
                     is_nomin_ready: brand === 'kopken' ? isNominReady : false,
                     is_min50k_ready: brand === 'kopken' ? isMin50kReady : false,
                     is_bogo_ready: (brand === 'fore' || brand === 'tomoro') ? isBogoReady : false,
-                    is_discount35_ready: (brand === 'fore' || brand === 'tomoro' || brand === 'janjijiwa') ? isDiscount35Ready : false,
+                    is_discount35_ready: brand === 'fore' ? (ENABLE_FORE_35PCT && isDiscount35Ready) : (brand === 'tomoro' || brand === 'janjijiwa') ? isDiscount35Ready : false,
                     notes: notes || null,
                     in_use_by: null,
                 });
@@ -313,7 +314,7 @@ export function AddAccountDialog({
                     is_nomin_ready: bulkBrand === 'kopken',
                     is_min50k_ready: bulkBrand === 'kopken',
                     is_bogo_ready: bulkBrand === 'fore' || bulkBrand === 'tomoro',
-                    is_discount35_ready: bulkBrand === 'fore' || bulkBrand === 'tomoro' || bulkBrand === 'janjijiwa',
+                    is_discount35_ready: bulkBrand === 'fore' ? ENABLE_FORE_35PCT : (bulkBrand === 'tomoro' || bulkBrand === 'janjijiwa'),
                     notes: null,
                     in_use_by: null,
                 });
@@ -434,7 +435,7 @@ export function AddAccountDialog({
                         </label>
                     )}
 
-                    {(brand === 'fore' || brand === 'tomoro' || brand === 'janjijiwa') && (
+                    {((brand === 'fore' && ENABLE_FORE_35PCT) || brand === 'tomoro' || brand === 'janjijiwa') && (
                         <label className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
                             <input
                                 type="checkbox"

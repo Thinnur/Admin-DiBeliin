@@ -23,6 +23,7 @@ import type { Account, AccountStatus, AccountBrand } from '@/types/database';
 import { normalizeDeviceName } from '@/lib/deviceOptions';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { ENABLE_FORE_35PCT } from '@/lib/logic/optimizer';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -119,6 +120,7 @@ function VoucherStatusBadges({ account }: { account: Account }) {
         // Fore & Tomoro: show BOGO and 35%/50% badges
         const isBogoReady = account.is_bogo_ready ?? false;
         const isDisc35Ready = account.is_discount35_ready ?? false;
+        const showDisc = brand === 'tomoro' || ENABLE_FORE_35PCT;
         const discLabel = brand === 'fore' ? '35%' : '50%';
         return (
             <div className="flex flex-wrap gap-1.5">
@@ -132,16 +134,18 @@ function VoucherStatusBadges({ account }: { account: Account }) {
                     )}
                     BOGO
                 </span>
-                <span
-                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(isDisc35Ready)}`}
-                >
-                    {isDisc35Ready ? (
-                        <Check className="w-3 h-3" />
-                    ) : (
-                        <X className="w-3 h-3" />
-                    )}
-                    {discLabel}
-                </span>
+                {showDisc && (
+                    <span
+                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium border ${getBadgeStyle(isDisc35Ready)}`}
+                    >
+                        {isDisc35Ready ? (
+                            <Check className="w-3 h-3" />
+                        ) : (
+                            <X className="w-3 h-3" />
+                        )}
+                        {discLabel}
+                    </span>
+                )}
             </div>
         );
     }
@@ -355,22 +359,24 @@ function ActionsCell({
                         </DropdownMenuItem>
 
                         {/* 35%/50% toggle */}
-                        <DropdownMenuItem
-                            onClick={() => {
-                                actions?.onToggleVoucher?.(account, 'disc35', !(account.is_discount35_ready ?? false));
-                                setIsOpen(false);
-                            }}
-                            className="cursor-pointer"
-                        >
-                            <span className="flex items-center gap-2">
-                                {(account.is_discount35_ready ?? false) ? (
-                                    <Check className="w-4 h-4 text-emerald-600" />
-                                ) : (
-                                    <X className="w-4 h-4 text-slate-400" />
-                                )}
-                                {account.brand === 'fore' ? '35%' : '50%'}: {(account.is_discount35_ready ?? false) ? 'Ready' : 'Used'}
-                            </span>
-                        </DropdownMenuItem>
+                        {(account.brand === 'tomoro' || ENABLE_FORE_35PCT) && (
+                            <DropdownMenuItem
+                                onClick={() => {
+                                    actions?.onToggleVoucher?.(account, 'disc35', !(account.is_discount35_ready ?? false));
+                                    setIsOpen(false);
+                                }}
+                                className="cursor-pointer"
+                            >
+                                <span className="flex items-center gap-2">
+                                    {(account.is_discount35_ready ?? false) ? (
+                                        <Check className="w-4 h-4 text-emerald-600" />
+                                    ) : (
+                                        <X className="w-4 h-4 text-slate-400" />
+                                    )}
+                                    {account.brand === 'fore' ? '35%' : '50%'}: {(account.is_discount35_ready ?? false) ? 'Ready' : 'Used'}
+                                </span>
+                            </DropdownMenuItem>
+                        )}
                     </>
                 )}
 
