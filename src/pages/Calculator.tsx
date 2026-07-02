@@ -45,7 +45,6 @@ import { getMenuItems, type MenuItem } from '@/services/menuService';
 import { getAdminFees, type AdminFees } from '@/services/operationalService';
 import {
     optimizeOrder,
-    isForeDeli,
     type CartItem,
     type OptimizationResult,
 } from '@/lib/logic/optimizer';
@@ -57,10 +56,8 @@ import type { AccountBrand } from '@/types/database';
 
 interface EditableItem extends ParsedItem {
     id: string;
-    /** Fore Coffee only: harga Regular menu (untuk BOGO discount) */
+    /** Tomoro Coffee only: harga Regular menu (untuk BOGO discount) */
     basePrice?: number;
-    /** Fore Coffee only: apakah ini item Fore Deli (bukan minuman)? */
-    isForeDeli?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -78,8 +75,7 @@ function ItemRow({
     onDelete: (id: string) => void;
     brand?: AccountBrand;
 }) {
-    const showBasePrice = brand === 'fore' || brand === 'tomoro';
-    const showDeli = brand === 'fore';
+    const showBasePrice = brand === 'tomoro';
     return (
         <tr className="border-b border-slate-100 hover:bg-slate-50/50 hidden md:table-row">
             <td className="py-2 px-2">
@@ -129,20 +125,6 @@ function ItemRow({
                     />
                 </td>
             )}
-            {showDeli && (
-                <td className="py-2 px-2 w-20 text-center">
-                    <button
-                        onClick={() => onUpdate(item.id, { isForeDeli: !item.isForeDeli })}
-                        className={`px-2 py-1 rounded-full text-xs font-medium border transition-colors ${item.isForeDeli
-                                ? 'bg-orange-100 text-orange-700 border-orange-300'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}
-                        title="Klik untuk toggle Fore Deli"
-                    >
-                        {item.isForeDeli ? 'Deli' : 'Minum'}
-                    </button>
-                </td>
-            )}
             <td className="py-2 px-2 w-24 text-right">
                 <span className="text-sm font-medium text-slate-700">
                     {formatPrice(item.price * item.qty)}
@@ -172,8 +154,7 @@ function ItemCard({
     onDelete: (id: string) => void;
     brand?: AccountBrand;
 }) {
-    const showBasePrice = brand === 'fore' || brand === 'tomoro';
-    const showDeli = brand === 'fore';
+    const showBasePrice = brand === 'tomoro';
     return (
         <div className={`md:hidden p-3 rounded-xl border bg-white space-y-2 ${item.hasError ? 'border-amber-300 bg-amber-50/30' : 'border-slate-100'}`}>
             <div className="flex items-center gap-2">
@@ -183,17 +164,6 @@ function ItemCard({
                     className="h-8 text-sm flex-1"
                     placeholder="Item name"
                 />
-                {showDeli && (
-                    <button
-                        onClick={() => onUpdate(item.id, { isForeDeli: !item.isForeDeli })}
-                        className={`px-2 py-1 rounded-full text-xs font-medium border shrink-0 transition-colors ${item.isForeDeli
-                                ? 'bg-orange-100 text-orange-700 border-orange-300'
-                                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                            }`}
-                    >
-                        {item.isForeDeli ? 'Deli' : 'Minum'}
-                    </button>
-                )}
                 <button
                     onClick={() => onDelete(item.id)}
                     className="p-1.5 rounded hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors shrink-0"
@@ -267,14 +237,20 @@ function StrategyCard({
     const voucherMeta = {
         nomin: { label: 'No Min', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         min50k: { label: 'Min 50k', color: 'bg-blue-50 text-blue-700 border-blue-200' },
-        fore_35pct: { label: 'Diskon 35%', color: 'bg-violet-50 text-violet-700 border-violet-200' },
-        fore_bogo: { label: 'BOGO', color: 'bg-amber-50 text-amber-700 border-amber-300' },
+        fore_25pct: { label: 'Diskon 25%', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         tomoro_bogo: { label: 'Tomoro BOGO', color: 'bg-orange-50 text-orange-700 border-orange-200' },
         tomoro_50: { label: 'Tomoro 50%', color: 'bg-amber-50 text-amber-700 border-amber-200' },
         jiwa_50: { label: 'Janji Jiwa 50%', color: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
     };
+    const discountSubLabel: Record<string, string> = {
+        nomin: '50%',
+        min50k: '50%',
+        fore_25pct: '25%',
+        tomoro_50: '50%',
+        jiwa_50: '50%',
+    };
     const { label: voucherLabel, color: voucherColor } = voucherMeta[group.recommendedVoucher] ?? voucherMeta.nomin;
-    const isBogo = group.recommendedVoucher === 'fore_bogo' || group.recommendedVoucher === 'tomoro_bogo';
+    const isBogo = group.recommendedVoucher === 'tomoro_bogo';
 
     return (
         <Card className="shadow-sm">
@@ -296,9 +272,6 @@ function StrategyCard({
                                 <div className="flex items-center gap-1.5 min-w-0">
                                     {isBogo && item.isBogoDFree && (
                                         <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 font-medium">GRATIS</span>
-                                    )}
-                                    {isBogo && item.isForeDeli && (
-                                        <span className="shrink-0 text-xs px-1.5 py-0.5 rounded bg-orange-100 text-orange-600 font-medium">Deli</span>
                                     )}
                                     <span className="text-slate-600">{item.name} x1</span>
                                 </div>
@@ -322,7 +295,7 @@ function StrategyCard({
                     </div>
                     {group.estimatedDiscount > 0 && (
                         <div className="flex justify-between text-sm text-emerald-600">
-                            <span>Diskon {isBogo ? `(basePrice gratis)` : '(35%)'}</span>
+                            <span>Diskon {isBogo ? '(basePrice gratis)' : `(${discountSubLabel[group.recommendedVoucher] ?? ''})`}</span>
                             <span className="font-semibold">-{formatPrice(group.estimatedDiscount)}</span>
                         </div>
                     )}
@@ -342,10 +315,11 @@ function StrategyCard({
 // Summary Card Component
 // -----------------------------------------------------------------------------
 
-function SummaryCard({ result }: { result: OptimizationResult }) {
+function SummaryCard({ result, brand }: { result: OptimizationResult; brand: AccountBrand }) {
     const savingsPercent = result.totalBill > 0
         ? Math.round(((result.totalDiscount - result.totalAdminCost) / result.totalBill) * 100)
         : 0;
+    const adminCostLabel = brand === 'fore' ? 'per cup' : `${result.accountsNeeded} acc`;
 
     return (
         <Card className="shadow-sm bg-gradient-to-br from-slate-900 to-slate-800 text-white">
@@ -376,7 +350,7 @@ function SummaryCard({ result }: { result: OptimizationResult }) {
                     <div className="p-3 rounded-lg bg-amber-500/20">
                         <div className="flex items-center gap-2 text-amber-300 text-xs mb-1">
                             <Users className="w-3.5 h-3.5" />
-                            Admin Cost ({result.accountsNeeded} acc)
+                            Admin Cost ({adminCostLabel})
                         </div>
                         <div className="text-lg font-bold text-amber-400">
                             +{formatPrice(result.totalAdminCost)}
@@ -490,31 +464,19 @@ export default function CalculatorPage() {
                         sanitizedName.includes(dbItem.name.toLowerCase()))
             );
 
-            // Fallback values
+            // Fallback value
             let determinedBasePrice = item.price;
-            let determinedIsDeli = isForeDeli(item.name);
 
             if (matchedDbItem) {
-                // Inject base price from DB for Fore BOGO calculation
-                if (brand === 'fore' && matchedDbItem.regular_price != null) {
+                // Inject base price from DB for Tomoro BOGO calculation
+                if (brand === 'tomoro' && matchedDbItem.regular_price != null) {
                     determinedBasePrice = matchedDbItem.regular_price;
-                }
-
-                // Detect Fore Deli from DB categories
-                const deliKeywords = ['food', 'deli', 'pastry', 'snack'];
-                const isDeliCategory = matchedDbItem.categories?.some((cat) =>
-                    deliKeywords.some((kw) => cat.toLowerCase().includes(kw))
-                ) ?? false;
-
-                if (isDeliCategory) {
-                    determinedIsDeli = true;
                 }
             }
 
             return {
                 ...item,
                 id: generateId(),
-                isForeDeli: determinedIsDeli,
                 basePrice: determinedBasePrice,
             };
         });
@@ -562,7 +524,6 @@ export default function CalculatorPage() {
             qty: 1,
             addons: [],
             basePrice: 0,
-            isForeDeli: false,
             rawLine: '',
             hasError: true,
             errorMessage: 'Please fill in details',
@@ -598,11 +559,8 @@ export default function CalculatorPage() {
             price: item.price,
             qty: item.qty,
             addons: item.addons ?? [],
-            ...((brand === 'fore' || brand === 'tomoro') ? {
+            ...(brand === 'tomoro' ? {
                 basePrice: item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price,
-            } : {}),
-            ...(brand === 'fore' ? {
-                isForeDeli: item.isForeDeli ?? isForeDeli(item.name),
             } : {}),
         }));
 
@@ -621,8 +579,7 @@ export default function CalculatorPage() {
         const VOUCHER_LABELS: Record<string, string> = {
             nomin: 'No Min',
             min50k: 'Min 50k',
-            fore_35pct: 'Diskon 35%',
-            fore_bogo: 'BOGO',
+            fore_25pct: 'Diskon 25%',
             tomoro_bogo: 'Tomoro BOGO',
             tomoro_50: 'Tomoro 50%',
             jiwa_50: 'Janji Jiwa 50%',
@@ -745,14 +702,11 @@ Example:
                                                 <th className="text-left py-2 px-2 font-medium">Nama</th>
                                                 <th className="text-center py-2 px-2 font-medium w-20">Qty</th>
                                                 <th className="text-right py-2 px-2 font-medium w-28">Harga Bayar</th>
-                                                {(brand === 'fore' || brand === 'tomoro') && (
+                                                {brand === 'tomoro' && (
                                                     <th className="text-right py-2 px-2 font-medium w-28">
                                                         Base Price
                                                         <span className="block font-normal text-slate-400">(harga Regular)</span>
                                                     </th>
-                                                )}
-                                                {brand === 'fore' && (
-                                                    <th className="text-center py-2 px-2 font-medium w-20">Jenis</th>
                                                 )}
                                                 <th className="text-right py-2 px-2 font-medium w-24">Total</th>
                                                 <th className="w-12"></th>
@@ -873,7 +827,7 @@ Example:
                     {hasOptimized && result && (
                         <>
                             {/* Summary */}
-                            <SummaryCard result={result} />
+                            <SummaryCard result={result} brand={brand} />
 
                             {/* Strategy Cards */}
                             <div className="space-y-3">
