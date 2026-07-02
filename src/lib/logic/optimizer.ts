@@ -3,13 +3,12 @@
 // =============================================================================
 // Implements optimization strategies for Fore Coffee and Kopi Kenangan.
 //
-// FORE COFFEE (Updated S&K):
-//   - Skenario A: Diskon 35% x total actualPrice, maks Rp 50.000, 1 akun
-//   - Skenario B: BOGO - tiap pasang butuh >=1 minuman (bukan Fore Deli) sbg trigger
-//                 Diskon = basePrice item termurah dalam pasangan
-//                 Tiap pasangan = 1 akun terpisah (admin Rp 5.000/akun)
-//   - Strategi: Hybrid Exhaustive Search - coba semua k BOGO pairs + sisa ke 35%
-//               Pilih k dengan Net Benefit tertinggi.
+// FORE COFFEE: flat 25% discount, capped Rp 50.000 per account. Order splits
+// into g = ceil(discountableTotal / 200000) accounts — the minimum number
+// such that no basket is ever capped, so total discount is always exactly
+// 25% of the order (closed-form, no search needed). Admin cost is charged
+// per line-item quantity (accountCost is interpreted as "fee per cup" for
+// this brand), independent of how many accounts the discount used.
 //
 // KOPI KENANGAN: Unchanged bin-packing with nomin/min50k vouchers.
 
@@ -22,17 +21,10 @@ export interface CartItem {
     qty: number;
     addons?: string[];
     /**
-     * basePrice: harga Regular menu (untuk kalkulasi diskon BOGO).
+     * basePrice: harga Regular menu (untuk kalkulasi diskon BOGO Tomoro).
      * Jika tidak diisi, dianggap sama dengan actualPrice.
-     * Hanya relevan untuk Fore Coffee.
      */
     basePrice?: number;
-    /**
-     * isForeDeli: true jika item adalah kategori Fore Deli (makanan).
-     * Fore Deli TIDAK bisa jadi trigger BOGO, tapi bisa jadi pasangan (partner).
-     * Hanya relevan untuk Fore Coffee.
-     */
-    isForeDeli?: boolean;
     size?: 'small' | 'regular' | 'large';
 }
 
@@ -45,12 +37,11 @@ export interface OptimizedGroup {
         price: number;
         /** basePrice unit (same as price if not set) */
         basePrice: number;
-        isForeDeli: boolean;
         /** If this item is the free one in a BOGO pair */
         isBogoDFree?: boolean;
     }[];
     totalPrice: number;
-    recommendedVoucher: 'nomin' | 'min50k' | 'fore_35pct' | 'fore_bogo' | 'tomoro_bogo' | 'tomoro_50' | 'jiwa_50';
+    recommendedVoucher: 'nomin' | 'min50k' | 'fore_25pct' | 'tomoro_bogo' | 'tomoro_50' | 'jiwa_50';
     estimatedDiscount: number;
     /** For BOGO groups: the base-price discount applied */
     bogoDiscount?: number;
@@ -69,9 +60,9 @@ export interface OptimizationResult {
 export const ENABLE_FORE_35PCT = false; // Disable temporarily per user request
 
 // --- Constants ---
-const FORE_ADMIN_COST = 5000;
-const FORE_35PCT_MAX = 50000;
-const FORE_35PCT_RATE = 0.35;
+const FORE_25_RATE = 0.25;
+const FORE_25_MAX_DISCOUNT = 50000;
+const FORE_BASKET_SATURATION = 200000; // 25% of this = exactly FORE_25_MAX_DISCOUNT
 
 // --- Helper: Generate unique ID ---
 const generateId = () => Math.random().toString(36).substring(2, 11);
@@ -80,21 +71,15 @@ const generateId = () => Math.random().toString(36).substring(2, 11);
 function expandCartItems(items: CartItem[]): {
     name: string;
     price: number;
-    basePrice: number;
-    isForeDeli: boolean;
     addons: string[];
 }[] {
-    const expanded: { name: string; price: number; basePrice: number; isForeDeli: boolean; addons: string[] }[] = [];
+    const expanded: { name: string; price: number; addons: string[] }[] = [];
     for (const item of items) {
-        const bp = item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price;
-        const fd = item.isForeDeli ?? isForeDeli(item.name);
         const addons = item.addons ?? [];
         for (let i = 0; i < item.qty; i++) {
             expanded.push({
                 name: item.name,
                 price: item.price,
-                basePrice: bp,
-                isForeDeli: fd,
                 addons: [...addons],
             });
         }
@@ -102,209 +87,47 @@ function expandCartItems(items: CartItem[]): {
     return expanded;
 }
 
-/** Auto-detect Fore Deli from item name */
-export function isForeDeli(name: string): boolean {
-    return /fore\s*deli/i.test(name);
-}
-
 // ==========================================
-// LOGIC 1: FORE (Hybrid Exhaustive Search)
+// LOGIC 1: FORE (flat 25%, closed-form basket split)
 // ==========================================
 
-/**
- * Unit item expanded from a CartItem
- */
 type ForeItem = {
     name: string;
-    price: number;      // actualPrice per unit
-    basePrice: number;  // basePrice per unit (for BOGO discount)
-    isForeDeli: boolean;
+    price: number; // actualPrice per unit
     addons: string[];
 };
 
-/**
- * Calculate 35% discount on a list of items.
- * Returns the discount amount (capped at FORE_35PCT_MAX).
- */
-function calc35Discount(items: ForeItem[]): number {
-    const total = items.reduce((s, i) => s + i.price, 0);
-    return Math.min(total * FORE_35PCT_RATE, FORE_35PCT_MAX);
-}
-
-/**
- * Fore Coffee Hybrid Exhaustive Search Optimizer.
- *
- * Strategy:
- *   For k = 0, 1, 2, ..., maxK:
- *     - Select k BOGO pairs (each pair: 1 trigger drink + 1 free item)
- *       -> The cheapest items (by actualPrice) are chosen as the "free" items first
- *       -> The trigger must be a non-ForeDeli drink (cheapest available)
- *     - Remaining items go to the 35% account (only if disc > admin cost)
- *     - Compute NetBenefit = (bogoDis + disc35) - ((k + hasDisc35Acct) x ADMIN_COST)
- *   Pick k with highest NetBenefit.
- */
 function optimizeFore(expandedItems: ForeItem[]): OptimizedGroup[] {
     if (expandedItems.length === 0) return [];
 
-    // Max possible BOGO pairs:
-    //   - Need at least 1 drink (non-ForeDeli) per pair as trigger
-    //   - Need 2 items total per pair
-    const drinkCount = expandedItems.filter(i => !i.isForeDeli).length;
-    const maxK = Math.min(Math.floor(expandedItems.length / 2), drinkCount);
+    const discountableTotal = expandedItems.reduce((s, i) => s + i.price, 0);
+    const g = Math.max(1, Math.ceil(discountableTotal / FORE_BASKET_SATURATION));
 
-    let bestNetBenefit = -Infinity;
-    let bestGroups: OptimizedGroup[] = [];
+    const sorted = [...expandedItems].sort((a, b) => b.price - a.price);
+    const baskets: OptimizedGroup[] = Array(g).fill(null).map(() => ({
+        id: generateId(),
+        items: [],
+        totalPrice: 0,
+        recommendedVoucher: 'fore_25pct' as const,
+        estimatedDiscount: 0,
+    }));
 
-    for (let k = 0; k <= maxK; k++) {
-        const result = simulateForeScenario(expandedItems, k);
-        if (result.netBenefit > bestNetBenefit) {
-            bestNetBenefit = result.netBenefit;
-            bestGroups = result.groups;
-        }
-    }
-
-    return bestGroups;
-}
-
-function simulateForeScenario(
-    allItems: ForeItem[],
-    k: number
-): { groups: OptimizedGroup[]; netBenefit: number } {
-    // Sort ascending by basePrice - item dengan Regular price termurah yang gratis (BOGO rule)
-    const sorted = [...allItems].sort((a, b) => a.basePrice - b.basePrice);
-
-    const groups: OptimizedGroup[] = [];
-    let totalBogoDisc = 0;
-    const usedIndices = new Set<number>();
-
-    // Build k BOGO pairs
-    for (let p = 0; p < k; p++) {
-        if (sorted.length - usedIndices.size < 2) break;
-
-        // FREE ITEM = cheapest unused item (any type - minuman atau Fore Deli)
-        let freeIdx = -1;
-        for (let i = 0; i < sorted.length; i++) {
-            if (!usedIndices.has(i)) { freeIdx = i; break; }
-        }
-        if (freeIdx === -1) break;
-
-        // TRIGGER = cheapest unused drink (non-ForeDeli) that is NOT the free item
-        // (within a pair, trigger >= free price because we sorted ascending)
-        let triggerIdx = -1;
-        for (let i = 0; i < sorted.length; i++) {
-            if (!usedIndices.has(i) && i !== freeIdx && !sorted[i].isForeDeli) {
-                triggerIdx = i;
-                break;
-            }
-        }
-        if (triggerIdx === -1) break; // No drink available as trigger
-
-        usedIndices.add(freeIdx);
-        usedIndices.add(triggerIdx);
-
-        const freeItem = sorted[freeIdx];
-        const triggerItem = sorted[triggerIdx];
-
-        // BOGO discount = basePrice of the FREE (cheapest) item
-        const bogoDisc = freeItem.basePrice;
-        totalBogoDisc += bogoDisc;
-
-        groups.push({
-            id: generateId(),
-            items: [
-                {
-                    name: triggerItem.name,
-                    addons: triggerItem.addons,
-                    price: triggerItem.price,
-                    basePrice: triggerItem.basePrice,
-                    isForeDeli: triggerItem.isForeDeli,
-                    isBogoDFree: false,
-                },
-                {
-                    name: freeItem.name,
-                    addons: freeItem.addons,
-                    price: freeItem.price,
-                    basePrice: freeItem.basePrice,
-                    isForeDeli: freeItem.isForeDeli,
-                    isBogoDFree: true,
-                },
-            ],
-            totalPrice: triggerItem.price + freeItem.price,
-            recommendedVoucher: 'fore_bogo',
-            estimatedDiscount: bogoDisc,
-            bogoDiscount: bogoDisc,
+    for (const item of sorted) {
+        baskets.sort((a, b) => a.totalPrice - b.totalPrice);
+        baskets[0].items.push({
+            name: item.name,
+            addons: item.addons,
+            price: item.price,
+            basePrice: item.price,
         });
+        baskets[0].totalPrice += item.price;
     }
 
-    // Remaining items (not used in BOGO) -> 35% account (if enabled) or no voucher
-    const remainingItems = sorted.filter((_, i) => !usedIndices.has(i));
-
-    let disc35 = 0;
-    let has35Acct = false;
-
-    if (remainingItems.length > 0) {
-        if (ENABLE_FORE_35PCT) {
-            disc35 = calc35Discount(remainingItems);
-            // Only add 35% account if the discount outweighs admin cost
-            if (disc35 > FORE_ADMIN_COST) {
-                has35Acct = true;
-                const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
-                groups.push({
-                    id: generateId(),
-                    items: remainingItems.map(i => ({
-                        name: i.name,
-                        addons: i.addons,
-                        price: i.price,
-                        basePrice: i.basePrice,
-                        isForeDeli: i.isForeDeli,
-                    })),
-                    totalPrice: total35,
-                    recommendedVoucher: 'fore_35pct',
-                    estimatedDiscount: disc35,
-                });
-            } else {
-                // Items exist but no discount worth it - show as group with 0 discount (no voucher)
-                const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
-                groups.push({
-                    id: generateId(),
-                    items: remainingItems.map(i => ({
-                        name: i.name,
-                        addons: i.addons,
-                        price: i.price,
-                        basePrice: i.basePrice,
-                        isForeDeli: i.isForeDeli,
-                    })),
-                    totalPrice: total35,
-                    recommendedVoucher: 'fore_35pct',
-                    estimatedDiscount: 0,
-                });
-                disc35 = 0; // Not counted toward NetBenefit
-            }
-        } else {
-            // 35% disabled -> show remaining items as a group with 0 discount under BOGO
-            const total35 = remainingItems.reduce((s, i) => s + i.price, 0);
-            groups.push({
-                id: generateId(),
-                items: remainingItems.map(i => ({
-                    name: i.name,
-                    addons: i.addons,
-                    price: i.price,
-                    basePrice: i.basePrice,
-                    isForeDeli: i.isForeDeli,
-                })),
-                totalPrice: total35,
-                recommendedVoucher: 'fore_bogo',
-                estimatedDiscount: 0,
-            });
-        }
+    for (const b of baskets) {
+        b.estimatedDiscount = Math.min(b.totalPrice * FORE_25_RATE, FORE_25_MAX_DISCOUNT);
     }
 
-    const totalDisc = totalBogoDisc + disc35;
-    const totalAdminAccts = k + (has35Acct ? 1 : 0);
-    const totalAdmin = totalAdminAccts * FORE_ADMIN_COST;
-    const netBenefit = totalDisc - totalAdmin;
-
-    return { groups, netBenefit };
+    return baskets;
 }
 
 // ==========================================
@@ -346,7 +169,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
 
             for (const item of sorted) {
                 baskets.sort((a, b) => a.totalPrice - b.totalPrice);
-                baskets[0].items.push({ name: item.name, addons: item.addons, price: item.price, basePrice: item.price, isForeDeli: false });
+                baskets[0].items.push({ name: item.name, addons: item.addons, price: item.price, basePrice: item.price });
                 baskets[0].totalPrice += item.price;
             }
 
@@ -372,7 +195,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
             console.error('Optimizer Infinite Loop Detected: Forcing exit.');
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
                 totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: 0,
@@ -385,7 +208,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
         if (currentTotal >= 50000 && currentTotal <= 60000) {
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
                 totalPrice: currentTotal,
                 recommendedVoucher: 'min50k',
                 estimatedDiscount: calcKopKenDiscB(currentTotal),
@@ -396,7 +219,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
         if (currentTotal < 50000 || (currentTotal > 60000 && currentTotal <= 70000)) {
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
                 totalPrice: currentTotal,
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: calcKopKenDiscA(currentTotal),
@@ -419,7 +242,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
         if (currentSubsetSum >= 50000) {
             groups.push({
                 id: generateId(),
-                items: subsetB.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: subsetB.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
                 totalPrice: currentSubsetSum,
                 recommendedVoucher: 'min50k',
                 estimatedDiscount: calcKopKenDiscB(currentSubsetSum),
@@ -447,7 +270,7 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
 
             groups.push({
                 id: generateId(),
-                items: basketAItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price, isForeDeli: false })),
+                items: basketAItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
                 totalPrice: basketASum,
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: calcKopKenDiscA(basketASum),
@@ -571,7 +394,6 @@ function simulateTomoroScenario(
                     addons: triggerItem.addons,
                     price: triggerItem.price,
                     basePrice: triggerItem.basePrice,
-                    isForeDeli: false,
                     isBogoDFree: false,
                 },
                 {
@@ -579,7 +401,6 @@ function simulateTomoroScenario(
                     addons: freeItem.addons,
                     price: freeItem.price,
                     basePrice: freeItem.basePrice,
-                    isForeDeli: false,
                     isBogoDFree: true,
                 },
             ],
@@ -612,7 +433,6 @@ function simulateTomoroScenario(
                     addons: i.addons,
                     price: i.price,
                     basePrice: i.basePrice,
-                    isForeDeli: false,
                 })),
                 totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
                 recommendedVoucher: 'tomoro_50',
@@ -626,7 +446,6 @@ function simulateTomoroScenario(
                     addons: i.addons,
                     price: i.price,
                     basePrice: i.basePrice,
-                    isForeDeli: false,
                 })),
                 totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
                 recommendedVoucher: 'tomoro_50',
@@ -677,7 +496,6 @@ function optimizeJanjiJiwa(
                 addons: item.addons,
                 price: item.price,
                 basePrice: item.price,
-                isForeDeli: false,
             });
             baskets[0].totalPrice += item.price;
         }
@@ -740,27 +558,27 @@ export function optimizeOrder(
         const totalDiscount = groups.reduce((sum, g) => sum + g.estimatedDiscount, 0);
 
         let accountsNeeded: number;
+        let totalAdminCost: number;
+
         if (brand === 'kopken') {
             const nominCount = groups.filter(g => g.recommendedVoucher === 'nomin').length;
             const min50kCount = groups.filter(g => g.recommendedVoucher === 'min50k').length;
             accountsNeeded = Math.max(nominCount, min50kCount);
-        } else if (brand === 'fore' || brand === 'tomoro') {
-            const noDiscountGroupsCount = groups.filter(g => g.estimatedDiscount === 0).length;
-            accountsNeeded = groups.length - noDiscountGroupsCount;
-        } else {
+            totalAdminCost = accountsNeeded * accountCost;
+        } else if (brand === 'fore') {
+            // accountCost is "fee per cup" for Fore — every basket always carries a positive
+            // discount now (no BOGO leftover group), so accountsNeeded is simply group count.
             accountsNeeded = groups.length;
-        }
-
-        const effectiveAdminCost = brand === 'fore' ? FORE_ADMIN_COST : accountCost;
-
-        let totalAdminCost: number;
-        if (brand === 'fore' || brand === 'tomoro') {
+            const totalQty = items.reduce((s, i) => s + i.qty, 0);
+            totalAdminCost = accountCost * totalQty;
+        } else if (brand === 'tomoro') {
             const noDiscountGroupsCount = groups.filter(g => g.estimatedDiscount === 0).length;
             const discountedGroupsCount = groups.length - noDiscountGroupsCount;
-            totalAdminCost = discountedGroupsCount * effectiveAdminCost;
             accountsNeeded = discountedGroupsCount;
+            totalAdminCost = discountedGroupsCount * accountCost;
         } else {
-            totalAdminCost = accountsNeeded * effectiveAdminCost;
+            accountsNeeded = groups.length;
+            totalAdminCost = accountsNeeded * accountCost;
         }
 
         const finalPrice = totalBill - totalDiscount + totalAdminCost;
@@ -785,10 +603,9 @@ export function optimizeOrder(
                         addons: i.addons,
                         price: i.price,
                         basePrice: i.basePrice ?? i.price,
-                        isForeDeli: i.isForeDeli ?? false,
                     })),
                     totalPrice: totalBill,
-                    recommendedVoucher: brand === 'kopken' ? 'nomin' : brand === 'fore' ? (ENABLE_FORE_35PCT ? 'fore_35pct' : 'fore_bogo') : brand === 'tomoro' ? 'tomoro_50' : 'jiwa_50',
+                    recommendedVoucher: brand === 'kopken' ? 'nomin' : brand === 'fore' ? 'fore_25pct' : brand === 'tomoro' ? 'tomoro_50' : 'jiwa_50',
                     estimatedDiscount: 0,
                 },
             ],
