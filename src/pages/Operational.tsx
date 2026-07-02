@@ -260,6 +260,7 @@ function AdminFeeSection() {
     const [kenanganInput, setKenanganInput] = useState('');
     const [tomoroInput, setTomoroInput] = useState('');
     const [janjijiwaInput, setJanjijiwaInput] = useState('');
+    const [specialItemInput, setSpecialItemInput] = useState('');
 
     // Sync input states when query returns data
     useEffect(() => {
@@ -268,12 +269,13 @@ function AdminFeeSection() {
             setKenanganInput(adminFees.fee_jasdor_kopken.toString());
             setTomoroInput((adminFees.fee_jasdor_tomoro ?? 2000).toString());
             setJanjijiwaInput((adminFees.fee_jasdor_janjijiwa ?? 2000).toString());
+            setSpecialItemInput((adminFees.fee_special_item ?? 5000).toString());
         }
     }, [adminFees]);
 
     // 2. Mutation to update a specific admin fee key
     const updateFeeMutation = useMutation({
-        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa'; value: string }) => {
+        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_special_item'; value: string }) => {
             await updateAdminFee(variables.key, variables.value);
         },
         onSuccess: () => {
@@ -293,7 +295,8 @@ function AdminFeeSection() {
         const kVal = Number(kenanganInput);
         const tVal = Number(tomoroInput);
         const jVal = Number(janjijiwaInput);
-        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0) {
+        const sVal = Number(specialItemInput);
+        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0 || isNaN(sVal) || sVal < 0) {
             toast.error('Biaya Jasdor harus berupa angka positif');
             return;
         }
@@ -315,6 +318,10 @@ function AdminFeeSection() {
                 }
                 if (jVal !== (adminFees.fee_jasdor_janjijiwa ?? 2000)) {
                     await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_janjijiwa', value: janjijiwaInput });
+                    hasChanges = true;
+                }
+                if (sVal !== (adminFees.fee_special_item ?? 5000)) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_special_item', value: specialItemInput });
                     hasChanges = true;
                 }
 
@@ -349,7 +356,7 @@ function AdminFeeSection() {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div className="space-y-2">
-                                <Label htmlFor="fee_jasdor_fore">Biaya Jasdor Fore Coffee (Rp)</Label>
+                                <Label htmlFor="fee_jasdor_fore">Biaya Jasdor Fore Coffee per Cup (Rp)</Label>
                                 <Input
                                     id="fee_jasdor_fore"
                                     type="number"
@@ -391,6 +398,18 @@ function AdminFeeSection() {
                                     onChange={(e) => setJanjijiwaInput(e.target.value)}
                                     disabled={updateFeeMutation.isPending}
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fee_special_item">Biaya Item Spesial / 1L (Rp)</Label>
+                                <Input
+                                    id="fee_special_item"
+                                    type="number"
+                                    placeholder="5000"
+                                    value={specialItemInput}
+                                    onChange={(e) => setSpecialItemInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                                <p className="text-[11px] text-slate-500">Berlaku untuk semua brand (bukan khusus Fore), dikenakan per unit item botol 1L / item spesial lainnya.</p>
                             </div>
                         </div>
                         <Button type="submit" disabled={updateFeeMutation.isPending} className="w-full sm:w-auto">
