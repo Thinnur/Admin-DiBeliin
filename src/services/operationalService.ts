@@ -251,7 +251,10 @@ export interface AdminFees {
     fee_jasdor_kopken: number;
     fee_jasdor_tomoro: number;
     fee_jasdor_janjijiwa: number;
+    fee_special_item: number;
 }
+
+const ADMIN_FEE_DEFAULTS: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000, fee_special_item: 5000 };
 
 /**
  * Fetch dynamic admin fees from app_settings
@@ -261,14 +264,14 @@ export async function getAdminFees(): Promise<AdminFees> {
         const { data, error } = await supabase
             .from('app_settings')
             .select('key, value')
-            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken', 'fee_jasdor_tomoro', 'fee_jasdor_janjijiwa']);
+            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken', 'fee_jasdor_tomoro', 'fee_jasdor_janjijiwa', 'fee_special_item']);
 
         if (error) {
             console.error('Error fetching admin fees:', error);
-            return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000 };
+            return { ...ADMIN_FEE_DEFAULTS };
         }
 
-        const fees: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000 };
+        const fees: AdminFees = { ...ADMIN_FEE_DEFAULTS };
         data?.forEach((row) => {
             if (row.key === 'fee_jasdor_fore') {
                 fees.fee_jasdor_fore = Number(row.value) || 5000;
@@ -278,12 +281,14 @@ export async function getAdminFees(): Promise<AdminFees> {
                 fees.fee_jasdor_tomoro = Number(row.value) || 2000;
             } else if (row.key === 'fee_jasdor_janjijiwa') {
                 fees.fee_jasdor_janjijiwa = Number(row.value) || 2000;
+            } else if (row.key === 'fee_special_item') {
+                fees.fee_special_item = Number(row.value) || 5000;
             }
         });
         return fees;
     } catch (error) {
         console.error('Error fetching admin fees:', error);
-        return { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000 };
+        return { ...ADMIN_FEE_DEFAULTS };
     }
 }
 
@@ -291,7 +296,7 @@ export async function getAdminFees(): Promise<AdminFees> {
  * Update a specific admin fee in app_settings
  */
 export async function updateAdminFee(
-    key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa',
+    key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_special_item',
     value: string
 ): Promise<void> {
     const { error } = await supabase
