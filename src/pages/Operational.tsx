@@ -261,6 +261,7 @@ function AdminFeeSection() {
     const [tomoroInput, setTomoroInput] = useState('');
     const [janjijiwaInput, setJanjijiwaInput] = useState('');
     const [specialItemInput, setSpecialItemInput] = useState('');
+    const [cinemaInput, setCinemaInput] = useState('');
 
     // Sync input states when query returns data
     useEffect(() => {
@@ -270,12 +271,13 @@ function AdminFeeSection() {
             setTomoroInput((adminFees.fee_jasdor_tomoro ?? 2000).toString());
             setJanjijiwaInput((adminFees.fee_jasdor_janjijiwa ?? 2000).toString());
             setSpecialItemInput((adminFees.fee_special_item ?? 5000).toString());
+            setCinemaInput((adminFees.fee_cinema ?? 5000).toString());
         }
     }, [adminFees]);
 
     // 2. Mutation to update a specific admin fee key
     const updateFeeMutation = useMutation({
-        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_special_item'; value: string }) => {
+        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_special_item' | 'fee_cinema'; value: string }) => {
             await updateAdminFee(variables.key, variables.value);
         },
         onSuccess: () => {
@@ -296,7 +298,8 @@ function AdminFeeSection() {
         const tVal = Number(tomoroInput);
         const jVal = Number(janjijiwaInput);
         const sVal = Number(specialItemInput);
-        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0 || isNaN(sVal) || sVal < 0) {
+        const cVal = Number(cinemaInput);
+        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0 || isNaN(sVal) || sVal < 0 || isNaN(cVal) || cVal < 0) {
             toast.error('Biaya Jasdor harus berupa angka positif');
             return;
         }
@@ -322,6 +325,10 @@ function AdminFeeSection() {
                 }
                 if (sVal !== (adminFees.fee_special_item ?? 5000)) {
                     await updateFeeMutation.mutateAsync({ key: 'fee_special_item', value: specialItemInput });
+                    hasChanges = true;
+                }
+                if (cVal !== (adminFees.fee_cinema ?? 5000)) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_cinema', value: cinemaInput });
                     hasChanges = true;
                 }
 
@@ -410,6 +417,18 @@ function AdminFeeSection() {
                                     disabled={updateFeeMutation.isPending}
                                 />
                                 <p className="text-[11px] text-slate-500">Berlaku untuk semua brand (bukan khusus Fore), dikenakan per unit item botol 1L / item spesial lainnya.</p>
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fee_cinema">Biaya Jasdor Tiket Bioskop per Tiket (Rp)</Label>
+                                <Input
+                                    id="fee_cinema"
+                                    type="number"
+                                    placeholder="5000"
+                                    value={cinemaInput}
+                                    onChange={(e) => setCinemaInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                                <p className="text-[11px] text-slate-500">Dikenakan per tiket bioskop yang dipesan (CGV/XXI/Cinepolis), terlepas dari promo B1G1 Cinepolis.</p>
                             </div>
                         </div>
                         <Button type="submit" disabled={updateFeeMutation.isPending} className="w-full sm:w-auto">
