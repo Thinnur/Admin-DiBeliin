@@ -4,7 +4,7 @@
 // Store status control, service toggles, voucher management, and banner management
 
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, Store, Power, Tag, Coffee, Settings, Key, Server, Save } from 'lucide-react';
+import { Trash2, Plus, Store, Power, Tag, Coffee, Settings, Key, Server, Save, Clapperboard } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
@@ -123,11 +123,13 @@ interface ServiceStatusSectionProps {
     isKenanganOpen: boolean;
     isTomoroOpen: boolean;
     isJanjijiwaOpen: boolean;
+    isCinemaOpen: boolean;
     isLoading: boolean;
     onToggleFore: () => void;
     onToggleKenangan: () => void;
     onToggleTomoro: () => void;
     onToggleJanjijiwa: () => void;
+    onToggleCinema: () => void;
 }
 
 function ServiceStatusSection({
@@ -135,11 +137,13 @@ function ServiceStatusSection({
     isKenanganOpen,
     isTomoroOpen,
     isJanjijiwaOpen,
+    isCinemaOpen,
     isLoading,
     onToggleFore,
     onToggleKenangan,
     onToggleTomoro,
     onToggleJanjijiwa,
+    onToggleCinema,
 }: ServiceStatusSectionProps) {
     return (
         <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
@@ -236,6 +240,27 @@ function ServiceStatusSection({
                         onCheckedChange={onToggleJanjijiwa}
                         disabled={isLoading}
                         className="data-[state=checked]:bg-zinc-800"
+                    />
+                </div>
+
+                {/* DiBeliin Tiket (Cinema) Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-indigo-50 border border-indigo-200">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCinemaOpen ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                            <Clapperboard className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-slate-900">Layanan DiBeliin Tiket</p>
+                            <p className="text-sm text-slate-500">
+                                {isCinemaOpen ? 'Checkout tiket bioskop aktif' : 'Checkout tiket ditutup — user tetap bisa cek jadwal & kursi'}
+                            </p>
+                        </div>
+                    </div>
+                    <Switch
+                        checked={isCinemaOpen}
+                        onCheckedChange={onToggleCinema}
+                        disabled={isLoading}
+                        className="data-[state=checked]:bg-indigo-600"
                     />
                 </div>
             </CardContent>
@@ -898,6 +923,7 @@ export default function Operational() {
     const [isKenanganOpen, setIsKenanganOpen] = useState(true);
     const [isTomoroOpen, setIsTomoroOpen] = useState(true);
     const [isJanjijiwaOpen, setIsJanjijiwaOpen] = useState(true);
+    const [isCinemaOpen, setIsCinemaOpen] = useState(true);
     const [isServiceLoading, setIsServiceLoading] = useState(false);
 
     // Voucher state
@@ -914,18 +940,20 @@ export default function Operational() {
 
     const fetchInitialData = async (loadVouchers: boolean) => {
         try {
-            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus] = await Promise.all([
+            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus] = await Promise.all([
                 getStoreStatus(),
                 getServiceStatus('fore'),
                 getServiceStatus('kenangan'),
                 getServiceStatus('tomoro'),
                 getServiceStatus('janjijiwa'),
+                getServiceStatus('cinema'),
             ]);
             setIsStoreOpen(status);
             setIsForeOpen(foreStatus);
             setIsKenanganOpen(kenanganStatus);
             setIsTomoroOpen(tomoroStatus);
             setIsJanjijiwaOpen(janjijiwaStatus);
+            setIsCinemaOpen(cinemaStatus);
             if (loadVouchers) {
                 const voucherList = await getVouchers();
                 setVouchers(voucherList);
@@ -1020,6 +1048,22 @@ export default function Operational() {
         }
     };
 
+    // Toggle Cinema (DiBeliin Tiket) checkout
+    const handleToggleCinema = async () => {
+        setIsServiceLoading(true);
+        try {
+            const newStatus = !isCinemaOpen;
+            await updateServiceStatus('cinema', newStatus);
+            setIsCinemaOpen(newStatus);
+            toast.success(`Checkout DiBeliin Tiket ${newStatus ? 'DIBUKA' : 'DITUTUP'}`);
+        } catch (error) {
+            console.error('Error toggling Cinema service:', error);
+            toast.error('Gagal mengubah status layanan DiBeliin Tiket');
+        } finally {
+            setIsServiceLoading(false);
+        }
+    };
+
     // Create voucher
     const handleCreateVoucher = async (voucherData: Partial<Voucher>) => {
         setIsCreating(true);
@@ -1067,11 +1111,13 @@ export default function Operational() {
                     isKenanganOpen={isKenanganOpen}
                     isTomoroOpen={isTomoroOpen}
                     isJanjijiwaOpen={isJanjijiwaOpen}
+                    isCinemaOpen={isCinemaOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
+                    onToggleCinema={handleToggleCinema}
                 />
 
                 <AdminFeeSection />
@@ -1112,11 +1158,13 @@ export default function Operational() {
                     isKenanganOpen={isKenanganOpen}
                     isTomoroOpen={isTomoroOpen}
                     isJanjijiwaOpen={isJanjijiwaOpen}
+                    isCinemaOpen={isCinemaOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
+                    onToggleCinema={handleToggleCinema}
                 />
 
                 <AdminFeeSection />
