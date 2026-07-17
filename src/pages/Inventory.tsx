@@ -92,17 +92,19 @@ function calculateVoucherStats(accounts: Account[]): VoucherStats {
     const kopkenAccounts = accounts.filter((a) => a.brand === 'kopken');
     const tomoroAccounts = accounts.filter((a) => a.brand === 'tomoro');
     const janjijiwaAccounts = accounts.filter((a) => a.brand === 'janjijiwa');
+    // Akun berstatus 'issue' tetap menyimpan vouchernya tapi tidak dihitung sebagai tersedia
+    const notIssue = (a: Account) => a.status !== 'issue';
     return {
-        foreBogo: foreAccounts.filter((a) => a.is_bogo_ready === true).length,
-        foreDisc35: foreAccounts.filter((a) => a.is_discount35_ready === true).length,
+        foreBogo: foreAccounts.filter((a) => notIssue(a) && a.is_bogo_ready === true).length,
+        foreDisc35: foreAccounts.filter((a) => notIssue(a) && a.is_discount35_ready === true).length,
         foreTotal: foreAccounts.length,
-        kopkenNomin: kopkenAccounts.filter((a) => a.is_nomin_ready === true).length,
-        kopkenMin50k: kopkenAccounts.filter((a) => a.is_min50k_ready === true).length,
+        kopkenNomin: kopkenAccounts.filter((a) => notIssue(a) && a.is_nomin_ready === true).length,
+        kopkenMin50k: kopkenAccounts.filter((a) => notIssue(a) && a.is_min50k_ready === true).length,
         kopkenTotal: kopkenAccounts.length,
-        tomoroBogo: tomoroAccounts.filter((a) => a.is_bogo_ready === true).length,
-        tomoroDisc50: tomoroAccounts.filter((a) => a.is_discount35_ready === true).length,
+        tomoroBogo: tomoroAccounts.filter((a) => notIssue(a) && a.is_bogo_ready === true).length,
+        tomoroDisc50: tomoroAccounts.filter((a) => notIssue(a) && a.is_discount35_ready === true).length,
         tomoroTotal: tomoroAccounts.length,
-        janjijiwaDisc50: janjijiwaAccounts.filter((a) => a.is_discount35_ready === true).length,
+        janjijiwaDisc50: janjijiwaAccounts.filter((a) => notIssue(a) && a.is_discount35_ready === true).length,
         janjijiwaTotal: janjijiwaAccounts.length,
     };
 }
@@ -360,6 +362,13 @@ export default function InventoryPage() {
         }
     };
 
+    const handleMarkAsIssue = (account: Account) => {
+        updateStatus.mutate({
+            id: account.id,
+            status: 'issue',
+        });
+    };
+
     const handleMarkAsInUse = (account: Account) => {
         // Open dialog to ask who is using this account
         setInUseAccount(account);
@@ -411,6 +420,7 @@ export default function InventoryPage() {
         onEdit: handleEdit,
         onDelete: handleDelete,
         onMarkAsSold: handleMarkAsSold,
+        onMarkAsIssue: handleMarkAsIssue,
         onMarkAsInUse: handleMarkAsInUse,
         onMarkAsReady: handleMarkAsReady,
         onToggleVoucher: handleToggleVoucher,

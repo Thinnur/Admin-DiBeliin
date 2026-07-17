@@ -555,7 +555,7 @@ export default function OutletManagement() {
                 <CardContent className="space-y-4">
                     {/* Brand Tabs */}
                     <Tabs value={brandFilter} onValueChange={(v) => setBrandFilter(v as typeof brandFilter)}>
-                        <TabsList className="grid w-full grid-cols-5">
+                        <TabsList className="w-full sm:grid sm:grid-cols-5">
                             <TabsTrigger value="all">Semua</TabsTrigger>
                             <TabsTrigger value="fore">Fore Coffee</TabsTrigger>
                             <TabsTrigger value="kenangan">Kopi Kenangan</TabsTrigger>

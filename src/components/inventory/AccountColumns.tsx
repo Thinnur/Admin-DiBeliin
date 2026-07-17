@@ -321,6 +321,7 @@ function ActionsCell({
     const [isOpen, setIsOpen] = useState(false);
     const isReady = account.status === 'ready';
     const isInUse = account.status === 'in_use';
+    const isIssue = account.status === 'issue';
     const isStaff = actions?.isStaff ?? false;
 
     return (
@@ -485,8 +486,22 @@ function ActionsCell({
                     </DropdownMenuItem>
                 )}
 
-                {/* Mark as Sold - only for ready accounts */}
-                {isReady && actions?.onMarkAsSold && (
+                {/* Mark as Issue - only for ready accounts */}
+                {isReady && actions?.onMarkAsIssue && (
+                    <DropdownMenuItem
+                        onClick={() => {
+                            actions.onMarkAsIssue?.(account);
+                            setIsOpen(false);
+                        }}
+                        className="cursor-pointer text-orange-600"
+                    >
+                        <AlertCircle className="w-4 h-4 mr-2" />
+                        Mark as Issue
+                    </DropdownMenuItem>
+                )}
+
+                {/* Mark as Sold - for ready or issue accounts */}
+                {(isReady || isIssue) && actions?.onMarkAsSold && (
                     <DropdownMenuItem
                         onClick={() => {
                             actions.onMarkAsSold?.(account);
@@ -583,6 +598,7 @@ export interface AccountColumnActions {
     onEdit?: (account: Account) => void;
     onDelete?: (account: Account) => void;
     onMarkAsSold?: (account: Account) => void;
+    onMarkAsIssue?: (account: Account) => void;
     onMarkAsInUse?: (account: Account) => void;
     onMarkAsReady?: (account: Account) => void;
     onToggleVoucher?: (account: Account, voucher: 'nomin' | 'min50k' | 'bogo' | 'disc35', newValue: boolean) => void;
