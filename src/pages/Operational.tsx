@@ -46,9 +46,17 @@ import {
     type Voucher,
     type AdminFees,
 } from '@/services/operationalService';
+import {
+    getPopupTemplates,
+    getActiveTemplateIds,
+    setActiveTemplate,
+    type PopupTemplate,
+    type PopupBrand,
+} from '@/services/popupTemplateService';
 import { useAuth } from '@/contexts/AuthContext';
 import BannerManagement from '@/components/inventory/BannerManagement';
 import AntrianPesananTable from '@/components/operational/AntrianPesananTable';
+import PopupTemplateManagement from '@/components/operational/PopupTemplateManagement';
 
 // -----------------------------------------------------------------------------
 // Store Status Section
@@ -130,6 +138,40 @@ interface ServiceStatusSectionProps {
     onToggleTomoro: () => void;
     onToggleJanjijiwa: () => void;
     onToggleCinema: () => void;
+    popupTemplates: PopupTemplate[];
+    activeTemplateIds: Record<PopupBrand, string | null>;
+    onChangeTemplate: (brand: PopupBrand, templateId: string) => void;
+}
+
+// Dropdown to pick which popup template shows when this brand is closed
+function TemplatePickerRow({
+    templates,
+    activeId,
+    onChange,
+}: {
+    templates: PopupTemplate[];
+    activeId: string | null;
+    onChange: (templateId: string) => void;
+}) {
+    if (templates.length === 0) return null;
+
+    return (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-black/5">
+            <span className="text-xs text-slate-500 shrink-0">Templat popup tutup:</span>
+            <Select value={activeId ?? undefined} onValueChange={onChange}>
+                <SelectTrigger className="h-8 text-xs bg-white">
+                    <SelectValue placeholder="Pilih templat" />
+                </SelectTrigger>
+                <SelectContent>
+                    {templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                            {t.emoji} {t.name}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
+    );
 }
 
 function ServiceStatusSection({
@@ -144,6 +186,9 @@ function ServiceStatusSection({
     onToggleTomoro,
     onToggleJanjijiwa,
     onToggleCinema,
+    popupTemplates,
+    activeTemplateIds,
+    onChangeTemplate,
 }: ServiceStatusSectionProps) {
     return (
         <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
@@ -160,86 +205,114 @@ function ServiceStatusSection({
             </CardHeader>
             <CardContent className="space-y-4">
                 {/* Fore Coffee Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-blue-50 border border-blue-200">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isForeOpen ? 'bg-blue-500' : 'bg-slate-300'}`}>
-                            <Coffee className="h-5 w-5 text-white" />
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isForeOpen ? 'bg-blue-500' : 'bg-slate-300'}`}>
+                                <Coffee className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Layanan Fore Coffee</p>
+                                <p className="text-sm text-slate-500">
+                                    {isForeOpen ? 'Menerima pesanan Fore' : 'Tidak menerima pesanan Fore'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-semibold text-slate-900">Layanan Fore Coffee</p>
-                            <p className="text-sm text-slate-500">
-                                {isForeOpen ? 'Menerima pesanan Fore' : 'Tidak menerima pesanan Fore'}
-                            </p>
-                        </div>
+                        <Switch
+                            checked={isForeOpen}
+                            onCheckedChange={onToggleFore}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-blue-600"
+                        />
                     </div>
-                    <Switch
-                        checked={isForeOpen}
-                        onCheckedChange={onToggleFore}
-                        disabled={isLoading}
-                        className="data-[state=checked]:bg-blue-600"
+                    <TemplatePickerRow
+                        templates={popupTemplates}
+                        activeId={activeTemplateIds.fore}
+                        onChange={(id) => onChangeTemplate('fore', id)}
                     />
                 </div>
 
                 {/* Kopi Kenangan Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-amber-50 border border-amber-200">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isKenanganOpen ? 'bg-amber-500' : 'bg-slate-300'}`}>
-                            <Coffee className="h-5 w-5 text-white" />
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isKenanganOpen ? 'bg-amber-500' : 'bg-slate-300'}`}>
+                                <Coffee className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Layanan Kopi Kenangan</p>
+                                <p className="text-sm text-slate-500">
+                                    {isKenanganOpen ? 'Menerima pesanan Kenangan' : 'Tidak menerima pesanan Kenangan'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-semibold text-slate-900">Layanan Kopi Kenangan</p>
-                            <p className="text-sm text-slate-500">
-                                {isKenanganOpen ? 'Menerima pesanan Kenangan' : 'Tidak menerima pesanan Kenangan'}
-                            </p>
-                        </div>
+                        <Switch
+                            checked={isKenanganOpen}
+                            onCheckedChange={onToggleKenangan}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-amber-600"
+                        />
                     </div>
-                    <Switch
-                        checked={isKenanganOpen}
-                        onCheckedChange={onToggleKenangan}
-                        disabled={isLoading}
-                        className="data-[state=checked]:bg-amber-600"
+                    <TemplatePickerRow
+                        templates={popupTemplates}
+                        activeId={activeTemplateIds.kenangan}
+                        onChange={(id) => onChangeTemplate('kenangan', id)}
                     />
                 </div>
 
                 {/* Tomoro Coffee Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-orange-50 border border-orange-200">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isTomoroOpen ? 'bg-orange-500' : 'bg-slate-300'}`}>
-                            <Coffee className="h-5 w-5 text-white" />
+                <div className="p-4 rounded-xl bg-orange-50 border border-orange-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isTomoroOpen ? 'bg-orange-500' : 'bg-slate-300'}`}>
+                                <Coffee className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Layanan Tomoro Coffee</p>
+                                <p className="text-sm text-slate-500">
+                                    {isTomoroOpen ? 'Menerima pesanan Tomoro' : 'Tidak menerima pesanan Tomoro'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-semibold text-slate-900">Layanan Tomoro Coffee</p>
-                            <p className="text-sm text-slate-500">
-                                {isTomoroOpen ? 'Menerima pesanan Tomoro' : 'Tidak menerima pesanan Tomoro'}
-                            </p>
-                        </div>
+                        <Switch
+                            checked={isTomoroOpen}
+                            onCheckedChange={onToggleTomoro}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-orange-600"
+                        />
                     </div>
-                    <Switch
-                        checked={isTomoroOpen}
-                        onCheckedChange={onToggleTomoro}
-                        disabled={isLoading}
-                        className="data-[state=checked]:bg-orange-600"
+                    <TemplatePickerRow
+                        templates={popupTemplates}
+                        activeId={activeTemplateIds.tomoro}
+                        onChange={(id) => onChangeTemplate('tomoro', id)}
                     />
                 </div>
 
                 {/* Kopi Janji Jiwa Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-zinc-50 border border-zinc-200">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isJanjijiwaOpen ? 'bg-zinc-800' : 'bg-slate-300'}`}>
-                            <Coffee className="h-5 w-5 text-white" />
+                <div className="p-4 rounded-xl bg-zinc-50 border border-zinc-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isJanjijiwaOpen ? 'bg-zinc-800' : 'bg-slate-300'}`}>
+                                <Coffee className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Layanan Kopi Janji Jiwa</p>
+                                <p className="text-sm text-slate-500">
+                                    {isJanjijiwaOpen ? 'Menerima pesanan Janji Jiwa' : 'Tidak menerima pesanan Janji Jiwa'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-semibold text-slate-900">Layanan Kopi Janji Jiwa</p>
-                            <p className="text-sm text-slate-500">
-                                {isJanjijiwaOpen ? 'Menerima pesanan Janji Jiwa' : 'Tidak menerima pesanan Janji Jiwa'}
-                            </p>
-                        </div>
+                        <Switch
+                            checked={isJanjijiwaOpen}
+                            onCheckedChange={onToggleJanjijiwa}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-zinc-800"
+                        />
                     </div>
-                    <Switch
-                        checked={isJanjijiwaOpen}
-                        onCheckedChange={onToggleJanjijiwa}
-                        disabled={isLoading}
-                        className="data-[state=checked]:bg-zinc-800"
+                    <TemplatePickerRow
+                        templates={popupTemplates}
+                        activeId={activeTemplateIds.janjijiwa}
+                        onChange={(id) => onChangeTemplate('janjijiwa', id)}
                     />
                 </div>
 
@@ -926,6 +999,15 @@ export default function Operational() {
     const [isCinemaOpen, setIsCinemaOpen] = useState(true);
     const [isServiceLoading, setIsServiceLoading] = useState(false);
 
+    // Popup template state (which "brand closed" text is active per brand)
+    const [popupTemplates, setPopupTemplates] = useState<PopupTemplate[]>([]);
+    const [activeTemplateIds, setActiveTemplateIds] = useState<Record<PopupBrand, string | null>>({
+        fore: null,
+        kenangan: null,
+        tomoro: null,
+        janjijiwa: null,
+    });
+
     // Voucher state
     const [vouchers, setVouchers] = useState<Voucher[]>([]);
     const [isVouchersLoading, setIsVouchersLoading] = useState(true);
@@ -940,13 +1022,15 @@ export default function Operational() {
 
     const fetchInitialData = async (loadVouchers: boolean) => {
         try {
-            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus] = await Promise.all([
+            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus, templates, activeIds] = await Promise.all([
                 getStoreStatus(),
                 getServiceStatus('fore'),
                 getServiceStatus('kenangan'),
                 getServiceStatus('tomoro'),
                 getServiceStatus('janjijiwa'),
                 getServiceStatus('cinema'),
+                getPopupTemplates(),
+                getActiveTemplateIds(),
             ]);
             setIsStoreOpen(status);
             setIsForeOpen(foreStatus);
@@ -954,6 +1038,8 @@ export default function Operational() {
             setIsTomoroOpen(tomoroStatus);
             setIsJanjijiwaOpen(janjijiwaStatus);
             setIsCinemaOpen(cinemaStatus);
+            setPopupTemplates(templates);
+            setActiveTemplateIds(activeIds);
             if (loadVouchers) {
                 const voucherList = await getVouchers();
                 setVouchers(voucherList);
@@ -1064,6 +1150,19 @@ export default function Operational() {
         }
     };
 
+    // Change which popup template is active for a brand
+    const handleChangeTemplate = async (brand: PopupBrand, templateId: string) => {
+        const previous = activeTemplateIds[brand];
+        setActiveTemplateIds((prev) => ({ ...prev, [brand]: templateId }));
+        try {
+            await setActiveTemplate(brand, templateId);
+            toast.success('Templat popup berhasil diperbarui');
+        } catch (error) {
+            setActiveTemplateIds((prev) => ({ ...prev, [brand]: previous }));
+            toast.error(error instanceof Error ? error.message : 'Gagal mengubah templat popup');
+        }
+    };
+
     // Create voucher
     const handleCreateVoucher = async (voucherData: Partial<Voucher>) => {
         setIsCreating(true);
@@ -1118,6 +1217,9 @@ export default function Operational() {
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
                     onToggleCinema={handleToggleCinema}
+                    popupTemplates={popupTemplates}
+                    activeTemplateIds={activeTemplateIds}
+                    onChangeTemplate={handleChangeTemplate}
                 />
 
                 <AdminFeeSection />
@@ -1137,6 +1239,9 @@ export default function Operational() {
                 </TabsTrigger>
                 <TabsTrigger value="riwayat-antrian" className="flex-1 sm:flex-none">
                     Riwayat Antrian
+                </TabsTrigger>
+                <TabsTrigger value="popup-templates" className="flex-1 sm:flex-none">
+                    Templat Popup
                 </TabsTrigger>
                 <TabsTrigger value="api-sync" className="flex-1 sm:flex-none">
                     API Sync Kopi Kenangan
@@ -1165,6 +1270,9 @@ export default function Operational() {
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
                     onToggleCinema={handleToggleCinema}
+                    popupTemplates={popupTemplates}
+                    activeTemplateIds={activeTemplateIds}
+                    onChangeTemplate={handleChangeTemplate}
                 />
 
                 <AdminFeeSection />
@@ -1213,6 +1321,11 @@ export default function Operational() {
             {/* ── Tab: Riwayat Antrian ──────────────────────────────────── */}
             <TabsContent value="riwayat-antrian" className="mt-0">
                 <AntrianPesananTable />
+            </TabsContent>
+
+            {/* ── Tab: Templat Popup ───────────────────────────────────── */}
+            <TabsContent value="popup-templates" className="mt-0">
+                <PopupTemplateManagement />
             </TabsContent>
 
             {/* ── Tab: API Sync Kopi Kenangan ───────────────────────────── */}
