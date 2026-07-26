@@ -386,6 +386,8 @@ export default function CalculatorPage() {
     // Input state
     const [orderText, setOrderText] = useState('');
     const [items, setItems] = useState<EditableItem[]>([]);
+    const [customerName, setCustomerName] = useState('');
+    const [outletName, setOutletName] = useState('');
     const [brand, setBrand] = useState<AccountBrand>('kopken');
     const [adminCost, setAdminCost] = useState(5000);
     const [dbAdminFees, setDbAdminFees] = useState<AdminFees | null>(null);
@@ -484,6 +486,8 @@ export default function CalculatorPage() {
         setItems(editableItems);
         setResult(null);
         setHasOptimized(false);
+        setCustomerName(parsed.customerName ?? '');
+        setOutletName(parsed.outlet ?? '');
 
         const errorCount = parsed.items.filter((i) => i.hasError).length;
         if (errorCount > 0) {
@@ -538,6 +542,8 @@ export default function CalculatorPage() {
         setItems([]);
         setResult(null);
         setHasOptimized(false);
+        setCustomerName('');
+        setOutletName('');
     };
 
     // Optimize order
@@ -599,7 +605,9 @@ export default function CalculatorPage() {
 
         const summary = `\n---\nTotal: ${formatPrice(result.totalBill)}\nDiscount: -${formatPrice(result.totalDiscount)}\nAdmin Cost: +${formatPrice(result.totalAdminCost)}\nFinal: ${formatPrice(result.finalPrice)}`;
 
-        navigator.clipboard.writeText(text + summary);
+        const header = `Nama: ${customerName || '[nama pemesan]'}\nOutlet: ${outletName || '[Outlet]'}\n\n`;
+
+        navigator.clipboard.writeText(header + text + summary);
         toast.success('Strategy copied to clipboard!');
     };
 

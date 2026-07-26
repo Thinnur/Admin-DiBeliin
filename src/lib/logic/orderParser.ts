@@ -25,6 +25,8 @@ export interface ParseResult {
     unparsedLines: string[];
     totalParsed: number;
     totalUnparsed: number;
+    customerName?: string;
+    outlet?: string;
 }
 
 interface PendingItem {
@@ -38,6 +40,8 @@ interface PendingItem {
 const ITEM_REGEX = /(?:^\d+[.)]\s*)?(.+?)\s+(?:x|X|\u00D7)\s*(\d+)$/;
 const PURE_PRICE_REGEX = /^(?:rp\.?|idr)?\s*([\d.,]+)$/i;
 const ITEM_META_REGEX = /^(order|pesanan|detail pembayaran|total|subtotal|ongkir|delivery|discount|diskon|biaya admin|admin fee|terima kasih|nama|outlet)\b/i;
+const NAMA_REGEX = /^nama\s*:\s*(.+)$/i;
+const OUTLET_REGEX = /^outlet\s*:\s*(.+)$/i;
 
 function parsePrice(line: string): number | null {
     if (!PURE_PRICE_REGEX.test(line)) return null;
@@ -86,6 +90,8 @@ function pushPendingAsError(target: PendingItem, items: ParsedItem[]): void {
 export function parseWhatsAppOrder(text: string): ParseResult {
     const items: ParsedItem[] = [];
     const unparsedLines: string[] = [];
+    let customerName: string | undefined;
+    let outlet: string | undefined;
 
     const lines = text
         .split(/\r?\n/)
@@ -105,6 +111,10 @@ export function parseWhatsAppOrder(text: string): ParseResult {
 
         // Skip obvious header/footer lines when not inside an item block
         if (!currentItem && ITEM_META_REGEX.test(cleanLine)) {
+            const namaMatch = cleanLine.match(NAMA_REGEX);
+            if (namaMatch) customerName = namaMatch[1].trim();
+            const outletMatch = cleanLine.match(OUTLET_REGEX);
+            if (outletMatch) outlet = outletMatch[1].trim();
             continue;
         }
 
@@ -168,6 +178,8 @@ export function parseWhatsAppOrder(text: string): ParseResult {
         unparsedLines,
         totalParsed: items.length,
         totalUnparsed: unparsedLines.length,
+        customerName,
+        outlet,
     };
 }
 
