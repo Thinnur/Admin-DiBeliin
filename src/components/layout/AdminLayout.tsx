@@ -23,6 +23,7 @@ import {
     CalendarClock,
     Layers,
     ShieldAlert,
+    History,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -54,6 +55,12 @@ const navItems = [
         path: '/calculator',
         icon: Calculator,
         description: 'Optimize orders',
+    },
+    {
+        label: 'Riwayat Checkout',
+        path: '/checkout-history',
+        icon: History,
+        description: 'Status order Kopken',
     },
     {
         label: 'Operational',
@@ -110,6 +117,10 @@ const pageTitles: Record<string, { title: string; description: string }> = {
         title: 'Calculator',
         description: 'Optimize order splitting for maximum savings',
     },
+    '/checkout-history': {
+        title: 'Riwayat Checkout',
+        description: 'Status, QRIS, dan struk order Kopken',
+    },
     '/operational': {
         title: 'Operational',
         description: 'Manage store status and vouchers',
@@ -155,7 +166,7 @@ function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user
 
     // Filter navigasi: Staff bisa akses Inventory, Calculator, dan Operational
     const visibleNavItems = isStaff
-        ? navItems.filter((item) => ['/inventory', '/calculator', '/operational'].includes(item.path))
+        ? navItems.filter((item) => ['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path))
         : navItems;
 
     return (
@@ -380,9 +391,9 @@ const secondaryNavItems = navItems.filter(
     (item) => !['/inventory', '/finance', '/calculator', '/operational'].includes(item.path)
 );
 
-// Menu untuk Staff (Inventory, Calculator, dan Operational)
+// Menu untuk Staff (Inventory, Calculator, Riwayat Checkout, dan Operational)
 const staffNavItems = navItems.filter((item) =>
-    ['/inventory', '/calculator', '/operational'].includes(item.path)
+    ['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path)
 );
 
 interface MobileBottomNavProps {

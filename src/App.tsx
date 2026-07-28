@@ -15,6 +15,8 @@ import LoginPage from '@/pages/Login';
 import InventoryPage from '@/pages/Inventory';
 import FinancePage from '@/pages/Finance';
 import CalculatorPage from '@/pages/Calculator';
+import CheckoutHistoryPage from '@/pages/CheckoutHistory';
+import CheckoutProcessPage from '@/pages/CheckoutProcess';
 import OperationalPage from '@/pages/Operational';
 import OutletManagementPage from '@/pages/OutletManagement';
 import MenuManagementPage from '@/pages/MenuManagement';
@@ -57,6 +59,8 @@ function App() {
               {/* Rute yang bisa diakses SEMUA role */}
               <Route path="/inventory" element={<InventoryPage />} />
               <Route path="/calculator" element={<CalculatorPage />} />
+              <Route path="/checkout-history" element={<CheckoutHistoryPage />} />
+              <Route path="/checkout-process/:jobId" element={<CheckoutProcessPage />} />
               <Route path="/operational" element={<OperationalPage />} />
 
               {/* Rute khusus Super Admin — Staff akan di-redirect ke /inventory */}

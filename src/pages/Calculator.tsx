@@ -10,6 +10,7 @@ import {
     Trash2,
     Plus,
     Copy,
+    Braces,
     AlertCircle,
     Zap,
     TrendingDown,
@@ -36,6 +37,14 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
+import {
     parseWhatsAppOrder,
     formatPrice,
     getSampleOrderText,
@@ -48,6 +57,11 @@ import {
     type CartItem,
     type OptimizationResult,
 } from '@/lib/logic/optimizer';
+import {
+    createCheckoutJob,
+    type CheckoutJobOrderPayload,
+} from '@/services/checkoutJobService';
+import { useAuth } from '@/contexts/AuthContext';
 import type { AccountBrand } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -59,6 +73,15 @@ interface EditableItem extends ParsedItem {
     /** Tomoro Coffee only: harga Regular menu (untuk BOGO discount) */
     basePrice?: number;
 }
+
+const VOUCHER_LABELS: Record<string, string> = {
+    nomin: 'No Min',
+    min50k: 'Min 50k',
+    fore_25pct: 'Diskon 25%',
+    tomoro_bogo: 'Tomoro BOGO',
+    tomoro_50: 'Tomoro 50%',
+    jiwa_50: 'Janji Jiwa 50%',
+};
 
 // -----------------------------------------------------------------------------
 // Item Row Component
@@ -308,6 +331,128 @@ function StrategyCard({
                 </div>
             </CardContent>
         </Card>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Kopken Checkout Panel — trigger runCheckout.js (dawg.colok.me automation)
+// lewat job queue Supabase `checkout_jobs`, dikonsumsi checkout_worker.js (pm2)
+// di server automation. Cuma relevan buat brand kopken (brand lain belum ada
+// automation checkout-nya).
+// -----------------------------------------------------------------------------
+
+function mapVoucherToTier(recommendedVoucher: string): string {
+    return recommendedVoucher === 'min50k' ? 'Minimal 50k' : 'Tanpa Minimal';
+}
+
+// Nama item dari parseWhatsAppOrder sering bawa size sebagai suffix di nama itu
+// sendiri ("Cafe Malt Latte - Regular"), BUKAN sebagai baris "+ addon" terpisah —
+// harus dipindah ke options, bukan cuma dibuang, atau dimensi "Size" di dawg.colok.me
+// gak pernah keisi dan checkout diam-diam salah pilih varian default.
+function extractSize(name: string): { cleanName: string; size: string | null } {
+    const match = name.match(/^(.*?)\s*-\s*(Regular|Large|Reguler)\s*$/i);
+    if (!match) return { cleanName: name.trim(), size: null };
+    const size = /reguler/i.test(match[2]) ? 'Regular' : match[2];
+    return { cleanName: match[1].trim(), size };
+}
+
+function addonToOptionValue(addon: string): string {
+    const idx = addon.indexOf(':');
+    return idx >= 0 ? addon.slice(idx + 1).trim() : addon.trim();
+}
+
+function buildKopkenOrderPayload(
+    group: OptimizationResult['groups'][0],
+    outlet: string,
+    customerName: string
+): CheckoutJobOrderPayload {
+    return {
+        outlet: outlet || '',
+        name: customerName || 'DiBeliin',
+        voucher: mapVoucherToTier(group.recommendedVoucher),
+        subtotal: group.totalPrice,
+        items: group.items.map((item) => {
+            const { cleanName, size } = extractSize(item.name);
+            const options = (item.addons ?? []).map(addonToOptionValue);
+            if (size) options.push(size);
+            return { name: cleanName, options };
+        }),
+    };
+}
+
+function KopkenCheckoutPanel({
+    group,
+    outlet,
+    customerName,
+}: {
+    group: OptimizationResult['groups'][0];
+    outlet: string;
+    customerName: string;
+}) {
+    const { user } = useAuth();
+    const [dialogOpen, setDialogOpen] = useState(false);
+    const [jsonDraft, setJsonDraft] = useState('');
+    const [submitting, setSubmitting] = useState(false);
+
+    const openDialog = () => {
+        setJsonDraft(JSON.stringify(buildKopkenOrderPayload(group, outlet, customerName), null, 2));
+        setDialogOpen(true);
+    };
+
+    const handleSubmit = async () => {
+        let payload: CheckoutJobOrderPayload;
+        try {
+            payload = JSON.parse(jsonDraft);
+        } catch {
+            toast.error('JSON order tidak valid.');
+            return;
+        }
+        setSubmitting(true);
+        try {
+            const created = await createCheckoutJob(payload, user?.email ?? undefined);
+            setDialogOpen(false);
+            // Buka tab baru (bukan navigasi di tab ini) — biar Calculator tetap kebuka
+            // buat proses checkout akun lain, dan tiap checkout bisa dipantau di tab sendiri.
+            window.open(`/checkout-process/${created.id}`, '_blank');
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Gagal mengirim checkout.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="mt-2">
+            <Button variant="outline" size="sm" className="w-full" onClick={openDialog}>
+                <Zap className="w-4 h-4 mr-2" />
+                Proses Checkout (Kopken Otomatis)
+            </Button>
+
+            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogContent className="max-w-lg">
+                    <DialogHeader>
+                        <DialogTitle>Review Order Sebelum Checkout</DialogTitle>
+                        <DialogDescription>
+                            Cek nama menu &amp; opsi (Ice/Sugar/Size dll) sesuai tampilan dawg.colok.me sebelum kirim —
+                            voucher akun akan langsung terpakai begitu diproses.
+                        </DialogDescription>
+                    </DialogHeader>
+                    <textarea
+                        value={jsonDraft}
+                        onChange={(e) => setJsonDraft(e.target.value)}
+                        className="w-full h-72 p-3 text-xs font-mono border rounded-lg resize-none focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                    />
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                            Batal
+                        </Button>
+                        <Button onClick={handleSubmit} disabled={submitting}>
+                            {submitting ? 'Mengirim...' : 'Kirim & Proses'}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+        </div>
     );
 }
 
@@ -582,15 +727,6 @@ export default function CalculatorPage() {
     const handleCopyResult = () => {
         if (!result) return;
 
-        const VOUCHER_LABELS: Record<string, string> = {
-            nomin: 'No Min',
-            min50k: 'Min 50k',
-            fore_25pct: 'Diskon 25%',
-            tomoro_bogo: 'Tomoro BOGO',
-            tomoro_50: 'Tomoro 50%',
-            jiwa_50: 'Janji Jiwa 50%',
-        };
-
         const text = result.groups
             .map((g, i) => {
                 const items = g.items.map((item) => {
@@ -609,6 +745,38 @@ export default function CalculatorPage() {
 
         navigator.clipboard.writeText(header + text + summary);
         toast.success('Strategy copied to clipboard!');
+    };
+
+    // Copy result as JSON (machine-readable)
+    const handleCopyResultJson = () => {
+        if (!result) return;
+
+        const payload = {
+            customer: { name: customerName || null, outlet: outletName || null },
+            brand,
+            groups: result.groups.map((g, i) => ({
+                index: i + 1,
+                voucher: g.recommendedVoucher,
+                voucherLabel: VOUCHER_LABELS[g.recommendedVoucher] ?? g.recommendedVoucher,
+                items: g.items.map((item) => ({
+                    name: item.name,
+                    qty: 1,
+                    price: item.price,
+                    addons: item.addons ?? [],
+                })),
+                subtotal: g.totalPrice,
+                discount: g.estimatedDiscount,
+            })),
+            totals: {
+                bill: result.totalBill,
+                discount: result.totalDiscount,
+                adminCost: result.totalAdminCost,
+                final: result.finalPrice,
+            },
+        };
+
+        navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+        toast.success('Strategy copied as JSON!');
     };
 
     // Calculate totals
@@ -844,7 +1012,16 @@ Example:
                                     Strategy ({result.groups.length} groups)
                                 </h3>
                                 {result.groups.map((group, index) => (
-                                    <StrategyCard key={group.id} group={group} index={index} />
+                                    <div key={group.id}>
+                                        <StrategyCard group={group} index={index} />
+                                        {brand === 'kopken' && (
+                                            <KopkenCheckoutPanel
+                                                group={group}
+                                                outlet={outletName}
+                                                customerName={customerName}
+                                            />
+                                        )}
+                                    </div>
                                 ))}
                             </div>
 
@@ -853,6 +1030,10 @@ Example:
                                 <Button variant="outline" onClick={handleCopyResult}>
                                     <Copy className="w-4 h-4 mr-2" />
                                     Copy
+                                </Button>
+                                <Button variant="outline" onClick={handleCopyResultJson}>
+                                    <Braces className="w-4 h-4 mr-2" />
+                                    Copy JSON
                                 </Button>
                             </div>
                         </>
