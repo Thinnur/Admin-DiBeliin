@@ -72,19 +72,27 @@ export default function CheckoutHistoryPage() {
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
 
-    const loadJobs = useCallback(async () => {
-        setLoading(true);
+    const loadJobs = useCallback(async (opts?: { silent?: boolean }) => {
+        if (!opts?.silent) setLoading(true);
         try {
             setJobs(await listCheckoutJobs());
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Gagal memuat riwayat checkout');
+            if (!opts?.silent) toast.error(e instanceof Error ? e.message : 'Gagal memuat riwayat checkout');
         } finally {
-            setLoading(false);
+            if (!opts?.silent) setLoading(false);
         }
     }, []);
 
     useEffect(() => {
         loadJobs();
+    }, [loadJobs]);
+
+    // Auto-refresh tiap 10 detik biar status pembayaran/pesanan kebaruan tanpa
+    // klik Refresh manual -- silent (gak nunjukin spinner/toast tiap tick)
+    // biar gak ganggu kalau lagi milih checkbox buat hapus.
+    useEffect(() => {
+        const interval = setInterval(() => { loadJobs({ silent: true }); }, 10000);
+        return () => clearInterval(interval);
     }, [loadJobs]);
 
     const filteredJobs = statusFilter === 'all' ? jobs : jobs.filter((j) => j.status === statusFilter);
