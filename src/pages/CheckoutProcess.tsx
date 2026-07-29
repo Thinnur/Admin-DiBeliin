@@ -19,10 +19,14 @@ import {
     QrisImage,
     CheckoutStatusBadge,
     PaymentStatusBadge,
+    OrderPhaseBadge,
     ReceiptSection,
     type KopkenCheckoutResult,
 } from '@/components/operational/CheckoutResultDisplay';
 import { isPaymentStatusFinal } from '@/lib/utils';
+
+const FAILED_PAYMENT_STATUSES = ['PAYMENT_FAILED', 'PAYMENT_FAILED_TEMP', 'PAYMENT_EXPIRED'];
+const ORDER_DONE_PHASE = 'Sudah diambil';
 
 export default function CheckoutProcessPage() {
     const { jobId } = useParams<{ jobId: string }>();
@@ -38,12 +42,16 @@ export default function CheckoutProcessPage() {
             .finally(() => setLoading(false));
     }, [jobId]);
 
-    // Poll tiap 2 detik selagi belum final (checkout masih pending/running, atau
-    // sukses tapi status bayarnya belum jelas).
+    // Poll tiap 2 detik selagi belum bener-bener final: checkout masih
+    // pending/running, status bayar belum jelas, ATAU udah dibayar tapi pesanan
+    // masih diproses dapur (belum "Sudah diambil"). Payment doang bukan garis
+    // finish lagi -- status pesanan (phase) bisa lanjut lama setelah bayar sukses.
     useEffect(() => {
         if (!job || job.status === 'failed') return;
-        const paymentStatus = (job.result as KopkenCheckoutResult | null)?.paymentStatus;
-        if (job.status === 'success' && isPaymentStatusFinal(paymentStatus)) return;
+        const r = job.result as KopkenCheckoutResult | null;
+        const paymentStatus = r?.paymentStatus;
+        if (paymentStatus && FAILED_PAYMENT_STATUSES.includes(paymentStatus)) return;
+        if (job.status === 'success' && isPaymentStatusFinal(paymentStatus) && r?.phase === ORDER_DONE_PHASE) return;
         const interval = setInterval(() => {
             getCheckoutJob(job.id).then(setJob).catch(() => {});
         }, 2000);
@@ -118,7 +126,10 @@ export default function CheckoutProcessPage() {
                                         Order berhasil dibuat: {r.orderId ?? '-'}
                                         {r.amount != null && ` — ${formatPrice(r.amount)}`}
                                     </p>
-                                    <PaymentStatusBadge paymentStatus={r.paymentStatus} />
+                                    <div className="flex items-center gap-1.5">
+                                        <PaymentStatusBadge paymentStatus={r.paymentStatus} />
+                                        <OrderPhaseBadge paymentStatus={r.paymentStatus} phase={r.phase} />
+                                    </div>
                                 </div>
                             )}
 

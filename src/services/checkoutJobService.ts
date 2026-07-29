@@ -12,6 +12,8 @@ export type CheckoutJobStatus = 'pending' | 'running' | 'success' | 'failed';
 export interface CheckoutJobOrderItem {
     name: string;
     options: string[];
+    /** Catatan bebas per item (mis. dari baris "Catatan:" WA order) — diteruskan ke orderNotes di runCheckout.js. */
+    notes?: string;
 }
 
 export interface CheckoutJobOrderPayload {
@@ -21,6 +23,9 @@ export interface CheckoutJobOrderPayload {
     accountId?: string;
     subtotal: number;
     items: CheckoutJobOrderItem[];
+    /** Jadwal pengambilan: "HH:MM" (24 jam, hari ini) buat "Jadwalkan", atau
+     * kosongkan buat "Pickup Sekarang". Diteruskan apa adanya ke runCheckout.js. */
+    pickupTime?: string;
 }
 
 export interface CheckoutJobLogEntry {
@@ -86,4 +91,31 @@ export async function listCheckoutJobs(limit = 100): Promise<CheckoutJob[]> {
 
     if (error) throw new Error(`Gagal memuat riwayat checkout: ${error.message}`);
     return (data ?? []) as CheckoutJob[];
+}
+
+/** Hapus permanen: baris checkout_jobs + foto struk terkait di storage bucket
+ * `checkout-receipts` (nama file selalu "Receipt_<orderId>.png", lihat
+ * checkout_worker.js/payment_status_worker.js). Gagal hapus foto TIDAK
+ * menggagalkan hapus baris DB — cuma di-log (mis. struk emang belum sempat ada). */
+export async function deleteCheckoutJobs(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const { data: jobs, error: fetchError } = await supabase
+        .from('checkout_jobs')
+        .select('id, result')
+        .in('id', ids);
+    if (fetchError) throw new Error(`Gagal ambil data sebelum hapus: ${fetchError.message}`);
+
+    const receiptFiles = (jobs ?? [])
+        .map((j) => (j.result as { orderId?: string } | null)?.orderId)
+        .filter((orderId): orderId is string => !!orderId)
+        .map((orderId) => `Receipt_${orderId}.png`);
+
+    if (receiptFiles.length > 0) {
+        const { error: storageError } = await supabase.storage.from('checkout-receipts').remove(receiptFiles);
+        if (storageError) console.warn('Sebagian foto struk gagal dihapus:', storageError.message);
+    }
+
+    const { error: deleteError } = await supabase.from('checkout_jobs').delete().in('id', ids);
+    if (deleteError) throw new Error(`Gagal hapus riwayat: ${deleteError.message}`);
 }

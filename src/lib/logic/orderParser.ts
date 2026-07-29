@@ -27,6 +27,11 @@ export interface ParseResult {
     totalUnparsed: number;
     customerName?: string;
     outlet?: string;
+    /** "HH:MM" (jadwal) kalau ada baris "Jam Pengambilan: 17:00", atau undefined
+     * kalau "Jam Pengambilan: Sekarang" / gak ada baris itu sama sekali (Pickup
+     * Sekarang). Baris ini di-generate oleh UniversalCart.tsx (DIBeliin) waktu
+     * customer checkout — bukan diketik manual, jadi format-nya selalu konsisten. */
+    pickupTime?: string;
 }
 
 interface PendingItem {
@@ -39,9 +44,11 @@ interface PendingItem {
 
 const ITEM_REGEX = /(?:^\d+[.)]\s*)?(.+?)\s+(?:x|X|\u00D7)\s*(\d+)$/;
 const PURE_PRICE_REGEX = /^(?:rp\.?|idr)?\s*([\d.,]+)$/i;
-const ITEM_META_REGEX = /^(order|pesanan|detail pembayaran|total|subtotal|ongkir|delivery|discount|diskon|biaya admin|admin fee|terima kasih|nama|outlet)\b/i;
+const ITEM_META_REGEX = /^(order|pesanan|detail pembayaran|total|subtotal|ongkir|delivery|discount|diskon|biaya admin|admin fee|terima kasih|nama|outlet|jam pengambilan)\b/i;
 const NAMA_REGEX = /^nama\s*:\s*(.+)$/i;
 const OUTLET_REGEX = /^outlet\s*:\s*(.+)$/i;
+const JAM_PENGAMBILAN_REGEX = /^jam\s*pengambilan\s*:\s*(.+)$/i;
+const VALID_PICKUP_TIME_REGEX = /^([01]\d|2[0-3]):[0-5]\d$/;
 
 function parsePrice(line: string): number | null {
     if (!PURE_PRICE_REGEX.test(line)) return null;
@@ -92,6 +99,7 @@ export function parseWhatsAppOrder(text: string): ParseResult {
     const unparsedLines: string[] = [];
     let customerName: string | undefined;
     let outlet: string | undefined;
+    let pickupTime: string | undefined;
 
     const lines = text
         .split(/\r?\n/)
@@ -115,6 +123,13 @@ export function parseWhatsAppOrder(text: string): ParseResult {
             if (namaMatch) customerName = namaMatch[1].trim();
             const outletMatch = cleanLine.match(OUTLET_REGEX);
             if (outletMatch) outlet = outletMatch[1].trim();
+            const jamMatch = cleanLine.match(JAM_PENGAMBILAN_REGEX);
+            if (jamMatch) {
+                const value = jamMatch[1].trim();
+                // "Sekarang" = Pickup Sekarang (ASAP), sama kayak gak ada baris ini
+                // sama sekali -> pickupTime dibiarkan undefined.
+                if (VALID_PICKUP_TIME_REGEX.test(value)) pickupTime = value;
+            }
             continue;
         }
 
@@ -180,6 +195,7 @@ export function parseWhatsAppOrder(text: string): ParseResult {
         totalUnparsed: unparsedLines.length,
         customerName,
         outlet,
+        pickupTime,
     };
 }
 

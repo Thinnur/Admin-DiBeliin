@@ -27,7 +27,14 @@ export interface KopkenCheckoutResult {
     /** Diisi belakangan oleh payment_status_worker.js (polling d5rk) — null = belum sempat dicek. */
     paymentStatus?: string | null;
     queueNumber?: string | null;
+    /** Status pesanan dari dapur/outlet — salah satu dari `phases`, urutan tetap:
+     * "Sedang Diproses" -> "Ambil Sekarang" -> "Sudah diambil". Cuma keisi kalau
+     * paymentStatus udah sukses (order-nya baru mulai diproses dapur setelah dibayar). */
     phase?: string | null;
+    phases?: string[] | null;
+    orderStatus?: string | null;
+    statusTitle?: string | null;
+    statusDesc?: string | null;
     paymentCheckedAt?: string;
 }
 
@@ -96,6 +103,40 @@ export function PaymentStatusBadge({ paymentStatus }: { paymentStatus?: string |
     return (
         <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
             Sudah Dibayar
+        </Badge>
+    );
+}
+
+const ORDER_DONE_PHASE = 'Sudah diambil';
+const ORDER_READY_PHASE = 'Ambil Sekarang';
+const FAILED_PAYMENT_STATUSES = ['PAYMENT_PENDING', 'PAYMENT_FAILED', 'PAYMENT_FAILED_TEMP', 'PAYMENT_EXPIRED'];
+
+/** Status pesanan dari dapur/outlet (BEDA dari PaymentStatusBadge yang cuma soal
+ * bayar) — diisi payment_status_worker.js (polling d5rk), progres tetap: Sedang
+ * Diproses -> Ambil Sekarang -> Sudah diambil. Order belum masuk antrian dapur
+ * sebelum dibayar, jadi belum ada status buat ditampilkan. */
+export function OrderPhaseBadge({ paymentStatus, phase }: { paymentStatus?: string | null; phase?: string | null }) {
+    const isPaid = paymentStatus && !FAILED_PAYMENT_STATUSES.includes(paymentStatus);
+    if (!isPaid || !phase) {
+        return <Badge variant="outline" className="bg-slate-100 text-slate-400 border-slate-200">—</Badge>;
+    }
+    if (phase === ORDER_DONE_PHASE) {
+        return (
+            <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
+                Pesanan Selesai
+            </Badge>
+        );
+    }
+    if (phase === ORDER_READY_PHASE) {
+        return (
+            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 animate-pulse">
+                Siap Diambil
+            </Badge>
+        );
+    }
+    return (
+        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            Sedang Diproses
         </Badge>
     );
 }

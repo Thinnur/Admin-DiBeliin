@@ -7,7 +7,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw } from 'lucide-react';
+import { RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -27,16 +27,29 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 
 import { formatPrice } from '@/lib/logic/orderParser';
 import {
     listCheckoutJobs,
+    deleteCheckoutJobs,
     type CheckoutJob,
     type CheckoutJobStatus,
 } from '@/services/checkoutJobService';
 import {
     CheckoutStatusBadge,
     PaymentStatusBadge,
+    OrderPhaseBadge,
     type KopkenCheckoutResult,
 } from '@/components/operational/CheckoutResultDisplay';
 
@@ -56,6 +69,8 @@ export default function CheckoutHistoryPage() {
     const [jobs, setJobs] = useState<CheckoutJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+    const [deleting, setDeleting] = useState(false);
 
     const loadJobs = useCallback(async () => {
         setLoading(true);
@@ -73,6 +88,44 @@ export default function CheckoutHistoryPage() {
     }, [loadJobs]);
 
     const filteredJobs = statusFilter === 'all' ? jobs : jobs.filter((j) => j.status === statusFilter);
+
+    // Selection cuma relevan buat baris yang lagi kelihatan (sesuai filter status aktif).
+    useEffect(() => {
+        setSelectedIds((prev) => {
+            const visibleIds = new Set(filteredJobs.map((j) => j.id));
+            const next = new Set([...prev].filter((id) => visibleIds.has(id)));
+            return next.size === prev.size ? prev : next;
+        });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [statusFilter, jobs]);
+
+    const allVisibleSelected = filteredJobs.length > 0 && filteredJobs.every((j) => selectedIds.has(j.id));
+
+    const toggleSelectAll = () => {
+        setSelectedIds(allVisibleSelected ? new Set() : new Set(filteredJobs.map((j) => j.id)));
+    };
+
+    const toggleSelectOne = (id: string) => {
+        setSelectedIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    };
+
+    const handleDeleteSelected = async () => {
+        setDeleting(true);
+        try {
+            await deleteCheckoutJobs([...selectedIds]);
+            toast.success(`${selectedIds.size} riwayat berhasil dihapus.`);
+            setSelectedIds(new Set());
+            await loadJobs();
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Gagal menghapus riwayat');
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -95,18 +148,48 @@ export default function CheckoutHistoryPage() {
                         <CardTitle className="text-base">
                             Order ({filteredJobs.length})
                         </CardTitle>
-                        <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
-                            <SelectTrigger className="w-40">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="all">Semua status</SelectItem>
-                                <SelectItem value="pending">Menunggu</SelectItem>
-                                <SelectItem value="running">Diproses</SelectItem>
-                                <SelectItem value="success">Sukses</SelectItem>
-                                <SelectItem value="failed">Gagal</SelectItem>
-                            </SelectContent>
-                        </Select>
+                        <div className="flex items-center gap-2">
+                            {selectedIds.size > 0 && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button variant="destructive" size="sm" disabled={deleting}>
+                                            <Trash2 className="w-4 h-4 mr-2" />
+                                            Hapus ({selectedIds.size})
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Hapus {selectedIds.size} riwayat checkout?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                Baris riwayat DAN foto struk yang tersimpan bakal dihapus permanen dari server.
+                                                Tindakan ini tidak bisa dibatalkan.
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Batal</AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={handleDeleteSelected}
+                                                className="bg-red-500 hover:bg-red-600"
+                                            >
+                                                Hapus
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+                            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+                                <SelectTrigger className="w-40">
+                                    <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">Semua status</SelectItem>
+                                    <SelectItem value="pending">Menunggu</SelectItem>
+                                    <SelectItem value="running">Diproses</SelectItem>
+                                    <SelectItem value="success">Sukses</SelectItem>
+                                    <SelectItem value="failed">Gagal</SelectItem>
+                                </SelectContent>
+                            </Select>
+                        </div>
                     </div>
                     <CardDescription>
                         Klik salah satu baris buat lihat detail (QRIS, struk, log lengkap)
@@ -121,10 +204,20 @@ export default function CheckoutHistoryPage() {
                             <Table>
                                 <TableHeader>
                                     <TableRow>
+                                        <TableHead className="w-10">
+                                            <input
+                                                type="checkbox"
+                                                checked={allVisibleSelected}
+                                                onChange={toggleSelectAll}
+                                                className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                                aria-label="Pilih semua"
+                                            />
+                                        </TableHead>
                                         <TableHead>Waktu</TableHead>
                                         <TableHead>Pesanan</TableHead>
                                         <TableHead>Status</TableHead>
                                         <TableHead>Pembayaran</TableHead>
+                                        <TableHead>Status Pesanan</TableHead>
                                         <TableHead className="text-right">Total</TableHead>
                                         <TableHead className="w-24"></TableHead>
                                     </TableRow>
@@ -138,6 +231,15 @@ export default function CheckoutHistoryPage() {
                                                 className="cursor-pointer hover:bg-slate-50/50"
                                                 onClick={() => navigate(`/checkout-process/${job.id}`)}
                                             >
+                                                <TableCell onClick={(e) => e.stopPropagation()}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedIds.has(job.id)}
+                                                        onChange={() => toggleSelectOne(job.id)}
+                                                        className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                                        aria-label={`Pilih order ${job.id}`}
+                                                    />
+                                                </TableCell>
                                                 <TableCell className="text-sm text-slate-500 whitespace-nowrap">
                                                     {formatDateTime(job.created_at)}
                                                 </TableCell>
@@ -153,6 +255,11 @@ export default function CheckoutHistoryPage() {
                                                 <TableCell>
                                                     {job.status === 'success' && (
                                                         <PaymentStatusBadge paymentStatus={r?.paymentStatus} />
+                                                    )}
+                                                </TableCell>
+                                                <TableCell>
+                                                    {job.status === 'success' && (
+                                                        <OrderPhaseBadge paymentStatus={r?.paymentStatus} phase={r?.phase} />
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right text-sm font-medium">

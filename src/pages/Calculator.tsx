@@ -361,10 +361,32 @@ function addonToOptionValue(addon: string): string {
     return idx >= 0 ? addon.slice(idx + 1).trim() : addon.trim();
 }
 
+// orderParser.ts sudah mengenali baris "Catatan:"/"Notes:" sebagai baris addon
+// per-item (isAddonLine), tapi sebelumnya ikut campur ke `options` (dipakai buat
+// cocokin dimensi/SKU) — padahal itu teks bebas, bukan pilihan Size/Ice/Sugar.
+// Pisahkan ke sini SEBELUM masuk options, teruskan ke field `notes` yang
+// memang sudah didukung runCheckout.js (orderNotes per item, dikirim ke API).
+const NOTE_PREFIX_REGEX = /^(catatan|notes?)\s*:?\s*/i;
+
+function extractNote(addons: string[]): { cleanAddons: string[]; note: string | null } {
+    const cleanAddons: string[] = [];
+    const noteParts: string[] = [];
+    for (const addon of addons) {
+        if (NOTE_PREFIX_REGEX.test(addon)) {
+            const value = addon.replace(NOTE_PREFIX_REGEX, '').trim();
+            if (value) noteParts.push(value);
+        } else {
+            cleanAddons.push(addon);
+        }
+    }
+    return { cleanAddons, note: noteParts.length ? noteParts.join('; ') : null };
+}
+
 function buildKopkenOrderPayload(
     group: OptimizationResult['groups'][0],
     outlet: string,
-    customerName: string
+    customerName: string,
+    pickupTime?: string
 ): CheckoutJobOrderPayload {
     return {
         outlet: outlet || '',
@@ -373,10 +395,12 @@ function buildKopkenOrderPayload(
         subtotal: group.totalPrice,
         items: group.items.map((item) => {
             const { cleanName, size } = extractSize(item.name);
-            const options = (item.addons ?? []).map(addonToOptionValue);
+            const { cleanAddons, note } = extractNote(item.addons ?? []);
+            const options = cleanAddons.map(addonToOptionValue);
             if (size) options.push(size);
-            return { name: cleanName, options };
+            return { name: cleanName, options, ...(note ? { notes: note } : {}) };
         }),
+        ...(pickupTime ? { pickupTime } : {}),
     };
 }
 
@@ -384,18 +408,42 @@ function KopkenCheckoutPanel({
     group,
     outlet,
     customerName,
+    parsedPickupTime,
 }: {
     group: OptimizationResult['groups'][0];
     outlet: string;
     customerName: string;
+    /** Jadwal hasil parse baris "Jam Pengambilan:" di teks order (lihat orderParser.ts) — undefined = Pickup Sekarang. */
+    parsedPickupTime?: string;
 }) {
     const { user } = useAuth();
     const [dialogOpen, setDialogOpen] = useState(false);
     const [jsonDraft, setJsonDraft] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    // Jadwal pengambilan: default ikut hasil parse order text ("Jam Pengambilan:
+    // 17:00" dari DIBeliin checkout). Admin masih bisa override manual lewat
+    // toggle ini sebelum "Proses Checkout" (mis. order lama/gak ke-parse).
+    const [pickupMode, setPickupMode] = useState<'now' | 'schedule'>(parsedPickupTime ? 'schedule' : 'now');
+    const [pickupTimeValue, setPickupTimeValue] = useState(() => {
+        if (parsedPickupTime) return parsedPickupTime;
+        const now = new Date();
+        return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    });
+
+    // Order baru di-parse (parsedPickupTime berubah) -> sinkronkan toggle, biar
+    // gak kebawa jadwal order sebelumnya.
+    useEffect(() => {
+        if (parsedPickupTime) {
+            setPickupMode('schedule');
+            setPickupTimeValue(parsedPickupTime);
+        } else {
+            setPickupMode('now');
+        }
+    }, [parsedPickupTime]);
 
     const openDialog = () => {
-        setJsonDraft(JSON.stringify(buildKopkenOrderPayload(group, outlet, customerName), null, 2));
+        const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
+        setJsonDraft(JSON.stringify(buildKopkenOrderPayload(group, outlet, customerName, pickupTime), null, 2));
         setDialogOpen(true);
     };
 
@@ -423,6 +471,34 @@ function KopkenCheckoutPanel({
 
     return (
         <div className="mt-2">
+            <div className="flex gap-1.5 mb-1.5">
+                <Button
+                    type="button"
+                    variant={pickupMode === 'now' ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => setPickupMode('now')}
+                >
+                    Pickup Sekarang
+                </Button>
+                <Button
+                    type="button"
+                    variant={pickupMode === 'schedule' ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => setPickupMode('schedule')}
+                >
+                    Jadwalkan
+                </Button>
+                {pickupMode === 'schedule' && (
+                    <input
+                        type="time"
+                        value={pickupTimeValue}
+                        onChange={(e) => setPickupTimeValue(e.target.value)}
+                        className="border rounded-md px-2 text-xs w-24"
+                    />
+                )}
+            </div>
             <Button variant="outline" size="sm" className="w-full" onClick={openDialog}>
                 <Zap className="w-4 h-4 mr-2" />
                 Proses Checkout (Kopken Otomatis)
@@ -533,6 +609,9 @@ export default function CalculatorPage() {
     const [items, setItems] = useState<EditableItem[]>([]);
     const [customerName, setCustomerName] = useState('');
     const [outletName, setOutletName] = useState('');
+    // "HH:MM" kalau order text ada baris "Jam Pengambilan: 17:00" (di-generate
+    // UniversalCart.tsx waktu customer checkout di DIBeliin) -- undefined = Pickup Sekarang.
+    const [parsedPickupTime, setParsedPickupTime] = useState<string | undefined>(undefined);
     const [brand, setBrand] = useState<AccountBrand>('kopken');
     const [adminCost, setAdminCost] = useState(5000);
     const [dbAdminFees, setDbAdminFees] = useState<AdminFees | null>(null);
@@ -633,6 +712,7 @@ export default function CalculatorPage() {
         setHasOptimized(false);
         setCustomerName(parsed.customerName ?? '');
         setOutletName(parsed.outlet ?? '');
+        setParsedPickupTime(parsed.pickupTime);
 
         const errorCount = parsed.items.filter((i) => i.hasError).length;
         if (errorCount > 0) {
@@ -689,6 +769,7 @@ export default function CalculatorPage() {
         setHasOptimized(false);
         setCustomerName('');
         setOutletName('');
+        setParsedPickupTime(undefined);
     };
 
     // Optimize order
@@ -1019,6 +1100,7 @@ Example:
                                                 group={group}
                                                 outlet={outletName}
                                                 customerName={customerName}
+                                                parsedPickupTime={parsedPickupTime}
                                             />
                                         )}
                                     </div>
