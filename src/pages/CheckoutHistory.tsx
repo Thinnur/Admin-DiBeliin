@@ -187,6 +187,7 @@ export default function CheckoutHistoryPage() {
                                     <SelectItem value="running">Diproses</SelectItem>
                                     <SelectItem value="success">Sukses</SelectItem>
                                     <SelectItem value="failed">Gagal</SelectItem>
+                                    <SelectItem value="cancelled">Dibatalkan</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>

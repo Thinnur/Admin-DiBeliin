@@ -7,7 +7,7 @@
 
 import { supabase } from '@/lib/supabase';
 
-export type CheckoutJobStatus = 'pending' | 'running' | 'success' | 'failed';
+export type CheckoutJobStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled';
 
 export interface CheckoutJobOrderItem {
     name: string;
@@ -43,6 +43,7 @@ export interface CheckoutJob {
     created_at: string;
     updated_at: string;
     receipt_refresh_requested_at: string | null;
+    cancel_requested_at: string | null;
 }
 
 export async function createCheckoutJob(
@@ -91,6 +92,36 @@ export async function listCheckoutJobs(limit = 100): Promise<CheckoutJob[]> {
 
     if (error) throw new Error(`Gagal memuat riwayat checkout: ${error.message}`);
     return (data ?? []) as CheckoutJob[];
+}
+
+/** Batalkan job yang belum sampai Bayar. Dua kondisi:
+ *  - Masih 'pending' (belum diklaim worker manapun) -> langsung tandai 'cancelled',
+ *    klaim atomik (WHERE status='pending') biar gak ketuker sama worker yang
+ *    kebetulan lagi ngeklaim di detik yang sama.
+ *  - Udah 'running' (lagi diproses worker) -> gak bisa distop dari luar proses
+ *    Node yang lagi jalan, jadi cuma titip flag `cancel_requested_at`;
+ *    runCheckout.js ngecek flag ini di beberapa checkpoint SEBELUM submit
+ *    order/Bayar (lihat checkCancelled() di sana) dan berhenti sendiri kalau
+ *    keisi -- checkout_worker.js yang nyimpen status:'cancelled' akhirnya.
+ * Return 'cancelled' (langsung berhasil) atau 'cancel_requested' (nunggu worker
+ * berhenti di checkpoint berikutnya). */
+export async function cancelCheckoutJob(id: string): Promise<'cancelled' | 'cancel_requested'> {
+    const { data, error } = await supabase
+        .from('checkout_jobs')
+        .update({ status: 'cancelled', result: { cancelled: true }, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'pending')
+        .select();
+    if (error) throw new Error(`Gagal membatalkan: ${error.message}`);
+    if ((data?.length ?? 0) > 0) return 'cancelled';
+
+    const { error: reqError } = await supabase
+        .from('checkout_jobs')
+        .update({ cancel_requested_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('status', 'running');
+    if (reqError) throw new Error(`Gagal minta pembatalan: ${reqError.message}`);
+    return 'cancel_requested';
 }
 
 /** Hapus permanen: baris checkout_jobs + foto struk terkait di storage bucket

@@ -65,6 +65,7 @@ export function CheckoutStatusBadge({ status }: { status: CheckoutJob['status'] 
         running: { label: 'Diproses...', className: 'bg-blue-50 text-blue-700 border-blue-200' },
         success: { label: 'Sukses', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         failed: { label: 'Gagal', className: 'bg-red-50 text-red-700 border-red-200' },
+        cancelled: { label: 'Dibatalkan', className: 'bg-slate-100 text-slate-500 border-slate-200' },
     };
     const { label, className } = meta[status];
     return <Badge variant="outline" className={className}>{label}</Badge>;
@@ -161,21 +162,10 @@ export function ReceiptSection({
     const [refreshing, setRefreshing] = useState(false);
     const [downloading, setDownloading] = useState(false);
 
-    if (!r?.receiptUrl) {
-        return job.status === 'success' ? (
-            <p className="text-[11px] text-slate-400">Struk belum tersedia (masih diambil, atau gagal — cek log).</p>
-        ) : null;
-    }
-
-    const handleDownload = async () => {
-        setDownloading(true);
-        try {
-            await downloadFile(r.receiptUrl!, `Struk_${r.orderId ?? job.id}.png`);
-        } finally {
-            setDownloading(false);
-        }
-    };
-
+    // Sama-sama minta payment_status_worker.js ambil struk (via
+    // receipt_refresh_requested_at) — dipakai baik buat "Perbarui" (struk udah
+    // ada, minta yang terbaru) MAUPUN "Minta Struk" (struk belum pernah
+    // berhasil keambil sama sekali, worker gagal pas checkout awal).
     const handleRefresh = async () => {
         setRefreshing(true);
         try {
@@ -188,6 +178,32 @@ export function ReceiptSection({
             }
         } finally {
             setRefreshing(false);
+        }
+    };
+
+    if (!r?.receiptUrl) {
+        // Worker gagal ambil struk pas checkout (mis. koneksi putus, timeout) --
+        // sebelumnya cuma teks statis tanpa cara manual minta ulang, admin harus
+        // nunggu tanpa kepastian. Sekarang ada tombol yang manggil mekanisme
+        // refresh yang sama; jalan asal result.phone/orderId ada (selalu ada
+        // begitu order berhasil dibuat, independen dari sukses-tidaknya fetch struk).
+        return job.status === 'success' ? (
+            <div className="space-y-2">
+                <p className="text-[11px] text-slate-400">Struk belum tersedia (worker gagal mengambil, atau masih proses).</p>
+                <Button variant="outline" size="sm" className="w-full" onClick={handleRefresh} disabled={refreshing}>
+                    <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
+                    {refreshing ? 'Mengambil struk...' : 'Minta Struk'}
+                </Button>
+            </div>
+        ) : null;
+    }
+
+    const handleDownload = async () => {
+        setDownloading(true);
+        try {
+            await downloadFile(r.receiptUrl!, `Struk_${r.orderId ?? job.id}.png`);
+        } finally {
+            setDownloading(false);
         }
     };
 

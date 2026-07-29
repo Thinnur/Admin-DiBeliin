@@ -8,13 +8,24 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Ban } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { formatPrice } from '@/lib/logic/orderParser';
-import { getCheckoutJob, type CheckoutJob } from '@/services/checkoutJobService';
+import { getCheckoutJob, cancelCheckoutJob, type CheckoutJob } from '@/services/checkoutJobService';
 import {
     QrisImage,
     CheckoutStatusBadge,
@@ -33,6 +44,7 @@ export default function CheckoutProcessPage() {
     const navigate = useNavigate();
     const [job, setJob] = useState<CheckoutJob | null>(null);
     const [loading, setLoading] = useState(true);
+    const [cancelling, setCancelling] = useState(false);
 
     useEffect(() => {
         if (!jobId) return;
@@ -47,7 +59,7 @@ export default function CheckoutProcessPage() {
     // masih diproses dapur (belum "Sudah diambil"). Payment doang bukan garis
     // finish lagi -- status pesanan (phase) bisa lanjut lama setelah bayar sukses.
     useEffect(() => {
-        if (!job || job.status === 'failed') return;
+        if (!job || job.status === 'failed' || job.status === 'cancelled') return;
         const r = job.result as KopkenCheckoutResult | null;
         const paymentStatus = r?.paymentStatus;
         if (paymentStatus && FAILED_PAYMENT_STATUSES.includes(paymentStatus)) return;
@@ -74,6 +86,25 @@ export default function CheckoutProcessPage() {
     }
 
     const r = job.result as KopkenCheckoutResult | null;
+    const canCancel = job.status === 'pending' || job.status === 'running';
+
+    const handleCancel = async () => {
+        setCancelling(true);
+        try {
+            const outcome = await cancelCheckoutJob(job.id);
+            const fresh = await getCheckoutJob(job.id);
+            setJob(fresh);
+            toast.success(
+                outcome === 'cancelled'
+                    ? 'Checkout dibatalkan.'
+                    : 'Permintaan batal terkirim — worker akan berhenti sebelum submit pembayaran.'
+            );
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Gagal membatalkan checkout');
+        } finally {
+            setCancelling(false);
+        }
+    };
 
     return (
         <div className="space-y-6">
@@ -95,7 +126,47 @@ export default function CheckoutProcessPage() {
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                         <CardTitle className="text-base">Status Checkout</CardTitle>
-                        <CheckoutStatusBadge status={job.status} />
+                        <div className="flex items-center gap-2">
+                            {canCancel && (
+                                <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            disabled={cancelling || !!job.cancel_requested_at}
+                                            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                        >
+                                            <Ban className="w-3.5 h-3.5 mr-1.5" />
+                                            {job.cancel_requested_at
+                                                ? 'Membatalkan...'
+                                                : cancelling
+                                                    ? 'Membatalkan...'
+                                                    : 'Batal'}
+                                        </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                        <AlertDialogHeader>
+                                            <AlertDialogTitle>Batalkan checkout ini?</AlertDialogTitle>
+                                            <AlertDialogDescription>
+                                                {job.status === 'pending'
+                                                    ? 'Job masih menunggu, belum diproses worker — bisa langsung dibatalkan.'
+                                                    : 'Job sedang diproses worker — akan dihentikan sebelum submit pembayaran (QRIS/voucher belum terpakai).'}
+                                            </AlertDialogDescription>
+                                        </AlertDialogHeader>
+                                        <AlertDialogFooter>
+                                            <AlertDialogCancel>Tidak</AlertDialogCancel>
+                                            <AlertDialogAction
+                                                onClick={handleCancel}
+                                                className="bg-red-500 hover:bg-red-600"
+                                            >
+                                                Ya, Batalkan
+                                            </AlertDialogAction>
+                                        </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                </AlertDialog>
+                            )}
+                            <CheckoutStatusBadge status={job.status} />
+                        </div>
                     </div>
                     <CardDescription>
                         Dikirim {new Date(job.created_at).toLocaleString('id-ID')}
@@ -135,6 +206,10 @@ export default function CheckoutProcessPage() {
 
                             {job.status === 'failed' && (
                                 <p className="text-xs text-red-600">Error: {r?.error ?? 'Unknown error'}</p>
+                            )}
+
+                            {job.status === 'cancelled' && (
+                                <p className="text-xs text-slate-500">Dibatalkan oleh admin sebelum submit pembayaran.</p>
                             )}
                         </div>
 
