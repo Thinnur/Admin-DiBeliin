@@ -385,10 +385,10 @@ function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user
 
 // Menu default untuk Super Admin
 const primaryNavItems = navItems.filter((item) =>
-    ['/inventory', '/finance', '/calculator', '/operational'].includes(item.path)
+    ['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path)
 );
 const secondaryNavItems = navItems.filter(
-    (item) => !['/inventory', '/finance', '/calculator', '/operational'].includes(item.path)
+    (item) => !['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path)
 );
 
 // Menu untuk Staff (Inventory, Calculator, Riwayat Checkout, dan Operational)
