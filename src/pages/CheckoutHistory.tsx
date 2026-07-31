@@ -5,10 +5,12 @@
 // cek order yang masih menunggu discan QRIS, download struk, atau lihat kenapa gagal.
 // Klik baris/"Detail" membuka halaman tersendiri (/checkout-process/:jobId).
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { format, isToday, isYesterday } from 'date-fns';
+import { id as localeId } from 'date-fns/locale';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,6 +21,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
     Table,
     TableBody,
@@ -69,13 +72,14 @@ export default function CheckoutHistoryPage() {
     const [jobs, setJobs] = useState<CheckoutJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
 
     const loadJobs = useCallback(async (opts?: { silent?: boolean }) => {
         if (!opts?.silent) setLoading(true);
         try {
-            setJobs(await listCheckoutJobs());
+            setJobs(await listCheckoutJobs(2000));
         } catch (e) {
             if (!opts?.silent) toast.error(e instanceof Error ? e.message : 'Gagal memuat riwayat checkout');
         } finally {
@@ -95,9 +99,26 @@ export default function CheckoutHistoryPage() {
         return () => clearInterval(interval);
     }, [loadJobs]);
 
-    const filteredJobs = statusFilter === 'all' ? jobs : jobs.filter((j) => j.status === statusFilter);
+    const statusFilteredJobs = statusFilter === 'all' ? jobs : jobs.filter((j) => j.status === statusFilter);
 
-    // Selection cuma relevan buat baris yang lagi kelihatan (sesuai filter status aktif).
+    // Tanggal unik (yyyy-MM-dd) dari job yang lolos filter status, terbaru dulu.
+    const uniqueDays = useMemo(() => {
+        const days = statusFilteredJobs.map((j) => format(new Date(j.created_at), 'yyyy-MM-dd'));
+        return Array.from(new Set(days)).sort((a, b) => b.localeCompare(a));
+    }, [statusFilteredJobs]);
+
+    const activeDay = (selectedDay && uniqueDays.includes(selectedDay))
+        ? selectedDay
+        : (uniqueDays[0] || null);
+
+    const filteredJobs = useMemo(() => {
+        if (!activeDay) return [];
+        return statusFilteredJobs.filter(
+            (j) => format(new Date(j.created_at), 'yyyy-MM-dd') === activeDay
+        );
+    }, [statusFilteredJobs, activeDay]);
+
+    // Selection cuma relevan buat baris yang lagi kelihatan (sesuai filter status + hari aktif).
     useEffect(() => {
         setSelectedIds((prev) => {
             const visibleIds = new Set(filteredJobs.map((j) => j.id));
@@ -105,7 +126,7 @@ export default function CheckoutHistoryPage() {
             return next.size === prev.size ? prev : next;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, jobs]);
+    }, [statusFilter, activeDay, jobs]);
 
     const allVisibleSelected = filteredJobs.length > 0 && filteredJobs.every((j) => selectedIds.has(j.id));
 
@@ -205,6 +226,37 @@ export default function CheckoutHistoryPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {/* Tab Filter Hari */}
+                    {uniqueDays.length > 0 && (
+                        <div className="mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+                            <Tabs
+                                value={activeDay || ''}
+                                onValueChange={(val) => setSelectedDay(val || null)}
+                            >
+                                <TabsList className="inline-flex w-auto bg-slate-100 p-1 rounded-lg">
+                                    {uniqueDays.map((dayStr) => {
+                                        const date = new Date(dayStr);
+                                        let label = format(date, 'd MMM yyyy', { locale: localeId });
+                                        if (isToday(date)) {
+                                            label = 'Hari Ini';
+                                        } else if (isYesterday(date)) {
+                                            label = 'Kemarin';
+                                        }
+                                        return (
+                                            <TabsTrigger
+                                                key={dayStr}
+                                                value={dayStr}
+                                                className="text-xs px-3 py-1.5 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900"
+                                            >
+                                                {label}
+                                            </TabsTrigger>
+                                        );
+                                    })}
+                                </TabsList>
+                            </Tabs>
+                        </div>
+                    )}
+
                     {filteredJobs.length === 0 && !loading && (
                         <p className="text-sm text-slate-400 text-center py-8">Belum ada order.</p>
                     )}

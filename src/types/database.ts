@@ -41,6 +41,20 @@ export interface Account {
 }
 
 /**
+ * DawgAccount entity - Kopken checkout-automation account pool (dawg.colok.me),
+ * synced by Otomasi_web_panel/dibeliin_auto — separate pool from `accounts`.
+ * `vouchers` entries are raw strings formatted "Label|tier_key" (e.g.
+ * "Pengguna Baru - Diskon 50%|tanpa_minimal").
+ */
+export interface DawgAccount {
+  account_id: string;
+  vouchers: string[];
+  registered_at: string; // ISO timestamp
+  last_used: string | null; // ISO timestamp
+  updated_at: string; // ISO timestamp
+}
+
+/**
  * Transaction entity - Represents a financial transaction
  */
 export interface Transaction {

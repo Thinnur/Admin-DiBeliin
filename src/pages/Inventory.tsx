@@ -4,11 +4,19 @@
 // Premium inventory page for managing coffee shop accounts
 
 import { useState, useMemo } from 'react';
-import { Package, Coffee, Ticket, Plus, Search } from 'lucide-react';
+import { Package, Coffee, Ticket, Plus, Search, LayoutGrid } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+    Table,
+    TableBody,
+    TableCell,
+    TableHead,
+    TableHeader,
+    TableRow,
+} from '@/components/ui/table';
 import {
     Dialog,
     DialogContent,
@@ -54,6 +62,7 @@ import {
     useFixStaleAccounts,
 } from '@/hooks/useInventory';
 import { useAuth } from '@/contexts/AuthContext';
+import { useDawgAccounts } from '@/hooks/useDawgAccounts';
 import {
     DEVICE_ALL_VALUE,
     DEVICE_OPTIONS,
@@ -68,6 +77,35 @@ import type { Account, AccountBrand, AccountStatus } from '@/types/database';
 // -----------------------------------------------------------------------------
 
 type StatusFilter = 'all' | AccountStatus;
+type InventoryTab = AccountBrand | 'kopken_panel';
+
+// -----------------------------------------------------------------------------
+// KopKen Panel Helpers (dawg.colok.me account pool)
+// -----------------------------------------------------------------------------
+
+function formatDawgDate(iso: string | null): string {
+    if (!iso) return '-';
+    return new Date(iso).toLocaleString('id-ID', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+    });
+}
+
+/** Vouchers are stored as raw "Label|tier_key" strings. Panel ini cuma peduli voucher "Pengguna Baru - Diskon 50%". */
+const DAWG_VOUCHER_LABEL_FILTER = 'Pengguna Baru - Diskon 50%';
+
+function DawgVoucherBadge({ raw }: { raw: string }) {
+    const [label, tier] = raw.split('|');
+    return (
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] text-emerald-700 whitespace-nowrap">
+            {label}
+            {tier && <span className="text-emerald-500">· {tier.replace(/_/g, ' ')}</span>}
+        </span>
+    );
+}
 
 // -----------------------------------------------------------------------------
 // Stats Calculation (for summary cards)
@@ -118,7 +156,7 @@ export default function InventoryPage() {
     const { isStaff, isSuperAdmin, isLoading: isAuthLoading } = useAuth();
 
     // Tab state for brand selection
-    const [activeTab, setActiveTab] = useState<AccountBrand>('kopken');
+    const [activeTab, setActiveTab] = useState<InventoryTab>('kopken');
 
     // Status filter
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -189,6 +227,18 @@ export default function InventoryPage() {
     const isError = isStaff
         ? (isErrorStaffKopken || isErrorStaffFore || isErrorStaffTomoro || isErrorStaffJanjijiwa)
         : isErrorAdmin;
+
+    // KopKen Panel data (dawg.colok.me automation account pool)
+    const {
+        data: dawgAccounts,
+        isLoading: isLoadingDawg,
+    } = useDawgAccounts({ enabled: !isAuthLoading && activeTab === 'kopken_panel' });
+
+    const filteredDawgAccounts = useMemo(() => {
+        const query = searchQuery.trim().toLowerCase();
+        if (!query) return dawgAccounts ?? [];
+        return (dawgAccounts ?? []).filter((a) => a.account_id.toLowerCase().includes(query));
+    }, [dawgAccounts, searchQuery]);
 
     // Mutations
     const deleteAccount = useDeleteAccount();
@@ -763,7 +813,7 @@ export default function InventoryPage() {
                 <CardContent className="pt-4">
                     <Tabs
                         value={activeTab}
-                        onValueChange={(value) => setActiveTab(value as AccountBrand)}
+                        onValueChange={(value) => setActiveTab(value as InventoryTab)}
                     >
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                             <TabsList className="mb-0">
@@ -783,13 +833,17 @@ export default function InventoryPage() {
                                     <Coffee className="h-4 w-4" />
                                     Kopi Janji Jiwa
                                 </TabsTrigger>
+                                <TabsTrigger value="kopken_panel" className="gap-2">
+                                    <LayoutGrid className="h-4 w-4" />
+                                    KopKen Panel
+                                </TabsTrigger>
                             </TabsList>
 
                             {!isStaff && (
                                 <div className="relative w-full sm:max-w-xs">
                                     <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
                                     <Input
-                                        placeholder="Search by phone number..."
+                                        placeholder={activeTab === 'kopken_panel' ? 'Cari Account ID...' : 'Search by phone number...'}
                                         value={searchQuery}
                                         onChange={(e) => handleSearchChange(e.target.value)}
                                         className="pl-9 bg-white"
@@ -855,6 +909,64 @@ export default function InventoryPage() {
                                     disablePagination={true}
                                     emptyMessage={getEmptyMessage('Kopi Janji Jiwa')}
                                 />
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="kopken_panel">
+                            <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
+                                <Table>
+                                    <TableHeader>
+                                        <TableRow>
+                                            <TableHead>Account ID</TableHead>
+                                            <TableHead>Vouchers</TableHead>
+                                            <TableHead>Terdaftar</TableHead>
+                                            <TableHead>Terakhir Dipakai</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {isLoadingDawg && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center text-sm text-slate-400 py-8">
+                                                    Memuat KopKen Panel...
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {!isLoadingDawg && filteredDawgAccounts.length === 0 && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center text-sm text-slate-400 py-8">
+                                                    Tidak ada akun KopKen Panel.
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {filteredDawgAccounts.map((account) => (
+                                            <TableRow key={account.account_id}>
+                                                <TableCell className="font-mono text-sm whitespace-nowrap">
+                                                    {account.account_id}
+                                                </TableCell>
+                                                <TableCell>
+                                                    <div className="flex flex-wrap gap-1 max-w-lg">
+                                                        {(() => {
+                                                            const vouchers = account.vouchers.filter(
+                                                                (v) => v.split('|')[0] === DAWG_VOUCHER_LABEL_FILTER
+                                                            );
+                                                            return vouchers.length === 0 ? (
+                                                                <span className="text-xs text-slate-400">Tidak ada voucher</span>
+                                                            ) : (
+                                                                vouchers.map((v, i) => <DawgVoucherBadge key={i} raw={v} />)
+                                                            );
+                                                        })()}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-sm text-slate-500 whitespace-nowrap">
+                                                    {formatDawgDate(account.registered_at)}
+                                                </TableCell>
+                                                <TableCell className="text-sm text-slate-500 whitespace-nowrap">
+                                                    {formatDawgDate(account.last_used)}
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
                             </div>
                         </TabsContent>
                     </Tabs>

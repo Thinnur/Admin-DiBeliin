@@ -18,6 +18,7 @@ export const DEFAULT_EXPENSE_CATEGORIES = [
     { value: 'operasional', label: 'Biaya Operasional' },
     { value: 'marketing', label: 'Marketing' },
     { value: 'stock', label: 'Stock' },
+    { value: 'checkout_kopken', label: 'Checkout Kopken (Otomasi)' },
     { value: 'lain', label: 'Pengeluaran Lain' },
 ] as const;
 
@@ -30,6 +31,7 @@ const CATEGORY_LABELS: Record<string, string> = {
     operasional: 'Operasional',
     marketing: 'Marketing',
     stock: 'Stock',
+    checkout_kopken: 'Checkout Kopken (Otomasi)',
 };
 
 export function normalizeCategoryValue(value: string): string {
