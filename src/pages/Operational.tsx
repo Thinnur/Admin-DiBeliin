@@ -388,7 +388,7 @@ function CinemaStatusSection({
                         <div>
                             <p className="font-semibold text-slate-900">Checkout CGV</p>
                             <p className="text-sm text-slate-500">
-                                {isCgvOpen ? 'Checkout CGV aktif' : 'Checkout CGV ditutup'}
+                                {isCgvOpen ? 'Checkout CGV aktif' : 'Checkout CGV ditutup — kursi CGV tidak bisa dipilih'}
                             </p>
                         </div>
                     </div>
@@ -409,7 +409,7 @@ function CinemaStatusSection({
                         <div>
                             <p className="font-semibold text-slate-900">Checkout Cinépolis</p>
                             <p className="text-sm text-slate-500">
-                                {isCinepolisOpen ? 'Checkout Cinépolis aktif' : 'Checkout Cinépolis ditutup'}
+                                {isCinepolisOpen ? 'Checkout Cinépolis aktif' : 'Checkout Cinépolis ditutup — kursi Cinépolis tidak bisa dipilih'}
                             </p>
                         </div>
                     </div>
@@ -430,7 +430,7 @@ function CinemaStatusSection({
                         <div>
                             <p className="font-semibold text-slate-900">Checkout XXI</p>
                             <p className="text-sm text-slate-500">
-                                {isXxiOpen ? 'Checkout XXI aktif' : 'Checkout XXI ditutup'}
+                                {isXxiOpen ? 'Checkout XXI aktif' : 'Checkout XXI ditutup — kursi XXI tidak bisa dipilih'}
                             </p>
                         </div>
                     </div>
