@@ -157,13 +157,16 @@ export async function deleteVoucher(id: number): Promise<void> {
  * @param brand - 'fore', 'kenangan', 'tomoro', 'janjijiwa', or 'cinema'
  * @returns boolean - true if service is open, false if closed
  */
-export async function getServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'cinema'): Promise<boolean> {
+export async function getServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'cinema' | 'cgv' | 'cinepolis' | 'xxi'): Promise<boolean> {
     const keyMap = {
         fore: 'is_fore_open',
         kenangan: 'is_kenangan_open',
         tomoro: 'is_tomoro_open',
         janjijiwa: 'is_janjijiwa_open',
         cinema: 'is_cinema_open',
+        cgv: 'is_cgv_open',
+        cinepolis: 'is_cinepolis_open',
+        xxi: 'is_xxi_open',
     };
     const key = keyMap[brand];
 
@@ -191,13 +194,16 @@ export async function getServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | '
  * @param brand - 'fore', 'kenangan', 'tomoro', 'janjijiwa', or 'cinema'
  * @param isOpen - true to open service, false to close
  */
-export async function updateServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'cinema', isOpen: boolean): Promise<void> {
+export async function updateServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'cinema' | 'cgv' | 'cinepolis' | 'xxi', isOpen: boolean): Promise<void> {
     const keyMap = {
         fore: 'is_fore_open',
         kenangan: 'is_kenangan_open',
         tomoro: 'is_tomoro_open',
         janjijiwa: 'is_janjijiwa_open',
         cinema: 'is_cinema_open',
+        cgv: 'is_cgv_open',
+        cinepolis: 'is_cinepolis_open',
+        xxi: 'is_xxi_open',
     };
     const key = keyMap[brand];
 
