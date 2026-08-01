@@ -131,13 +131,11 @@ interface ServiceStatusSectionProps {
     isKenanganOpen: boolean;
     isTomoroOpen: boolean;
     isJanjijiwaOpen: boolean;
-    isCinemaOpen: boolean;
     isLoading: boolean;
     onToggleFore: () => void;
     onToggleKenangan: () => void;
     onToggleTomoro: () => void;
     onToggleJanjijiwa: () => void;
-    onToggleCinema: () => void;
     popupTemplates: PopupTemplate[];
     activeTemplateIds: Record<PopupBrand, string | null>;
     onChangeTemplate: (brand: PopupBrand, templateId: string) => void;
@@ -179,13 +177,11 @@ function ServiceStatusSection({
     isKenanganOpen,
     isTomoroOpen,
     isJanjijiwaOpen,
-    isCinemaOpen,
     isLoading,
     onToggleFore,
     onToggleKenangan,
     onToggleTomoro,
     onToggleJanjijiwa,
-    onToggleCinema,
     popupTemplates,
     activeTemplateIds,
     onChangeTemplate,
@@ -316,14 +312,60 @@ function ServiceStatusSection({
                     />
                 </div>
 
-                {/* DiBeliin Tiket (Cinema) Toggle */}
+            </CardContent>
+        </Card>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Cinema Status Section (master + per-chain toggles)
+// -----------------------------------------------------------------------------
+
+interface CinemaStatusSectionProps {
+    isCinemaOpen: boolean;
+    isCgvOpen: boolean;
+    isCinepolisOpen: boolean;
+    isXxiOpen: boolean;
+    isLoading: boolean;
+    onToggleCinema: () => void;
+    onToggleCgv: () => void;
+    onToggleCinepolis: () => void;
+    onToggleXxi: () => void;
+}
+
+function CinemaStatusSection({
+    isCinemaOpen,
+    isCgvOpen,
+    isCinepolisOpen,
+    isXxiOpen,
+    isLoading,
+    onToggleCinema,
+    onToggleCgv,
+    onToggleCinepolis,
+    onToggleXxi,
+}: CinemaStatusSectionProps) {
+    return (
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
+            <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg shadow-indigo-500/20">
+                        <Clapperboard className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-lg">DiBeliin Tiket</CardTitle>
+                        <CardDescription>Master switch dan kontrol per-chain bioskop</CardDescription>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+                {/* Master Toggle */}
                 <div className="flex items-center justify-between p-4 rounded-xl bg-indigo-50 border border-indigo-200">
                     <div className="flex items-center gap-3">
                         <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCinemaOpen ? 'bg-indigo-600' : 'bg-slate-300'}`}>
                             <Clapperboard className="h-5 w-5 text-white" />
                         </div>
                         <div>
-                            <p className="font-semibold text-slate-900">Layanan DiBeliin Tiket</p>
+                            <p className="font-semibold text-slate-900">Layanan DiBeliin Tiket (Master)</p>
                             <p className="text-sm text-slate-500">
                                 {isCinemaOpen ? 'Checkout tiket bioskop aktif' : 'Checkout tiket ditutup — user tetap bisa cek jadwal & kursi'}
                             </p>
@@ -334,6 +376,69 @@ function ServiceStatusSection({
                         onCheckedChange={onToggleCinema}
                         disabled={isLoading}
                         className="data-[state=checked]:bg-indigo-600"
+                    />
+                </div>
+
+                {/* CGV Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-red-50 border border-red-200">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCgvOpen ? 'bg-red-600' : 'bg-slate-300'}`}>
+                            <Clapperboard className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-slate-900">Checkout CGV</p>
+                            <p className="text-sm text-slate-500">
+                                {isCgvOpen ? 'Checkout CGV aktif' : 'Checkout CGV ditutup'}
+                            </p>
+                        </div>
+                    </div>
+                    <Switch
+                        checked={isCgvOpen}
+                        onCheckedChange={onToggleCgv}
+                        disabled={isLoading}
+                        className="data-[state=checked]:bg-red-600"
+                    />
+                </div>
+
+                {/* Cinepolis Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCinepolisOpen ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                            <Clapperboard className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-slate-900">Checkout Cinépolis</p>
+                            <p className="text-sm text-slate-500">
+                                {isCinepolisOpen ? 'Checkout Cinépolis aktif' : 'Checkout Cinépolis ditutup'}
+                            </p>
+                        </div>
+                    </div>
+                    <Switch
+                        checked={isCinepolisOpen}
+                        onCheckedChange={onToggleCinepolis}
+                        disabled={isLoading}
+                        className="data-[state=checked]:bg-emerald-600"
+                    />
+                </div>
+
+                {/* XXI Toggle */}
+                <div className="flex items-center justify-between p-4 rounded-xl bg-sky-50 border border-sky-200">
+                    <div className="flex items-center gap-3">
+                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isXxiOpen ? 'bg-sky-600' : 'bg-slate-300'}`}>
+                            <Clapperboard className="h-5 w-5 text-white" />
+                        </div>
+                        <div>
+                            <p className="font-semibold text-slate-900">Checkout XXI</p>
+                            <p className="text-sm text-slate-500">
+                                {isXxiOpen ? 'Checkout XXI aktif' : 'Checkout XXI ditutup'}
+                            </p>
+                        </div>
+                    </div>
+                    <Switch
+                        checked={isXxiOpen}
+                        onCheckedChange={onToggleXxi}
+                        disabled={isLoading}
+                        className="data-[state=checked]:bg-sky-600"
                     />
                 </div>
             </CardContent>
@@ -997,6 +1102,9 @@ export default function Operational() {
     const [isTomoroOpen, setIsTomoroOpen] = useState(true);
     const [isJanjijiwaOpen, setIsJanjijiwaOpen] = useState(true);
     const [isCinemaOpen, setIsCinemaOpen] = useState(true);
+    const [isCgvOpen, setIsCgvOpen] = useState(true);
+    const [isCinepolisOpen, setIsCinepolisOpen] = useState(true);
+    const [isXxiOpen, setIsXxiOpen] = useState(true);
     const [isServiceLoading, setIsServiceLoading] = useState(false);
 
     // Popup template state (which "brand closed" text is active per brand)
@@ -1022,13 +1130,16 @@ export default function Operational() {
 
     const fetchInitialData = async (loadVouchers: boolean) => {
         try {
-            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus, templates, activeIds] = await Promise.all([
+            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus, cgvStatus, cinepolisStatus, xxiStatus, templates, activeIds] = await Promise.all([
                 getStoreStatus(),
                 getServiceStatus('fore'),
                 getServiceStatus('kenangan'),
                 getServiceStatus('tomoro'),
                 getServiceStatus('janjijiwa'),
                 getServiceStatus('cinema'),
+                getServiceStatus('cgv'),
+                getServiceStatus('cinepolis'),
+                getServiceStatus('xxi'),
                 getPopupTemplates(),
                 getActiveTemplateIds(),
             ]);
@@ -1038,6 +1149,9 @@ export default function Operational() {
             setIsTomoroOpen(tomoroStatus);
             setIsJanjijiwaOpen(janjijiwaStatus);
             setIsCinemaOpen(cinemaStatus);
+            setIsCgvOpen(cgvStatus);
+            setIsCinepolisOpen(cinepolisStatus);
+            setIsXxiOpen(xxiStatus);
             setPopupTemplates(templates);
             setActiveTemplateIds(activeIds);
             if (loadVouchers) {
@@ -1150,6 +1264,54 @@ export default function Operational() {
         }
     };
 
+    // Toggle CGV chain checkout
+    const handleToggleCgv = async () => {
+        setIsServiceLoading(true);
+        try {
+            const newStatus = !isCgvOpen;
+            await updateServiceStatus('cgv', newStatus);
+            setIsCgvOpen(newStatus);
+            toast.success(`Checkout CGV ${newStatus ? 'DIBUKA' : 'DITUTUP'}`);
+        } catch (error) {
+            console.error('Error toggling CGV service:', error);
+            toast.error('Gagal mengubah status checkout CGV');
+        } finally {
+            setIsServiceLoading(false);
+        }
+    };
+
+    // Toggle Cinepolis chain checkout
+    const handleToggleCinepolis = async () => {
+        setIsServiceLoading(true);
+        try {
+            const newStatus = !isCinepolisOpen;
+            await updateServiceStatus('cinepolis', newStatus);
+            setIsCinepolisOpen(newStatus);
+            toast.success(`Checkout Cinepolis ${newStatus ? 'DIBUKA' : 'DITUTUP'}`);
+        } catch (error) {
+            console.error('Error toggling Cinepolis service:', error);
+            toast.error('Gagal mengubah status checkout Cinepolis');
+        } finally {
+            setIsServiceLoading(false);
+        }
+    };
+
+    // Toggle XXI chain checkout
+    const handleToggleXxi = async () => {
+        setIsServiceLoading(true);
+        try {
+            const newStatus = !isXxiOpen;
+            await updateServiceStatus('xxi', newStatus);
+            setIsXxiOpen(newStatus);
+            toast.success(`Checkout XXI ${newStatus ? 'DIBUKA' : 'DITUTUP'}`);
+        } catch (error) {
+            console.error('Error toggling XXI service:', error);
+            toast.error('Gagal mengubah status checkout XXI');
+        } finally {
+            setIsServiceLoading(false);
+        }
+    };
+
     // Change which popup template is active for a brand
     const handleChangeTemplate = async (brand: PopupBrand, templateId: string) => {
         const previous = activeTemplateIds[brand];
@@ -1210,16 +1372,26 @@ export default function Operational() {
                     isKenanganOpen={isKenanganOpen}
                     isTomoroOpen={isTomoroOpen}
                     isJanjijiwaOpen={isJanjijiwaOpen}
-                    isCinemaOpen={isCinemaOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
-                    onToggleCinema={handleToggleCinema}
                     popupTemplates={popupTemplates}
                     activeTemplateIds={activeTemplateIds}
                     onChangeTemplate={handleChangeTemplate}
+                />
+
+                <CinemaStatusSection
+                    isCinemaOpen={isCinemaOpen}
+                    isCgvOpen={isCgvOpen}
+                    isCinepolisOpen={isCinepolisOpen}
+                    isXxiOpen={isXxiOpen}
+                    isLoading={isServiceLoading}
+                    onToggleCinema={handleToggleCinema}
+                    onToggleCgv={handleToggleCgv}
+                    onToggleCinepolis={handleToggleCinepolis}
+                    onToggleXxi={handleToggleXxi}
                 />
 
                 <AdminFeeSection />
@@ -1263,16 +1435,26 @@ export default function Operational() {
                     isKenanganOpen={isKenanganOpen}
                     isTomoroOpen={isTomoroOpen}
                     isJanjijiwaOpen={isJanjijiwaOpen}
-                    isCinemaOpen={isCinemaOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
-                    onToggleCinema={handleToggleCinema}
                     popupTemplates={popupTemplates}
                     activeTemplateIds={activeTemplateIds}
                     onChangeTemplate={handleChangeTemplate}
+                />
+
+                <CinemaStatusSection
+                    isCinemaOpen={isCinemaOpen}
+                    isCgvOpen={isCgvOpen}
+                    isCinepolisOpen={isCinepolisOpen}
+                    isXxiOpen={isXxiOpen}
+                    isLoading={isServiceLoading}
+                    onToggleCinema={handleToggleCinema}
+                    onToggleCgv={handleToggleCgv}
+                    onToggleCinepolis={handleToggleCinepolis}
+                    onToggleXxi={handleToggleXxi}
                 />
 
                 <AdminFeeSection />
