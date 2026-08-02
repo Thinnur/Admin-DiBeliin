@@ -41,10 +41,14 @@ import {
     deleteVoucher,
     getServiceStatus,
     updateServiceStatus,
+    getCinemaOrderWindows,
+    updateCinemaOrderWindow,
     getAdminFees,
     updateAdminFee,
     type Voucher,
     type AdminFees,
+    type CinemaChain,
+    type CinemaOrderWindow,
 } from '@/services/operationalService';
 import {
     getPopupTemplates,
@@ -331,6 +335,33 @@ interface CinemaStatusSectionProps {
     onToggleCgv: () => void;
     onToggleCinepolis: () => void;
     onToggleXxi: () => void;
+    orderWindows: Record<CinemaChain, CinemaOrderWindow>;
+    onChangeOrderWindow: (chain: CinemaChain, bound: 'start' | 'end', value: string) => void;
+}
+
+// Two date inputs (start/end) that override which dates a chain is bookable on,
+// independent of whatever TIX ID itself reports — empty = unrestricted.
+function OrderWindowInputs({ chain, window, onChange }: { chain: CinemaChain; window: CinemaOrderWindow; onChange: (bound: 'start' | 'end', value: string) => void }) {
+    return (
+        <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-200/60">
+            <span className="text-xs text-slate-500 shrink-0">Bisa dipesan:</span>
+            <Input
+                type="date"
+                aria-label={`Tanggal mulai bisa dipesan (${chain.toUpperCase()})`}
+                value={window.start ?? ''}
+                onChange={(e) => onChange('start', e.target.value)}
+                className="h-8 text-xs"
+            />
+            <span className="text-xs text-slate-400">s/d</span>
+            <Input
+                type="date"
+                aria-label={`Tanggal akhir bisa dipesan (${chain.toUpperCase()})`}
+                value={window.end ?? ''}
+                onChange={(e) => onChange('end', e.target.value)}
+                className="h-8 text-xs"
+            />
+        </div>
+    );
 }
 
 function CinemaStatusSection({
@@ -343,6 +374,8 @@ function CinemaStatusSection({
     onToggleCgv,
     onToggleCinepolis,
     onToggleXxi,
+    orderWindows,
+    onChangeOrderWindow,
 }: CinemaStatusSectionProps) {
     return (
         <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
@@ -380,66 +413,75 @@ function CinemaStatusSection({
                 </div>
 
                 {/* CGV Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-red-50 border border-red-200">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCgvOpen ? 'bg-red-600' : 'bg-slate-300'}`}>
-                            <Clapperboard className="h-5 w-5 text-white" />
+                <div className="p-4 rounded-xl bg-red-50 border border-red-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCgvOpen ? 'bg-red-600' : 'bg-slate-300'}`}>
+                                <Clapperboard className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Checkout CGV</p>
+                                <p className="text-sm text-slate-500">
+                                    {isCgvOpen ? 'Checkout CGV aktif' : 'Checkout CGV ditutup — kursi CGV tidak bisa dipilih'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-semibold text-slate-900">Checkout CGV</p>
-                            <p className="text-sm text-slate-500">
-                                {isCgvOpen ? 'Checkout CGV aktif' : 'Checkout CGV ditutup — kursi CGV tidak bisa dipilih'}
-                            </p>
-                        </div>
+                        <Switch
+                            checked={isCgvOpen}
+                            onCheckedChange={onToggleCgv}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-red-600"
+                        />
                     </div>
-                    <Switch
-                        checked={isCgvOpen}
-                        onCheckedChange={onToggleCgv}
-                        disabled={isLoading}
-                        className="data-[state=checked]:bg-red-600"
-                    />
+                    <OrderWindowInputs chain="cgv" window={orderWindows.cgv} onChange={(bound, value) => onChangeOrderWindow('cgv', bound, value)} />
                 </div>
 
                 {/* Cinepolis Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-emerald-50 border border-emerald-200">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCinepolisOpen ? 'bg-emerald-600' : 'bg-slate-300'}`}>
-                            <Clapperboard className="h-5 w-5 text-white" />
+                <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isCinepolisOpen ? 'bg-emerald-600' : 'bg-slate-300'}`}>
+                                <Clapperboard className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Checkout Cinépolis</p>
+                                <p className="text-sm text-slate-500">
+                                    {isCinepolisOpen ? 'Checkout Cinépolis aktif' : 'Checkout Cinépolis ditutup — kursi Cinépolis tidak bisa dipilih'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-semibold text-slate-900">Checkout Cinépolis</p>
-                            <p className="text-sm text-slate-500">
-                                {isCinepolisOpen ? 'Checkout Cinépolis aktif' : 'Checkout Cinépolis ditutup — kursi Cinépolis tidak bisa dipilih'}
-                            </p>
-                        </div>
+                        <Switch
+                            checked={isCinepolisOpen}
+                            onCheckedChange={onToggleCinepolis}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-emerald-600"
+                        />
                     </div>
-                    <Switch
-                        checked={isCinepolisOpen}
-                        onCheckedChange={onToggleCinepolis}
-                        disabled={isLoading}
-                        className="data-[state=checked]:bg-emerald-600"
-                    />
+                    <OrderWindowInputs chain="cinepolis" window={orderWindows.cinepolis} onChange={(bound, value) => onChangeOrderWindow('cinepolis', bound, value)} />
                 </div>
 
                 {/* XXI Toggle */}
-                <div className="flex items-center justify-between p-4 rounded-xl bg-sky-50 border border-sky-200">
-                    <div className="flex items-center gap-3">
-                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isXxiOpen ? 'bg-sky-600' : 'bg-slate-300'}`}>
-                            <Clapperboard className="h-5 w-5 text-white" />
+                <div className="p-4 rounded-xl bg-sky-50 border border-sky-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isXxiOpen ? 'bg-sky-600' : 'bg-slate-300'}`}>
+                                <Clapperboard className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Checkout XXI</p>
+                                <p className="text-sm text-slate-500">
+                                    {isXxiOpen ? 'Checkout XXI aktif' : 'Checkout XXI ditutup — kursi XXI tidak bisa dipilih'}
+                                </p>
+                            </div>
                         </div>
-                        <div>
-                            <p className="font-semibold text-slate-900">Checkout XXI</p>
-                            <p className="text-sm text-slate-500">
-                                {isXxiOpen ? 'Checkout XXI aktif' : 'Checkout XXI ditutup — kursi XXI tidak bisa dipilih'}
-                            </p>
-                        </div>
+                        <Switch
+                            checked={isXxiOpen}
+                            onCheckedChange={onToggleXxi}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-sky-600"
+                        />
                     </div>
-                    <Switch
-                        checked={isXxiOpen}
-                        onCheckedChange={onToggleXxi}
-                        disabled={isLoading}
-                        className="data-[state=checked]:bg-sky-600"
-                    />
+                    <OrderWindowInputs chain="xxi" window={orderWindows.xxi} onChange={(bound, value) => onChangeOrderWindow('xxi', bound, value)} />
                 </div>
             </CardContent>
         </Card>
@@ -1106,6 +1148,11 @@ export default function Operational() {
     const [isCinepolisOpen, setIsCinepolisOpen] = useState(true);
     const [isXxiOpen, setIsXxiOpen] = useState(true);
     const [isServiceLoading, setIsServiceLoading] = useState(false);
+    const [cinemaOrderWindows, setCinemaOrderWindows] = useState<Record<CinemaChain, CinemaOrderWindow>>({
+        cgv: { start: null, end: null },
+        cinepolis: { start: null, end: null },
+        xxi: { start: null, end: null },
+    });
 
     // Popup template state (which "brand closed" text is active per brand)
     const [popupTemplates, setPopupTemplates] = useState<PopupTemplate[]>([]);
@@ -1130,7 +1177,7 @@ export default function Operational() {
 
     const fetchInitialData = async (loadVouchers: boolean) => {
         try {
-            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus, cgvStatus, cinepolisStatus, xxiStatus, templates, activeIds] = await Promise.all([
+            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus, cgvStatus, cinepolisStatus, xxiStatus, orderWindows, templates, activeIds] = await Promise.all([
                 getStoreStatus(),
                 getServiceStatus('fore'),
                 getServiceStatus('kenangan'),
@@ -1140,6 +1187,7 @@ export default function Operational() {
                 getServiceStatus('cgv'),
                 getServiceStatus('cinepolis'),
                 getServiceStatus('xxi'),
+                getCinemaOrderWindows(),
                 getPopupTemplates(),
                 getActiveTemplateIds(),
             ]);
@@ -1152,6 +1200,7 @@ export default function Operational() {
             setIsCgvOpen(cgvStatus);
             setIsCinepolisOpen(cinepolisStatus);
             setIsXxiOpen(xxiStatus);
+            setCinemaOrderWindows(orderWindows);
             setPopupTemplates(templates);
             setActiveTemplateIds(activeIds);
             if (loadVouchers) {
@@ -1312,6 +1361,20 @@ export default function Operational() {
         }
     };
 
+    // Change a chain's order-date window bound (start or end) — empty value clears it
+    const handleChangeOrderWindow = async (chain: CinemaChain, bound: 'start' | 'end', value: string) => {
+        const previous = cinemaOrderWindows[chain];
+        const nextValue = value || null;
+        setCinemaOrderWindows((prev) => ({ ...prev, [chain]: { ...prev[chain], [bound]: nextValue } }));
+        try {
+            await updateCinemaOrderWindow(chain, bound, nextValue);
+        } catch (error) {
+            console.error(`Error updating ${chain} order window:`, error);
+            toast.error(`Gagal mengubah jendela tanggal ${chain.toUpperCase()}`);
+            setCinemaOrderWindows((prev) => ({ ...prev, [chain]: previous }));
+        }
+    };
+
     // Change which popup template is active for a brand
     const handleChangeTemplate = async (brand: PopupBrand, templateId: string) => {
         const previous = activeTemplateIds[brand];
@@ -1392,6 +1455,8 @@ export default function Operational() {
                     onToggleCgv={handleToggleCgv}
                     onToggleCinepolis={handleToggleCinepolis}
                     onToggleXxi={handleToggleXxi}
+                    orderWindows={cinemaOrderWindows}
+                    onChangeOrderWindow={handleChangeOrderWindow}
                 />
 
                 <AdminFeeSection />
@@ -1455,6 +1520,8 @@ export default function Operational() {
                     onToggleCgv={handleToggleCgv}
                     onToggleCinepolis={handleToggleCinepolis}
                     onToggleXxi={handleToggleXxi}
+                    orderWindows={cinemaOrderWindows}
+                    onChangeOrderWindow={handleChangeOrderWindow}
                 />
 
                 <AdminFeeSection />

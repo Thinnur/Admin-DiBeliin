@@ -224,6 +224,76 @@ export async function updateServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' 
 }
 
 // -----------------------------------------------------------------------------
+// Cinema Order Window (per-chain bookable date range override)
+// -----------------------------------------------------------------------------
+
+export type CinemaChain = 'cgv' | 'cinepolis' | 'xxi';
+
+export interface CinemaOrderWindow {
+    start: string | null; // ISO date (YYYY-MM-DD), null = no lower bound
+    end: string | null;   // ISO date (YYYY-MM-DD), null = no upper bound
+}
+
+const CINEMA_ORDER_WINDOW_KEYS: Record<CinemaChain, { start: string; end: string }> = {
+    cgv: { start: 'cgv_order_start_date', end: 'cgv_order_end_date' },
+    cinepolis: { start: 'cinepolis_order_start_date', end: 'cinepolis_order_end_date' },
+    xxi: { start: 'xxi_order_start_date', end: 'xxi_order_end_date' },
+};
+
+/**
+ * Fetch the configured order-date window for each cinema chain. Empty bounds mean
+ * unrestricted (frontend allows any date TIX ID itself reports as bookable).
+ */
+export async function getCinemaOrderWindows(): Promise<Record<CinemaChain, CinemaOrderWindow>> {
+    const keys = Object.values(CINEMA_ORDER_WINDOW_KEYS).flatMap((k) => [k.start, k.end]);
+    const fallback: Record<CinemaChain, CinemaOrderWindow> = {
+        cgv: { start: null, end: null },
+        cinepolis: { start: null, end: null },
+        xxi: { start: null, end: null },
+    };
+
+    try {
+        const { data, error } = await supabase.from('app_settings').select('key, value').in('key', keys);
+        if (error) {
+            console.error('Error fetching cinema order windows:', error);
+            return fallback;
+        }
+
+        const raw = data?.reduce((acc, item) => {
+            acc[item.key] = item.value;
+            return acc;
+        }, {} as Record<string, unknown>) ?? {};
+        const parseDate = (val: unknown): string | null => (typeof val === 'string' && val.length > 0 ? val : null);
+
+        return {
+            cgv: { start: parseDate(raw['cgv_order_start_date']), end: parseDate(raw['cgv_order_end_date']) },
+            cinepolis: { start: parseDate(raw['cinepolis_order_start_date']), end: parseDate(raw['cinepolis_order_end_date']) },
+            xxi: { start: parseDate(raw['xxi_order_start_date']), end: parseDate(raw['xxi_order_end_date']) },
+        };
+    } catch (error) {
+        console.error('Error fetching cinema order windows:', error);
+        return fallback;
+    }
+}
+
+/**
+ * Update one bound (start or end) of a chain's order-date window.
+ * @param value - ISO date string (YYYY-MM-DD), or null to clear the bound (unrestricted)
+ */
+export async function updateCinemaOrderWindow(chain: CinemaChain, bound: 'start' | 'end', value: string | null): Promise<void> {
+    const key = CINEMA_ORDER_WINDOW_KEYS[chain][bound];
+
+    const { error } = await supabase
+        .from('app_settings')
+        .upsert({ key, value: value ?? '' }, { onConflict: 'key' });
+
+    if (error) {
+        console.error(`Error updating ${chain} order window (${bound}):`, error);
+        throw new Error(`Failed to update ${chain} order window: ${error.message}`);
+    }
+}
+
+// -----------------------------------------------------------------------------
 // Antrian Pesanan Operations
 // -----------------------------------------------------------------------------
 
