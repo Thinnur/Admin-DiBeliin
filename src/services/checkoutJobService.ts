@@ -26,6 +26,8 @@ export interface CheckoutJobOrderPayload {
     /** Jadwal pengambilan: "HH:MM" (24 jam, hari ini) buat "Jadwalkan", atau
      * kosongkan buat "Pickup Sekarang". Diteruskan apa adanya ke runCheckout.js. */
     pickupTime?: string;
+    /** Sertakan kantong plastik? Default false. Diteruskan ke needPackaging di runCheckout.js. */
+    needPackaging?: boolean;
 }
 
 export interface CheckoutJobLogEntry {

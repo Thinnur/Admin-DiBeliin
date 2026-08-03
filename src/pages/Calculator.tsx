@@ -22,6 +22,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import {
     Card,
     CardContent,
@@ -386,7 +387,8 @@ function buildKopkenOrderPayload(
     group: OptimizationResult['groups'][0],
     outlet: string,
     customerName: string,
-    pickupTime?: string
+    pickupTime?: string,
+    needPackaging?: boolean
 ): CheckoutJobOrderPayload {
     return {
         outlet: outlet || '',
@@ -401,6 +403,7 @@ function buildKopkenOrderPayload(
             return { name: cleanName, options, ...(note ? { notes: note } : {}) };
         }),
         ...(pickupTime ? { pickupTime } : {}),
+        needPackaging: needPackaging === true,
     };
 }
 
@@ -429,6 +432,7 @@ function KopkenCheckoutPanel({
         const now = new Date();
         return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     });
+    const [needPackaging, setNeedPackaging] = useState(false);
 
     // Order baru di-parse (parsedPickupTime berubah) -> sinkronkan toggle, biar
     // gak kebawa jadwal order sebelumnya.
@@ -443,7 +447,7 @@ function KopkenCheckoutPanel({
 
     const openDialog = () => {
         const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
-        setJsonDraft(JSON.stringify(buildKopkenOrderPayload(group, outlet, customerName, pickupTime), null, 2));
+        setJsonDraft(JSON.stringify(buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging), null, 2));
         setDialogOpen(true);
     };
 
@@ -498,6 +502,10 @@ function KopkenCheckoutPanel({
                         className="border rounded-md px-2 text-xs w-24"
                     />
                 )}
+            </div>
+            <div className="flex items-center gap-2 mb-1.5">
+                <Switch id="need-packaging" checked={needPackaging} onCheckedChange={setNeedPackaging} />
+                <Label htmlFor="need-packaging" className="text-xs font-normal">Pakai Plastik</Label>
             </div>
             <Button variant="outline" size="sm" className="w-full" onClick={openDialog}>
                 <Zap className="w-4 h-4 mr-2" />
