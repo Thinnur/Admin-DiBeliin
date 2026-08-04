@@ -51,7 +51,7 @@ const navItems = [
         description: 'Track transactions',
     },
     {
-        label: 'Calculator',
+        label: 'Pesanan',
         path: '/calculator',
         icon: Calculator,
         description: 'Optimize orders',

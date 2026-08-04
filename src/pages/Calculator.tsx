@@ -3,7 +3,8 @@
 // =============================================================================
 // Optimize order splitting across multiple accounts for maximum savings
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
     Calculator,
     Sparkles,
@@ -63,6 +64,11 @@ import {
     type CheckoutJobOrderPayload,
 } from '@/services/checkoutJobService';
 import { useAuth } from '@/contexts/AuthContext';
+import {
+    attachCheckoutJob,
+    getQrisOrder,
+    type QrisOrder,
+} from '@/services/qrisOrderService';
 import type { AccountBrand } from '@/types/database';
 
 // -----------------------------------------------------------------------------
@@ -412,12 +418,14 @@ function KopkenCheckoutPanel({
     outlet,
     customerName,
     parsedPickupTime,
+    qrisOrderId,
 }: {
     group: OptimizationResult['groups'][0];
     outlet: string;
     customerName: string;
     /** Jadwal hasil parse baris "Jam Pengambilan:" di teks order (lihat orderParser.ts) — undefined = Pickup Sekarang. */
     parsedPickupTime?: string;
+    qrisOrderId?: string;
 }) {
     const { user } = useAuth();
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -462,6 +470,12 @@ function KopkenCheckoutPanel({
         setSubmitting(true);
         try {
             const created = await createCheckoutJob(payload, user?.email ?? undefined);
+            if (qrisOrderId) {
+                await attachCheckoutJob(qrisOrderId, created.id)
+                    .catch((error) => toast.warning(
+                        `Job jalan, tapi status pesanan gagal diupdate: ${error instanceof Error ? error.message : String(error)}`
+                    ));
+            }
             setDialogOpen(false);
             // Buka tab baru (bukan navigasi di tab ini) — biar Calculator tetap kebuka
             // buat proses checkout akun lain, dan tiap checkout bisa dipantau di tab sendiri.
@@ -612,6 +626,11 @@ function SummaryCard({ result, brand }: { result: OptimizationResult; brand: Acc
 // -----------------------------------------------------------------------------
 
 export default function CalculatorPage() {
+    const navigate = useNavigate();
+    const { orderId } = useParams<{ orderId?: string }>();
+    const [qrisOrder, setQrisOrder] = useState<QrisOrder | null>(null);
+    const hydratedRef = useRef(false);
+
     // Input state
     const [orderText, setOrderText] = useState('');
     const [items, setItems] = useState<EditableItem[]>([]);
@@ -669,6 +688,86 @@ export default function CalculatorPage() {
     // Generate unique ID
     const generateId = () => Math.random().toString(36).substring(2, 9);
 
+    // Dipakai dua jalur: parse teks WA manual, dan hidrasi dari pesanan web (qris_orders).
+    const toEditableItems = useCallback((
+        parsedItems: ParsedItem[],
+        targetBrand: AccountBrand = brand
+    ): EditableItem[] => {
+        const dbBrand = targetBrand === 'kopken' ? 'kenangan' : targetBrand;
+
+        return parsedItems.map((item) => {
+            const sanitizedName = item.name
+                .toLowerCase()
+                .replace(/\([^)]*\)/g, ' ')
+                .replace(/[-\u2013]?\s*(regular|large|ice|hot)\b/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            const matchedDbItem = dbMenuItems.find(
+                (dbItem) =>
+                    dbItem.brand === dbBrand &&
+                    (dbItem.name.toLowerCase().includes(sanitizedName) ||
+                        sanitizedName.includes(dbItem.name.toLowerCase()))
+            );
+
+            let determinedBasePrice = item.price;
+            if (matchedDbItem && targetBrand === 'tomoro' && matchedDbItem.regular_price != null) {
+                determinedBasePrice = matchedDbItem.regular_price;
+            }
+
+            return {
+                ...item,
+                id: generateId(),
+                basePrice: determinedBasePrice,
+            };
+        });
+    }, [brand, dbMenuItems]);
+
+    // Hidrasi sekali saja, dan hanya setelah menu DB siap (toEditableItems butuh
+    // dbMenuItems untuk basePrice Tomoro). Ref-nya mencegah edit admin tertimpa
+    // waktu dbMenuItems selesai loading belakangan.
+    useEffect(() => {
+        if (!orderId || orderId === 'manual' || hydratedRef.current) return;
+        if (dbMenuItems.length === 0) return;
+        hydratedRef.current = true;
+
+        getQrisOrder(orderId)
+            .then((order) => {
+                if (!order) {
+                    toast.error('Pesanan tidak ditemukan');
+                    return;
+                }
+
+                const orderBrand = order.brand === 'kenangan'
+                    ? 'kopken'
+                    : order.brand as AccountBrand;
+
+                setQrisOrder(order);
+                setBrand(orderBrand);
+                setCustomerName(order.customer_name);
+                setOutletName(order.outlet);
+                setParsedPickupTime(order.pickup_time ?? undefined);
+                setItems(toEditableItems(
+                    order.items.map((item) => ({
+                        id: generateId(),
+                        name: item.size ? `${item.name} - ${item.size}` : item.name,
+                        qty: item.quantity,
+                        price: item.price,
+                        addons: [
+                            ...item.options,
+                            ...(item.notes ? [`Catatan: ${item.notes}`] : []),
+                        ],
+                    })),
+                    orderBrand
+                ));
+                setResult(null);
+                setHasOptimized(false);
+            })
+            .catch((error) => toast.error(
+                error instanceof Error ? error.message : 'Gagal memuat pesanan'
+            ));
+    }, [dbMenuItems.length, orderId, toEditableItems]);
+
     // Parse order text
     const handleParse = () => {
         const parsed = parseWhatsAppOrder(orderText);
@@ -678,42 +777,7 @@ export default function CalculatorPage() {
             return;
         }
 
-        // Determine which DB brand to search against
-        const dbBrand = brand === 'kopken' ? 'kenangan' : brand;
-
-        const editableItems: EditableItem[] = parsed.items.map((item) => {
-            // Sanitize the parsed name: lowercase + strip size/temp modifiers
-            const sanitizedName = item.name
-                .toLowerCase()
-                .replace(/\([^)]*\)/g, ' ')
-                .replace(/[-\u2013]?\s*(regular|large|ice|hot)\b/gi, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-            // Try to find a matching item in the DB
-            const matchedDbItem = dbMenuItems.find(
-                (dbItem) =>
-                    dbItem.brand === dbBrand &&
-                    (dbItem.name.toLowerCase().includes(sanitizedName) ||
-                        sanitizedName.includes(dbItem.name.toLowerCase()))
-            );
-
-            // Fallback value
-            let determinedBasePrice = item.price;
-
-            if (matchedDbItem) {
-                // Inject base price from DB for Tomoro BOGO calculation
-                if (brand === 'tomoro' && matchedDbItem.regular_price != null) {
-                    determinedBasePrice = matchedDbItem.regular_price;
-                }
-            }
-
-            return {
-                ...item,
-                id: generateId(),
-                basePrice: determinedBasePrice,
-            };
-        });
+        const editableItems = toEditableItems(parsed.items);
 
         setItems(editableItems);
         setResult(null);
@@ -889,11 +953,28 @@ export default function CalculatorPage() {
                 )}
             </div>
 
+            {qrisOrder && (
+                <div className="flex flex-col gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <p className="text-sm font-medium text-emerald-900">
+                            Pesanan {qrisOrder.order_number}
+                        </p>
+                        <p className="text-sm text-emerald-700">
+                            Total dibayar: {formatPrice(qrisOrder.total_amount)}
+                        </p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => navigate('/calculator')}>
+                        Kembali ke Pesanan
+                    </Button>
+                </div>
+            )}
+
             {/* Two Column Layout */}
             <div className="grid lg:grid-cols-2 gap-6 min-w-0">
                 {/* Left Column - Input */}
                 <div className="space-y-4 min-w-0">
                     {/* Parse Section */}
+                    {!qrisOrder && (
                     <Card className="shadow-sm">
                         <CardHeader className="pb-3">
                             <CardTitle className="text-base flex items-center gap-2">
@@ -943,6 +1024,7 @@ Example:
                             </div>
                         </CardContent>
                     </Card>
+                    )}
 
                     {/* Items Table */}
                     {items.length > 0 && (
@@ -1109,6 +1191,7 @@ Example:
                                                 outlet={outletName}
                                                 customerName={customerName}
                                                 parsedPickupTime={parsedPickupTime}
+                                                qrisOrderId={qrisOrder?.id}
                                             />
                                         )}
                                     </div>
