@@ -19,7 +19,7 @@ export interface QrisOrder {
     pickup_time: string | null;
     items: QrisOrderItem[];
     total_amount: number;
-    status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'PROCESSED';
+    status: 'PENDING' | 'PAID' | 'EXPIRED' | 'CANCELLED' | 'PROCESSED' | 'COMPLETED';
     checkout_job_ids: string[];
     paid_at: string | null;
     created_at: string;
@@ -63,4 +63,11 @@ export async function attachCheckoutJob(orderId: string, jobId: string): Promise
 export async function deleteQrisOrder(id: string): Promise<void> {
     const { error } = await supabase.from('qris_orders').delete().eq('id', id);
     if (error) throw new Error(`Gagal menghapus pesanan: ${error.message}`);
+}
+
+/** Tandai selesai (sudah diambil/dikirim) -- keluar dari daftar "Pesanan Baru"
+ * tanpa menghapus datanya, beda dari deleteQrisOrder yang permanen. */
+export async function completeQrisOrder(id: string): Promise<void> {
+    const { error } = await supabase.from('qris_orders').update({ status: 'COMPLETED' }).eq('id', id);
+    if (error) throw new Error(`Gagal menandai pesanan selesai: ${error.message}`);
 }

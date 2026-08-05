@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calculator as CalculatorIcon, Loader2, RefreshCw, Trash2 } from 'lucide-react';
+import { Calculator as CalculatorIcon, CheckCircle2, Loader2, RefreshCw, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 
@@ -27,7 +27,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
-import { deleteQrisOrder, listNewQrisOrders, type QrisOrder } from '@/services/qrisOrderService';
+import { completeQrisOrder, deleteQrisOrder, listNewQrisOrders, type QrisOrder } from '@/services/qrisOrderService';
 
 const AUTO_REFRESH_MS = 20_000;
 
@@ -51,6 +51,7 @@ export default function OrderListPage() {
     const [dayTab, setDayTab] = useState('all');
     const [brandTab, setBrandTab] = useState<BrandTab>('all');
     const [deletingId, setDeletingId] = useState<string | null>(null);
+    const [completingId, setCompletingId] = useState<string | null>(null);
 
     const load = useCallback(async (silent = false) => {
         if (!silent) setLoading(true);
@@ -77,6 +78,19 @@ export default function OrderListPage() {
             toast.error(error instanceof Error ? error.message : 'Gagal menghapus pesanan');
         } finally {
             setDeletingId(null);
+        }
+    }, []);
+
+    const handleComplete = useCallback(async (orderId: string) => {
+        setCompletingId(orderId);
+        try {
+            await completeQrisOrder(orderId);
+            setOrders((prev) => prev.filter((order) => order.id !== orderId));
+            toast.success('Pesanan ditandai selesai.');
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Gagal menandai pesanan selesai');
+        } finally {
+            setCompletingId(null);
         }
     }, []);
 
@@ -190,7 +204,7 @@ export default function OrderListPage() {
                                     <TableHead>Item</TableHead>
                                     <TableHead className="text-right">Total</TableHead>
                                     <TableHead>Status</TableHead>
-                                    <TableHead className="w-10" />
+                                    <TableHead className="w-20" />
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
@@ -220,7 +234,19 @@ export default function OrderListPage() {
                                                 ? `Diproses (${order.checkout_job_ids.length} job)`
                                                 : 'Belum diproses'}
                                         </TableCell>
-                                        <TableCell onClick={(event) => event.stopPropagation()}>
+                                        <TableCell onClick={(event) => event.stopPropagation()} className="flex gap-1">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
+                                                disabled={completingId === order.id}
+                                                title="Tandai selesai"
+                                                onClick={() => void handleComplete(order.id)}
+                                            >
+                                                {completingId === order.id
+                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                    : <CheckCircle2 className="h-4 w-4" />}
+                                            </Button>
                                             <AlertDialog>
                                                 <AlertDialogTrigger asChild>
                                                     <Button
