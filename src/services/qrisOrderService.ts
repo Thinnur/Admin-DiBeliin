@@ -58,3 +58,9 @@ export async function attachCheckoutJob(orderId: string, jobId: string): Promise
 
     if (error) throw new Error(`Gagal menyambungkan job ke pesanan: ${error.message}`);
 }
+
+/** Hapus permanen -- untuk pesanan dibatalkan/refund atau sisa data uji coba. */
+export async function deleteQrisOrder(id: string): Promise<void> {
+    const { error } = await supabase.from('qris_orders').delete().eq('id', id);
+    if (error) throw new Error(`Gagal menghapus pesanan: ${error.message}`);
+}

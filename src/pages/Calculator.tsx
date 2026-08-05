@@ -752,7 +752,10 @@ export default function CalculatorPage() {
                         id: generateId(),
                         name: item.size ? `${item.name} - ${item.size}` : item.name,
                         qty: item.quantity,
-                        price: item.price,
+                        // item.price dari qris_orders adalah TOTAL BARIS (sudah dikali qty) --
+                        // ParsedItem.price di Calculator ini harus per-unit (Calculator sendiri
+                        // yang mengalikan qty x price buat nampilin Total), jadi dibagi di sini.
+                        price: item.quantity > 0 ? Math.round(item.price / item.quantity) : item.price,
                         addons: [
                             ...item.options,
                             ...(item.notes ? [`Catatan: ${item.notes}`] : []),
@@ -958,6 +961,9 @@ export default function CalculatorPage() {
                     <div>
                         <p className="text-sm font-medium text-emerald-900">
                             Pesanan {qrisOrder.order_number}
+                        </p>
+                        <p className="text-sm text-emerald-700">
+                            {customerName || 'Tanpa nama'} &middot; {outletName || 'Outlet tidak diketahui'}
                         </p>
                         <p className="text-sm text-emerald-700">
                             Total dibayar: {formatPrice(qrisOrder.total_amount)}
