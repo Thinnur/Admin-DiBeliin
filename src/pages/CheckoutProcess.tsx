@@ -25,6 +25,7 @@ import {
     AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { formatPrice } from '@/lib/logic/orderParser';
+import { supabase } from '@/lib/supabase';
 import { getCheckoutJob, cancelCheckoutJob, type CheckoutJob } from '@/services/checkoutJobService';
 import {
     QrisImage,
@@ -35,9 +36,6 @@ import {
     type KopkenCheckoutResult,
 } from '@/components/operational/CheckoutResultDisplay';
 import { isPaymentStatusFinal } from '@/lib/utils';
-
-const FAILED_PAYMENT_STATUSES = ['PAYMENT_FAILED', 'PAYMENT_FAILED_TEMP', 'PAYMENT_EXPIRED'];
-const ORDER_DONE_PHASE = 'Sudah diambil';
 
 export default function CheckoutProcessPage() {
     const { jobId } = useParams<{ jobId: string }>();
@@ -54,21 +52,22 @@ export default function CheckoutProcessPage() {
             .finally(() => setLoading(false));
     }, [jobId]);
 
-    // Poll tiap 2 detik selagi belum bener-bener final: checkout masih
-    // pending/running, status bayar belum jelas, ATAU udah dibayar tapi pesanan
-    // masih diproses dapur (belum "Sudah diambil"). Payment doang bukan garis
-    // finish lagi -- status pesanan (phase) bisa lanjut lama setelah bayar sukses.
+    // Ganti polling 2 detik dengan Supabase Realtime: checkout_worker.js/
+    // payment_status_worker.js nge-PATCH baris ini tiap ada progres (log,
+    // status, result), jadi cukup dengerin UPDATE event-nya langsung --
+    // gak perlu re-fetch full row tiap tick walau gak ada perubahan.
     useEffect(() => {
-        if (!job || job.status === 'failed' || job.status === 'cancelled') return;
-        const r = job.result as KopkenCheckoutResult | null;
-        const paymentStatus = r?.paymentStatus;
-        if (paymentStatus && FAILED_PAYMENT_STATUSES.includes(paymentStatus)) return;
-        if (job.status === 'success' && isPaymentStatusFinal(paymentStatus) && r?.phase === ORDER_DONE_PHASE) return;
-        const interval = setInterval(() => {
-            getCheckoutJob(job.id).then(setJob).catch(() => {});
-        }, 2000);
-        return () => clearInterval(interval);
-    }, [job]);
+        if (!jobId) return;
+        const channel = supabase
+            .channel(`checkout_job_${jobId}`)
+            .on(
+                'postgres_changes',
+                { event: 'UPDATE', schema: 'public', table: 'checkout_jobs', filter: `id=eq.${jobId}` },
+                (payload) => setJob(payload.new as CheckoutJob)
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [jobId]);
 
     if (loading) {
         return <p className="text-sm text-slate-400">Memuat...</p>;

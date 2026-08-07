@@ -43,6 +43,7 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import { formatPrice } from '@/lib/logic/orderParser';
+import { supabase } from '@/lib/supabase';
 import {
     listCheckoutJobs,
     deleteCheckoutJobs,
@@ -91,13 +92,36 @@ export default function CheckoutHistoryPage() {
         loadJobs();
     }, [loadJobs]);
 
-    // Auto-refresh tiap 10 detik biar status pembayaran/pesanan kebaruan tanpa
-    // klik Refresh manual -- silent (gak nunjukin spinner/toast tiap tick)
-    // biar gak ganggu kalau lagi milih checkbox buat hapus.
+    // Ganti auto-refresh 10 detik (yang narik ulang sampai 2000 baris penuh)
+    // dengan Realtime: dengerin INSERT/UPDATE/DELETE di checkout_jobs dan
+    // merge ke state lokal -- cuma baris yang bener-bener berubah yang
+    // ke-transfer, bukan seluruh riwayat tiap tick.
     useEffect(() => {
-        const interval = setInterval(() => { loadJobs({ silent: true }); }, 10000);
-        return () => clearInterval(interval);
-    }, [loadJobs]);
+        const channel = supabase
+            .channel('checkout_jobs_history')
+            .on(
+                'postgres_changes',
+                { event: '*', schema: 'public', table: 'checkout_jobs' },
+                (payload) => {
+                    setJobs((prev) => {
+                        if (payload.eventType === 'DELETE') {
+                            const oldId = (payload.old as { id: string }).id;
+                            return prev.filter((j) => j.id !== oldId);
+                        }
+                        // log gak dipakai di list view (lihat listCheckoutJobs) -- buang
+                        // biar konsisten sama shape awal, bukan cuma soal state size.
+                        const incoming = { ...(payload.new as CheckoutJob), log: [] };
+                        const exists = prev.some((j) => j.id === incoming.id);
+                        const next = exists
+                            ? prev.map((j) => (j.id === incoming.id ? incoming : j))
+                            : [incoming, ...prev];
+                        return next.sort((a, b) => b.created_at.localeCompare(a.created_at));
+                    });
+                }
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, []);
 
     const statusFilteredJobs = statusFilter === 'all' ? jobs : jobs.filter((j) => j.status === statusFilter);
 

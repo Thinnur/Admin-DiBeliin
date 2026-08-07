@@ -84,16 +84,19 @@ export async function requestReceiptRefresh(id: string): Promise<void> {
     if (error) throw new Error(`Gagal minta refresh struk: ${error.message}`);
 }
 
-/** Riwayat checkout terbaru (buat halaman CheckoutHistory). */
+/** Riwayat checkout terbaru (buat halaman CheckoutHistory). Sengaja exclude
+ * kolom `log` (array progres checkout_worker.js, bisa gede) -- list view cuma
+ * butuh ringkasan, dan ini di-refetch tiap 10 detik x sampai 2000 baris, jadi
+ * ngirit egress banyak. Buka detail per-job (CheckoutProcess) tetap select('*'). */
 export async function listCheckoutJobs(limit = 100): Promise<CheckoutJob[]> {
     const { data, error } = await supabase
         .from('checkout_jobs')
-        .select('*')
+        .select('id, order_payload, status, result, created_by, created_at, updated_at, receipt_refresh_requested_at, cancel_requested_at')
         .order('created_at', { ascending: false })
         .limit(limit);
 
     if (error) throw new Error(`Gagal memuat riwayat checkout: ${error.message}`);
-    return (data ?? []) as CheckoutJob[];
+    return (data ?? []).map((j) => ({ ...j, log: [] })) as CheckoutJob[];
 }
 
 /** Batalkan job yang belum sampai Bayar. Dua kondisi:
