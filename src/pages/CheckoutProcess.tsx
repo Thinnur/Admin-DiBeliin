@@ -56,6 +56,11 @@ export default function CheckoutProcessPage() {
     // payment_status_worker.js nge-PATCH baris ini tiap ada progres (log,
     // status, result), jadi cukup dengerin UPDATE event-nya langsung --
     // gak perlu re-fetch full row tiap tick walau gak ada perubahan.
+    // PENTING: merge, jangan replace total -- Postgres nge-skip kolom TOASTed
+    // (mis. `log` yang udah gede) dari payload kalau UPDATE itu gak nyentuh
+    // kolom tsb (logical replication cuma kirim yang berubah), jadi
+    // payload.new.log bisa literally gak ada ('log' in payload.new === false).
+    // Replace total bikin job.log jadi undefined -> crash pas render -> blank.
     useEffect(() => {
         if (!jobId) return;
         const channel = supabase
@@ -63,7 +68,7 @@ export default function CheckoutProcessPage() {
             .on(
                 'postgres_changes',
                 { event: 'UPDATE', schema: 'public', table: 'checkout_jobs', filter: `id=eq.${jobId}` },
-                (payload) => setJob(payload.new as CheckoutJob)
+                (payload) => setJob((prev) => (prev ? { ...prev, ...payload.new } : (payload.new as CheckoutJob)))
             )
             .subscribe();
         return () => { supabase.removeChannel(channel); };

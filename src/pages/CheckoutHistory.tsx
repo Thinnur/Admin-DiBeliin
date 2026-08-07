@@ -96,6 +96,11 @@ export default function CheckoutHistoryPage() {
     // dengan Realtime: dengerin INSERT/UPDATE/DELETE di checkout_jobs dan
     // merge ke state lokal -- cuma baris yang bener-bener berubah yang
     // ke-transfer, bukan seluruh riwayat tiap tick.
+    // PENTING: merge di atas baris existing, jangan replace total -- kolom
+    // TOASTed (log, kadang order_payload) yang gak ikut berubah di suatu
+    // UPDATE bakal absen dari payload.new sama sekali (logical replication
+    // cuma kirim yang berubah). Replace total bikin field itu jadi undefined
+    // dan nge-crash render (mis. job.order_payload.items.map di baris list).
     useEffect(() => {
         const channel = supabase
             .channel('checkout_jobs_history')
@@ -108,13 +113,14 @@ export default function CheckoutHistoryPage() {
                             const oldId = (payload.old as { id: string }).id;
                             return prev.filter((j) => j.id !== oldId);
                         }
+                        const incomingId = (payload.new as { id: string }).id;
+                        const existing = prev.find((j) => j.id === incomingId);
                         // log gak dipakai di list view (lihat listCheckoutJobs) -- buang
                         // biar konsisten sama shape awal, bukan cuma soal state size.
-                        const incoming = { ...(payload.new as CheckoutJob), log: [] };
-                        const exists = prev.some((j) => j.id === incoming.id);
-                        const next = exists
-                            ? prev.map((j) => (j.id === incoming.id ? incoming : j))
-                            : [incoming, ...prev];
+                        const merged = { ...existing, ...(payload.new as CheckoutJob), log: [] } as CheckoutJob;
+                        const next = existing
+                            ? prev.map((j) => (j.id === incomingId ? merged : j))
+                            : [merged, ...prev];
                         return next.sort((a, b) => b.created_at.localeCompare(a.created_at));
                     });
                 }
