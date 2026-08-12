@@ -756,6 +756,12 @@ export default function CalculatorPage() {
                         // ParsedItem.price di Calculator ini harus per-unit (Calculator sendiri
                         // yang mengalikan qty x price buat nampilin Total), jadi dibagi di sini.
                         price: item.quantity > 0 ? Math.round(item.price / item.quantity) : item.price,
+                        // Sama halnya nonDiscountableAmount (Syrup/Topping/Espresso Shot dll) --
+                        // disimpan sebagai total baris, dibagi ke per-unit di sini supaya optimizer
+                        // bisa mengeluarkannya dari basis diskon 50%, match logika DIBeliin.
+                        nonDiscountablePrice: item.nonDiscountableAmount
+                            ? (item.quantity > 0 ? Math.round(item.nonDiscountableAmount / item.quantity) : item.nonDiscountableAmount)
+                            : undefined,
                         addons: [
                             ...item.options,
                             ...(item.notes ? [`Catatan: ${item.notes}`] : []),
@@ -866,6 +872,7 @@ export default function CalculatorPage() {
             price: item.price,
             qty: item.qty,
             addons: item.addons ?? [],
+            nonDiscountablePrice: item.nonDiscountablePrice,
             ...(brand === 'tomoro' ? {
                 basePrice: item.basePrice !== undefined && item.basePrice > 0 ? item.basePrice : item.price,
             } : {}),

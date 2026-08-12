@@ -19,6 +19,10 @@ export interface CartItem {
     /** actualPrice: harga yang dibayar (Regular = harga regular, Large = harga Large) */
     price: number;
     qty: number;
+    /** Porsi `price` (per-unit) yang tidak ikut diskon produk Kopken, mis. Syrup/Topping/
+     * Espresso Shot — dikeluarkan dari basis diskon 50% di optimizeKopKen, sama seperti
+     * getNonDiscountableAddonTotal di DIBeliin. */
+    nonDiscountablePrice?: number;
     addons?: string[];
     /**
      * basePrice: harga Regular menu (untuk kalkulasi diskon BOGO Tomoro).
@@ -137,18 +141,32 @@ function optimizeFore(expandedItems: ForeItem[]): OptimizedGroup[] {
 const calcKopKenDiscA = (price: number) => Math.min(price * 0.5, 35000);
 const calcKopKenDiscB = (price: number) => (price >= 50000 ? Math.min(price * 0.5, 30000) : 0);
 
-function expandKopKenItems(items: CartItem[]): { name: string; price: number; addons: string[] }[] {
-    const expanded: { name: string; price: number; addons: string[] }[] = [];
+// price di unit yang di-expand adalah bagian DISCOUNTABLE saja (non-discountable addon
+// dipisah ke field sendiri) -- match cara DIBeliin's CartItem.price sudah exclude addon
+// non-discountable dari awal (lihat calculateGroupedPricing di pricingUtils.ts).
+function expandKopKenItems(items: CartItem[]): { name: string; price: number; nonDiscountablePrice: number; addons: string[] }[] {
+    const expanded: { name: string; price: number; nonDiscountablePrice: number; addons: string[] }[] = [];
     for (const item of items) {
+        const ndp = Math.min(Math.max(0, item.nonDiscountablePrice ?? 0), item.price);
         for (let i = 0; i < item.qty; i++) {
-            expanded.push({ name: item.name, price: item.price, addons: item.addons ?? [] });
+            expanded.push({ name: item.name, price: item.price - ndp, nonDiscountablePrice: ndp, addons: item.addons ?? [] });
         }
     }
     return expanded;
 }
 
-function optimizeKopKen(expandedItems: { name: string; price: number; addons: string[] }[]): OptimizedGroup[] {
-    const attemptAllMin50 = (itemList: { name: string; price: number; addons: string[] }[]): OptimizedGroup[] | null => {
+type KopKenUnit = { name: string; price: number; nonDiscountablePrice: number; addons: string[] };
+
+function optimizeKopKen(expandedItems: KopKenUnit[]): OptimizedGroup[] {
+    // unit.price is discountable-only (see expandKopKenItems) -- full() restores the real
+    // amount for display (subtotal / line items) without letting non-discountable addons
+    // (Syrup/Topping/Espresso Shot) leak into the 50% discount or the 50k/60k/70k thresholds.
+    const full = (u: KopKenUnit) => u.price + u.nonDiscountablePrice;
+    const toDisplayItems = (units: KopKenUnit[]) =>
+        units.map(u => ({ name: u.name, addons: u.addons, price: full(u), basePrice: full(u) }));
+    const sumFull = (units: KopKenUnit[]) => units.reduce((s, u) => s + full(u), 0);
+
+    const attemptAllMin50 = (itemList: KopKenUnit[]): OptimizedGroup[] | null => {
         if (itemList.length === 0) return [];
         const sorted = [...itemList].sort((a, b) => b.price - a.price);
         const total = sorted.reduce((a, b) => a + b.price, 0);
@@ -159,23 +177,23 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
 
         for (let k = maxBaskets; k >= minBaskets; k--) {
             if (k <= 0) continue;
-            const baskets: OptimizedGroup[] = Array(k).fill(null).map(() => ({
-                id: generateId(),
-                items: [],
-                totalPrice: 0,
-                recommendedVoucher: 'min50k' as const,
-                estimatedDiscount: 0,
-            }));
+            const baskets: { units: KopKenUnit[]; discountableTotal: number }[] =
+                Array(k).fill(null).map(() => ({ units: [], discountableTotal: 0 }));
 
             for (const item of sorted) {
-                baskets.sort((a, b) => a.totalPrice - b.totalPrice);
-                baskets[0].items.push({ name: item.name, addons: item.addons, price: item.price, basePrice: item.price });
-                baskets[0].totalPrice += item.price;
+                baskets.sort((a, b) => a.discountableTotal - b.discountableTotal);
+                baskets[0].units.push(item);
+                baskets[0].discountableTotal += item.price;
             }
 
-            if (baskets.every(b => b.totalPrice >= 50000)) {
-                baskets.forEach(b => (b.estimatedDiscount = calcKopKenDiscB(b.totalPrice)));
-                return baskets;
+            if (baskets.every(b => b.discountableTotal >= 50000)) {
+                return baskets.map(b => ({
+                    id: generateId(),
+                    items: toDisplayItems(b.units),
+                    totalPrice: sumFull(b.units),
+                    recommendedVoucher: 'min50k' as const,
+                    estimatedDiscount: calcKopKenDiscB(b.discountableTotal),
+                }));
             }
         }
         return null;
@@ -195,8 +213,8 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
             console.error('Optimizer Infinite Loop Detected: Forcing exit.');
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
-                totalPrice: remainingItems.reduce((s, i) => s + i.price, 0),
+                items: toDisplayItems(remainingItems),
+                totalPrice: sumFull(remainingItems),
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: 0,
             });
@@ -208,8 +226,8 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
         if (currentTotal >= 50000 && currentTotal <= 60000) {
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
-                totalPrice: currentTotal,
+                items: toDisplayItems(remainingItems),
+                totalPrice: sumFull(remainingItems),
                 recommendedVoucher: 'min50k',
                 estimatedDiscount: calcKopKenDiscB(currentTotal),
             });
@@ -219,15 +237,15 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
         if (currentTotal < 50000 || (currentTotal > 60000 && currentTotal <= 70000)) {
             groups.push({
                 id: generateId(),
-                items: remainingItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
-                totalPrice: currentTotal,
+                items: toDisplayItems(remainingItems),
+                totalPrice: sumFull(remainingItems),
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: calcKopKenDiscA(currentTotal),
             });
             break;
         }
 
-        const subsetB: { name: string; price: number; addons: string[] }[] = [];
+        const subsetB: KopKenUnit[] = [];
         let currentSubsetSum = 0;
         const indicesToRemove: number[] = [];
 
@@ -242,14 +260,14 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
         if (currentSubsetSum >= 50000) {
             groups.push({
                 id: generateId(),
-                items: subsetB.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
-                totalPrice: currentSubsetSum,
+                items: toDisplayItems(subsetB),
+                totalPrice: sumFull(subsetB),
                 recommendedVoucher: 'min50k',
                 estimatedDiscount: calcKopKenDiscB(currentSubsetSum),
             });
             indicesToRemove.sort((a, b) => b - a).forEach(idx => remainingItems.splice(idx, 1));
         } else {
-            const basketAItems: { name: string; price: number; addons: string[] }[] = [];
+            const basketAItems: KopKenUnit[] = [];
             let basketASum = 0;
             const removeA: number[] = [];
 
@@ -270,8 +288,8 @@ function optimizeKopKen(expandedItems: { name: string; price: number; addons: st
 
             groups.push({
                 id: generateId(),
-                items: basketAItems.map(i => ({ name: i.name, addons: i.addons, price: i.price, basePrice: i.price })),
-                totalPrice: basketASum,
+                items: toDisplayItems(basketAItems),
+                totalPrice: sumFull(basketAItems),
                 recommendedVoucher: 'nomin',
                 estimatedDiscount: calcKopKenDiscA(basketASum),
             });
@@ -543,7 +561,9 @@ export function optimizeOrder(
             groups = optimizeFore(foreItems);
         } else if (brand === 'kopken') {
             const kopItems = expandKopKenItems(items);
-            totalBill = kopItems.reduce((s, i) => s + i.price, 0);
+            // kopItems[].price is discountable-only (non-discountable addons split out) --
+            // totalBill must reflect the FULL bill, so add nonDiscountablePrice back here.
+            totalBill = kopItems.reduce((s, i) => s + i.price + i.nonDiscountablePrice, 0);
             groups = optimizeKopKen(kopItems);
         } else if (brand === 'tomoro') {
             const tomoroItems = expandTomoroItems(items);
@@ -551,7 +571,7 @@ export function optimizeOrder(
             groups = optimizeTomoro(tomoroItems, accountCost);
         } else {
             const jiwaItems = expandKopKenItems(items); // Reuses expandKopKenItems as it is brand-agnostic
-            totalBill = jiwaItems.reduce((s, i) => s + i.price, 0);
+            totalBill = jiwaItems.reduce((s, i) => s + i.price + i.nonDiscountablePrice, 0);
             groups = optimizeJanjiJiwa(jiwaItems, accountCost);
         }
 
@@ -561,9 +581,13 @@ export function optimizeOrder(
         let totalAdminCost: number;
 
         if (brand === 'kopken') {
+            // Tiap akun kuotanya 2 redeem/hari, maks 1 di antaranya "nomin" (sisanya "min50k"):
+            // 2x min50k, ATAU 1x nomin + 1x min50k, ATAU 1x nomin saja. Akun dibutuhkan =
+            // ceil(total voucher / 2), tapi tidak boleh kurang dari jumlah basket nomin
+            // (tiap akun maks 1 nomin, gak peduli sisa kuotanya).
             const nominCount = groups.filter(g => g.recommendedVoucher === 'nomin').length;
             const min50kCount = groups.filter(g => g.recommendedVoucher === 'min50k').length;
-            accountsNeeded = Math.max(nominCount, min50kCount);
+            accountsNeeded = Math.max(nominCount, Math.ceil((nominCount + min50kCount) / 2));
             totalAdminCost = accountsNeeded * accountCost;
         } else if (brand === 'fore') {
             // accountCost is "fee per cup" for Fore — every basket always carries a positive

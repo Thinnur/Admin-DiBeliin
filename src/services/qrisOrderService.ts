@@ -6,6 +6,9 @@ export interface QrisOrderItem {
     quantity: number;
     /** Total baris (unit + addon + tier) x qty — sama seperti angka "Rp ..." di teks WA lama. */
     price: number;
+    /** Bagian dari `price` yang TIDAK ikut diskon produk brand (mis. Kopken Syrup/Topping/
+     * Espresso Shot) — total baris, sudah x qty. */
+    nonDiscountableAmount?: number;
     options: string[];
     notes?: string;
 }

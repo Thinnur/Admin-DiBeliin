@@ -13,6 +13,10 @@ export interface ParsedItem {
     name: string;
     qty: number;
     price: number;
+    /** Porsi `price` (per-unit) yang tidak ikut diskon produk brand, mis. Kopken
+     * Syrup/Topping/Espresso Shot. Hanya terisi saat hidrasi dari qris_orders
+     * (lihat Calculator.tsx) — order hasil parse teks WA manual tidak punya info ini. */
+    nonDiscountablePrice?: number;
     addons?: string[];
     // Legacy properties for backward compatibility with Calculator.tsx
     rawLine?: string;
