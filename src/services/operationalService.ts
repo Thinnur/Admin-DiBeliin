@@ -18,6 +18,7 @@ export interface Voucher {
     valid_for: 'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa';
     quota: number;
     is_active: boolean;
+    applies_multiplier: boolean; // true = potongan dikali jumlah biaya admin (kelipatan)
 }
 
 export type VoucherInsert = Omit<Voucher, 'id'>;
@@ -123,6 +124,7 @@ export async function createVoucher(voucher: Partial<VoucherInsert>): Promise<Vo
             valid_for: voucher.valid_for ?? 'all',
             quota: voucher.quota ?? 1,
             is_active: voucher.is_active ?? true,
+            applies_multiplier: voucher.applies_multiplier ?? false,
         })
         .select()
         .single();

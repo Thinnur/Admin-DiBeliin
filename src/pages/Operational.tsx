@@ -702,6 +702,7 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
     const [maxPurchase, setMaxPurchase] = useState('');
     const [quota, setQuota] = useState('1');
     const [validFor, setValidFor] = useState<'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('all');
+    const [appliesMultiplier, setAppliesMultiplier] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -724,6 +725,7 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
             quota: Number(quota) || 1,
             valid_for: validFor,
             is_active: true,
+            applies_multiplier: appliesMultiplier,
         });
 
         // Reset form
@@ -733,6 +735,7 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
         setMaxPurchase('');
         setQuota('1');
         setValidFor('all');
+        setAppliesMultiplier(false);
     };
 
     return (
@@ -811,6 +814,17 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
                 </div>
             </div>
 
+            <div className="flex items-center gap-2">
+                <Switch
+                    id="appliesMultiplier"
+                    checked={appliesMultiplier}
+                    onCheckedChange={setAppliesMultiplier}
+                />
+                <Label htmlFor="appliesMultiplier" className="cursor-pointer">
+                    Berlaku kelipatan (potongan dikali jumlah biaya admin, mis. potongan 1rb x 2 biaya admin = 2rb)
+                </Label>
+            </div>
+
             <Button type="submit" disabled={isLoading} className="w-full md:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
                 {isLoading ? 'Adding...' : 'Add Voucher'}
@@ -886,6 +900,9 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
                                 <TableCell className="font-mono font-semibold">{voucher.code}</TableCell>
                                 <TableCell className="text-emerald-600 font-medium">
                                     {formatCurrency(voucher.discount_amount)}
+                                    {voucher.applies_multiplier && (
+                                        <Badge variant="secondary" className="ml-2 align-middle">x kelipatan</Badge>
+                                    )}
                                 </TableCell>
                                 <TableCell>{formatCurrency(voucher.min_purchase)}</TableCell>
                                 <TableCell>
@@ -939,6 +956,7 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
                                 </div>
                                 <p className="text-xs text-slate-500">
                                     Diskon <span className="text-emerald-600 font-semibold">{formatCurrency(voucher.discount_amount)}</span>
+                                    {voucher.applies_multiplier && ' (x kelipatan)'}
                                     {' · '}
                                     Min {formatCurrency(voucher.min_purchase)}
                                     {voucher.max_purchase ? ` · Max ${formatCurrency(voucher.max_purchase)}` : ''}
