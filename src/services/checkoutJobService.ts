@@ -28,6 +28,13 @@ export interface CheckoutJobOrderPayload {
     pickupTime?: string;
     /** Sertakan kantong plastik? Default false. Diteruskan ke needPackaging di runCheckout.js. */
     needPackaging?: boolean;
+    /** Nomor pesanan (qris_orders.order_number) yang menjadi asal job ini —
+     * cuma metadata tampilan, tidak dipakai runCheckout.js. */
+    orderNumber?: string;
+    /** Akun/grup ke berapa dari total split pesanan ini (1-based) — metadata tampilan. */
+    groupIndex?: number;
+    /** Total akun/grup dari pesanan ini — metadata tampilan. */
+    groupTotal?: number;
 }
 
 export interface CheckoutJobLogEntry {
