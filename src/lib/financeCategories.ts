@@ -9,6 +9,8 @@ export interface TransactionCategoryGroups {
 export const DEFAULT_INCOME_CATEGORIES = [
     { value: 'penjualan', label: 'Penjualan Akun' },
     { value: 'jasa', label: 'Jasa Lainnya' },
+    { value: 'qris_income', label: 'Pemasukan QRIS (Otomasi)' },
+    { value: 'qris_static_income', label: 'Pemasukan QRIS Statis (Otomasi)' },
     { value: 'lain', label: 'Pendapatan Lain' },
 ] as const;
 
@@ -32,6 +34,8 @@ const CATEGORY_LABELS: Record<string, string> = {
     marketing: 'Marketing',
     stock: 'Stock',
     checkout_kopken: 'Checkout Kopken (Otomasi)',
+    qris_income: 'Pemasukan QRIS (Otomasi)',
+    qris_static_income: 'Pemasukan QRIS Statis (Otomasi)',
 };
 
 export function normalizeCategoryValue(value: string): string {
