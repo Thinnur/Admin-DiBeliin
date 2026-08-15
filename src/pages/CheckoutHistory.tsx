@@ -339,9 +339,9 @@ export default function CheckoutHistoryPage() {
                                                         {job.order_payload.name} — {job.order_payload.outlet}
                                                     </div>
                                                     {job.order_payload.orderNumber && (
-                                                        <div className="text-xs text-slate-400">
+                                                        <div className="text-xs text-slate-500">
                                                             Order #{job.order_payload.orderNumber}
-                                                            {job.order_payload.groupTotal
+                                                            {job.order_payload.groupIndex && job.order_payload.groupTotal
                                                                 ? ` · Akun ${job.order_payload.groupIndex}/${job.order_payload.groupTotal}`
                                                                 : ''}
                                                         </div>

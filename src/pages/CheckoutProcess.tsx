@@ -122,9 +122,9 @@ export default function CheckoutProcessPage() {
                     {job.order_payload.name} — {job.order_payload.outlet}
                 </h1>
                 {job.order_payload.orderNumber && (
-                    <p className="text-sm text-slate-400">
+                    <p className="text-sm text-slate-500">
                         Order #{job.order_payload.orderNumber}
-                        {job.order_payload.groupTotal
+                        {job.order_payload.groupIndex && job.order_payload.groupTotal
                             ? ` · Akun ${job.order_payload.groupIndex}/${job.order_payload.groupTotal}`
                             : ''}
                     </p>
