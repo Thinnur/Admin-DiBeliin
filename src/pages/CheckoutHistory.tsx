@@ -338,6 +338,14 @@ export default function CheckoutHistoryPage() {
                                                     <div className="font-medium text-slate-800">
                                                         {job.order_payload.name} — {job.order_payload.outlet}
                                                     </div>
+                                                    {job.order_payload.orderNumber && (
+                                                        <div className="text-xs text-slate-400">
+                                                            Order #{job.order_payload.orderNumber}
+                                                            {job.order_payload.groupTotal
+                                                                ? ` · Akun ${job.order_payload.groupIndex}/${job.order_payload.groupTotal}`
+                                                                : ''}
+                                                        </div>
+                                                    )}
                                                     <div className="text-xs text-slate-500">
                                                         {job.order_payload.items.map((i) => i.name).join(', ')}
                                                     </div>
