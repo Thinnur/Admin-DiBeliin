@@ -121,6 +121,14 @@ export default function CheckoutProcessPage() {
                 <h1 className="text-xl font-semibold text-slate-900">
                     {job.order_payload.name} — {job.order_payload.outlet}
                 </h1>
+                {job.order_payload.orderNumber && (
+                    <p className="text-sm text-slate-400">
+                        Order #{job.order_payload.orderNumber}
+                        {job.order_payload.groupTotal
+                            ? ` · Akun ${job.order_payload.groupIndex}/${job.order_payload.groupTotal}`
+                            : ''}
+                    </p>
+                )}
                 <p className="text-sm text-slate-500">
                     {job.order_payload.items.map((i) => i.name).join(', ')}
                 </p>
