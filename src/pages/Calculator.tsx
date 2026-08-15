@@ -394,7 +394,10 @@ function buildKopkenOrderPayload(
     outlet: string,
     customerName: string,
     pickupTime?: string,
-    needPackaging?: boolean
+    needPackaging?: boolean,
+    orderNumber?: string,
+    groupIndex?: number,
+    groupTotal?: number
 ): CheckoutJobOrderPayload {
     return {
         outlet: outlet || '',
@@ -410,6 +413,9 @@ function buildKopkenOrderPayload(
         }),
         ...(pickupTime ? { pickupTime } : {}),
         needPackaging: needPackaging === true,
+        ...(orderNumber ? { orderNumber } : {}),
+        ...(groupIndex != null ? { groupIndex } : {}),
+        ...(groupTotal != null ? { groupTotal } : {}),
     };
 }
 
@@ -419,6 +425,9 @@ function KopkenCheckoutPanel({
     customerName,
     parsedPickupTime,
     qrisOrderId,
+    orderNumber,
+    index,
+    groupTotal,
 }: {
     group: OptimizationResult['groups'][0];
     outlet: string;
@@ -426,6 +435,12 @@ function KopkenCheckoutPanel({
     /** Jadwal hasil parse baris "Jam Pengambilan:" di teks order (lihat orderParser.ts) — undefined = Pickup Sekarang. */
     parsedPickupTime?: string;
     qrisOrderId?: string;
+    /** Nomor pesanan (qris_orders.order_number) — undefined kalau order ini bukan dari QRIS. */
+    orderNumber?: string;
+    /** Posisi grup ini (0-based, sesuai index dari result.groups.map di call site). */
+    index: number;
+    /** Total grup dari hasil optimasi (result.groups.length). */
+    groupTotal: number;
 }) {
     const { user } = useAuth();
     const [dialogOpen, setDialogOpen] = useState(false);
@@ -455,7 +470,11 @@ function KopkenCheckoutPanel({
 
     const openDialog = () => {
         const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
-        setJsonDraft(JSON.stringify(buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging), null, 2));
+        setJsonDraft(JSON.stringify(
+            buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal),
+            null,
+            2
+        ));
         setDialogOpen(true);
     };
 
@@ -1205,6 +1224,9 @@ Example:
                                                 customerName={customerName}
                                                 parsedPickupTime={parsedPickupTime}
                                                 qrisOrderId={qrisOrder?.id}
+                                                orderNumber={qrisOrder?.order_number}
+                                                index={index}
+                                                groupTotal={result.groups.length}
                                             />
                                         )}
                                     </div>
