@@ -267,6 +267,7 @@ function StrategyCard({
     const voucherMeta = {
         nomin: { label: 'No Min', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         min50k: { label: 'Min 50k', color: 'bg-blue-50 text-blue-700 border-blue-200' },
+        min70k: { label: 'Min 70k', color: 'bg-indigo-50 text-indigo-700 border-indigo-200' },
         fore_25pct: { label: 'Diskon 25%', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         tomoro_bogo: { label: 'Tomoro BOGO', color: 'bg-orange-50 text-orange-700 border-orange-200' },
         tomoro_50: { label: 'Tomoro 50%', color: 'bg-amber-50 text-amber-700 border-amber-200' },
@@ -275,6 +276,7 @@ function StrategyCard({
     const discountSubLabel: Record<string, string> = {
         nomin: '50%',
         min50k: '50%',
+        min70k: '50%',
         fore_25pct: '25%',
         tomoro_50: '50%',
         jiwa_50: '50%',
@@ -349,7 +351,9 @@ function StrategyCard({
 // -----------------------------------------------------------------------------
 
 function mapVoucherToTier(recommendedVoucher: string): string {
-    return recommendedVoucher === 'min50k' ? 'Minimal 50k' : 'Tanpa Minimal';
+    if (recommendedVoucher === 'min50k') return 'Minimal 50k';
+    if (recommendedVoucher === 'min70k') return 'Minimal 70k';
+    return 'Tanpa Minimal';
 }
 
 // Nama item dari parseWhatsAppOrder sering bawa size sebagai suffix di nama itu
