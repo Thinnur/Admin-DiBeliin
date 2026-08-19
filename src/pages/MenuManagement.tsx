@@ -171,7 +171,7 @@ interface EditDialogProps {
 
 function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByBrand }: EditDialogProps) {
     const [name, setName] = useState('');
-    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('fore');
+    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime'>('fore');
     const [categories, setCategories] = useState<string[]>([]);
     const [description, setDescription] = useState('');
     const [imageUrl, setImageUrl] = useState('');
@@ -215,7 +215,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
     /* eslint-enable react-hooks/set-state-in-effect */
 
     // Reset categories when brand changes (keep only those valid for new brand)
-    const handleBrandChange = (newBrand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa') => {
+    const handleBrandChange = (newBrand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime') => {
         setBrand(newBrand);
         const validCats = categoriesByBrand[newBrand] || [];
         setCategories((prev) => prev.filter((c) => validCats.includes(c)));
@@ -289,6 +289,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                                 <SelectItem value="kenangan">Kopi Kenangan</SelectItem>
                                 <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
                                 <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
+                                <SelectItem value="chatime">Chatime</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -508,7 +509,7 @@ interface AddMenuDialogProps {
 
 function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }: AddMenuDialogProps) {
     const [name, setName] = useState('');
-    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('fore');
+    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime'>('fore');
     const [categories, setCategories] = useState<string[]>([]);
     const [description, setDescription] = useState('');
     const [regularPrice, setRegularPrice] = useState('');
@@ -553,7 +554,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
     };
 
     // Reset categories when brand changes
-    const handleBrandChange = (newBrand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa') => {
+    const handleBrandChange = (newBrand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime') => {
         setBrand(newBrand);
         const validCats = categoriesByBrand[newBrand] || [];
         setCategories((prev) => prev.filter((c) => validCats.includes(c)));
@@ -624,6 +625,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                                 <SelectItem value="kenangan">Kopi Kenangan</SelectItem>
                                 <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
                                 <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
+                                <SelectItem value="chatime">Chatime</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -841,7 +843,7 @@ interface CategorySortDialogProps {
 }
 
 function CategorySortDialog({ isOpen, onClose, menuItems, onSaved }: CategorySortDialogProps) {
-    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('fore');
+    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime'>('fore');
     const [orderedCategories, setOrderedCategories] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -902,7 +904,8 @@ function CategorySortDialog({ isOpen, onClose, menuItems, onSaved }: CategorySor
                 fore: 'Fore Coffee',
                 kenangan: 'Kopi Kenangan',
                 tomoro: 'Tomoro Coffee',
-                janjijiwa: 'Kopi Janji Jiwa'
+                janjijiwa: 'Kopi Janji Jiwa',
+                chatime: 'Chatime'
             };
             toast.success(`Urutan kategori ${brandNames[brand]} berhasil disimpan`);
             onSaved();
@@ -934,6 +937,7 @@ function CategorySortDialog({ isOpen, onClose, menuItems, onSaved }: CategorySor
                                 <SelectItem value="kenangan">Kopi Kenangan</SelectItem>
                                 <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
                                 <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
+                                <SelectItem value="chatime">Chatime</SelectItem>
                             </SelectContent>
                         </Select>
                     </div>
@@ -1028,6 +1032,8 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
                 return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Tomoro</Badge>;
             case 'janjijiwa':
                 return <Badge className="bg-zinc-800 text-zinc-100 hover:bg-zinc-800">Janji Jiwa</Badge>;
+            case 'chatime':
+                return <Badge className="bg-[#4e0d6b] text-white hover:bg-[#4e0d6b]">Chatime</Badge>;
             default:
                 return <Badge variant="secondary">{brand}</Badge>;
         }
@@ -1833,6 +1839,7 @@ export default function MenuManagement() {
             kenangan: new Set(),
             tomoro: new Set(),
             janjijiwa: new Set(),
+            chatime: new Set(),
         };
         menuItems.forEach((item) => {
             if (map[item.brand]) {
@@ -1846,6 +1853,7 @@ export default function MenuManagement() {
             kenangan: Array.from(map.kenangan).sort(),
             tomoro: Array.from(map.tomoro).sort(),
             janjijiwa: Array.from(map.janjijiwa).sort(),
+            chatime: Array.from(map.chatime).sort(),
         };
     }, [menuItems]);
 
@@ -2004,6 +2012,7 @@ export default function MenuManagement() {
     const kenanganItems = menuItems.filter((item) => item.brand === 'kenangan').length;
     const tomoroItems = menuItems.filter((item) => item.brand === 'tomoro').length;
     const janjijiwaItems = menuItems.filter((item) => item.brand === 'janjijiwa').length;
+    const chatimeItems = menuItems.filter((item) => item.brand === 'chatime').length;
     const foodAvailableItems = foodMenuItems.filter((f) => f.is_available).length;
 
     return (
@@ -2033,7 +2042,7 @@ export default function MenuManagement() {
             {/* ===== COFFEE / DIGITAL TAB ===== */}
             {activeTab === 'coffee' && (<>
                 {/* Stats */}
-                <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-2 md:gap-4">
                     <Card className="border-0 shadow-md">
                         <CardContent className="pt-3 pb-3 md:pt-6 md:pb-6 px-3 md:px-6">
                             <p className="text-xl md:text-2xl font-bold text-slate-900">{totalItems}</p>
@@ -2068,6 +2077,12 @@ export default function MenuManagement() {
                         <CardContent className="pt-3 pb-3 md:pt-6 md:pb-6 px-3 md:px-6">
                             <p className="text-xl md:text-2xl font-bold text-zinc-800">{janjijiwaItems}</p>
                             <p className="text-xs md:text-sm text-slate-500">Janji Jiwa</p>
+                        </CardContent>
+                    </Card>
+                    <Card className="border-0 shadow-md">
+                        <CardContent className="pt-3 pb-3 md:pt-6 md:pb-6 px-3 md:px-6">
+                            <p className="text-xl md:text-2xl font-bold" style={{ color: '#4e0d6b' }}>{chatimeItems}</p>
+                            <p className="text-xs md:text-sm text-slate-500">Chatime</p>
                         </CardContent>
                     </Card>
                 </div>
@@ -2113,7 +2128,7 @@ export default function MenuManagement() {
 
                             {/* Brand Filter Tabs */}
                             <div className="flex gap-2 flex-wrap">
-                                {(['all', 'fore', 'kenangan', 'tomoro', 'janjijiwa'] as BrandFilter[]).map((brand) => (
+                                {(['all', 'fore', 'kenangan', 'tomoro', 'janjijiwa', 'chatime'] as BrandFilter[]).map((brand) => (
                                     <Button
                                         key={brand}
                                         variant={brandFilter === brand ? 'default' : 'outline'}
@@ -2121,7 +2136,7 @@ export default function MenuManagement() {
                                         onClick={() => setBrandFilter(brand)}
                                         className={brandFilter === brand ? '' : 'text-slate-600'}
                                     >
-                                        {brand === 'all' ? 'Semua' : brand === 'fore' ? 'Fore' : brand === 'kenangan' ? 'Kenangan' : brand === 'tomoro' ? 'Tomoro' : 'Janji Jiwa'}
+                                        {brand === 'all' ? 'Semua' : brand === 'fore' ? 'Fore' : brand === 'kenangan' ? 'Kenangan' : brand === 'tomoro' ? 'Tomoro' : brand === 'janjijiwa' ? 'Janji Jiwa' : 'Chatime'}
                                     </Button>
                                 ))}
                             </div>

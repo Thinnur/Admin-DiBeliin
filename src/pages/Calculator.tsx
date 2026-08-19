@@ -691,6 +691,7 @@ export default function CalculatorPage() {
             kopken: 5000,
             tomoro: 2000,
             janjijiwa: 2000,
+            chatime: 2000,
         };
 
         if (!dbAdminFees) {
@@ -703,6 +704,7 @@ export default function CalculatorPage() {
             kopken: 'fee_jasdor_kopken',
             tomoro: 'fee_jasdor_tomoro',
             janjijiwa: 'fee_jasdor_janjijiwa',
+            chatime: 'fee_jasdor_chatime',
         };
         const key = feeKeyMap[brand];
         setAdminCost(dbAdminFees[key] ?? fallbackFees[brand]);

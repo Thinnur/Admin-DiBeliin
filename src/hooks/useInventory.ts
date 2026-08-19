@@ -306,6 +306,7 @@ function getUpdateLog(
         fore: 'Fore Coffee',
         tomoro: 'Tomoro Coffee',
         janjijiwa: 'Kopi Janji Jiwa',
+        chatime: 'Chatime',
     };
     const brandLabel = brandLabelMap[account.brand] || account.brand;
     const voucherFields = ['is_nomin_ready', 'is_min50k_ready', 'is_bogo_ready', 'is_discount35_ready'];
@@ -384,6 +385,7 @@ export function useAddAccount() {
                 fore: 'Fore Coffee',
                 tomoro: 'Tomoro Coffee',
                 janjijiwa: 'Kopi Janji Jiwa',
+                chatime: 'Chatime',
             };
             const brandLabel = brandLabelMap[newAccount.brand] || newAccount.brand;
             createAccountLog({
@@ -570,6 +572,7 @@ export function useDeleteAccount() {
                 fore: 'Fore Coffee',
                 tomoro: 'Tomoro Coffee',
                 janjijiwa: 'Kopi Janji Jiwa',
+                chatime: 'Chatime',
             };
             const brandLabel = brandLabelMap[account.brand] || account.brand;
             createAccountLog({

@@ -35,8 +35,9 @@ const BRAND_LABEL: Record<string, string> = {
     kenangan: 'Kenangan',
     fore: 'Fore',
     tomoro: 'Tomoro',
+    chatime: 'Chatime',
 };
-const BRAND_TABS = ['all', 'kenangan', 'fore', 'tomoro'] as const;
+const BRAND_TABS = ['all', 'kenangan', 'fore', 'tomoro', 'chatime'] as const;
 type BrandTab = (typeof BRAND_TABS)[number];
 
 function dayKey(order: QrisOrder): string {
@@ -189,7 +190,7 @@ export default function OrderListPage() {
                     ) : visibleOrders.length === 0 ? (
                         <p className="py-8 text-center text-sm text-muted-foreground">
                             {orders.length === 0
-                                ? 'Belum ada pesanan baru. Order Kenangan/Fore/Tomoro dari web muncul di sini otomatis setelah dibayar.'
+                                ? 'Belum ada pesanan baru. Order Kenangan/Fore/Tomoro/Chatime dari web muncul di sini otomatis setelah dibayar.'
                                 : 'Tidak ada pesanan di filter ini.'}
                         </p>
                     ) : (

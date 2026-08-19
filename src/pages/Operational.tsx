@@ -135,11 +135,13 @@ interface ServiceStatusSectionProps {
     isKenanganOpen: boolean;
     isTomoroOpen: boolean;
     isJanjijiwaOpen: boolean;
+    isChatimeOpen: boolean;
     isLoading: boolean;
     onToggleFore: () => void;
     onToggleKenangan: () => void;
     onToggleTomoro: () => void;
     onToggleJanjijiwa: () => void;
+    onToggleChatime: () => void;
     popupTemplates: PopupTemplate[];
     activeTemplateIds: Record<PopupBrand, string | null>;
     onChangeTemplate: (brand: PopupBrand, templateId: string) => void;
@@ -181,11 +183,13 @@ function ServiceStatusSection({
     isKenanganOpen,
     isTomoroOpen,
     isJanjijiwaOpen,
+    isChatimeOpen,
     isLoading,
     onToggleFore,
     onToggleKenangan,
     onToggleTomoro,
     onToggleJanjijiwa,
+    onToggleChatime,
     popupTemplates,
     activeTemplateIds,
     onChangeTemplate,
@@ -313,6 +317,34 @@ function ServiceStatusSection({
                         templates={popupTemplates}
                         activeId={activeTemplateIds.janjijiwa}
                         onChange={(id) => onChangeTemplate('janjijiwa', id)}
+                    />
+                </div>
+
+                {/* Chatime Toggle */}
+                <div className="p-4 rounded-xl bg-purple-50 border border-purple-200">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-all ${isChatimeOpen ? 'bg-[#4e0d6b]' : 'bg-slate-300'}`}>
+                                <Coffee className="h-5 w-5 text-white" />
+                            </div>
+                            <div>
+                                <p className="font-semibold text-slate-900">Layanan Chatime</p>
+                                <p className="text-sm text-slate-500">
+                                    {isChatimeOpen ? 'Menerima pesanan Chatime' : 'Tidak menerima pesanan Chatime'}
+                                </p>
+                            </div>
+                        </div>
+                        <Switch
+                            checked={isChatimeOpen}
+                            onCheckedChange={onToggleChatime}
+                            disabled={isLoading}
+                            className="data-[state=checked]:bg-[#4e0d6b]"
+                        />
+                    </div>
+                    <TemplatePickerRow
+                        templates={popupTemplates}
+                        activeId={activeTemplateIds.chatime}
+                        onChange={(id) => onChangeTemplate('chatime', id)}
                     />
                 </div>
 
@@ -505,6 +537,7 @@ function AdminFeeSection() {
     const [kenanganInput, setKenanganInput] = useState('');
     const [tomoroInput, setTomoroInput] = useState('');
     const [janjijiwaInput, setJanjijiwaInput] = useState('');
+    const [chatimeInput, setChatimeInput] = useState('');
     const [specialItemInput, setSpecialItemInput] = useState('');
     const [cinemaInput, setCinemaInput] = useState('');
 
@@ -515,6 +548,7 @@ function AdminFeeSection() {
             setKenanganInput(adminFees.fee_jasdor_kopken.toString());
             setTomoroInput((adminFees.fee_jasdor_tomoro ?? 2000).toString());
             setJanjijiwaInput((adminFees.fee_jasdor_janjijiwa ?? 2000).toString());
+            setChatimeInput((adminFees.fee_jasdor_chatime ?? 2000).toString());
             setSpecialItemInput((adminFees.fee_special_item ?? 5000).toString());
             setCinemaInput((adminFees.fee_cinema ?? 5000).toString());
         }
@@ -522,7 +556,7 @@ function AdminFeeSection() {
 
     // 2. Mutation to update a specific admin fee key
     const updateFeeMutation = useMutation({
-        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_special_item' | 'fee_cinema'; value: string }) => {
+        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_jasdor_chatime' | 'fee_special_item' | 'fee_cinema'; value: string }) => {
             await updateAdminFee(variables.key, variables.value);
         },
         onSuccess: () => {
@@ -542,9 +576,10 @@ function AdminFeeSection() {
         const kVal = Number(kenanganInput);
         const tVal = Number(tomoroInput);
         const jVal = Number(janjijiwaInput);
+        const chVal = Number(chatimeInput);
         const sVal = Number(specialItemInput);
         const cVal = Number(cinemaInput);
-        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0 || isNaN(sVal) || sVal < 0 || isNaN(cVal) || cVal < 0) {
+        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0 || isNaN(chVal) || chVal < 0 || isNaN(sVal) || sVal < 0 || isNaN(cVal) || cVal < 0) {
             toast.error('Biaya Jasdor harus berupa angka positif');
             return;
         }
@@ -566,6 +601,10 @@ function AdminFeeSection() {
                 }
                 if (jVal !== (adminFees.fee_jasdor_janjijiwa ?? 2000)) {
                     await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_janjijiwa', value: janjijiwaInput });
+                    hasChanges = true;
+                }
+                if (chVal !== (adminFees.fee_jasdor_chatime ?? 2000)) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_chatime', value: chatimeInput });
                     hasChanges = true;
                 }
                 if (sVal !== (adminFees.fee_special_item ?? 5000)) {
@@ -652,6 +691,17 @@ function AdminFeeSection() {
                                 />
                             </div>
                             <div className="space-y-2">
+                                <Label htmlFor="fee_jasdor_chatime">Biaya Jasdor Chatime (Rp)</Label>
+                                <Input
+                                    id="fee_jasdor_chatime"
+                                    type="number"
+                                    placeholder="2000"
+                                    value={chatimeInput}
+                                    onChange={(e) => setChatimeInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                            </div>
+                            <div className="space-y-2">
                                 <Label htmlFor="fee_special_item">Biaya Item Spesial / 1L (Rp)</Label>
                                 <Input
                                     id="fee_special_item"
@@ -701,7 +751,7 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
     const [minPurchase, setMinPurchase] = useState('');
     const [maxPurchase, setMaxPurchase] = useState('');
     const [quota, setQuota] = useState('1');
-    const [validFor, setValidFor] = useState<'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('all');
+    const [validFor, setValidFor] = useState<'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime'>('all');
     const [appliesMultiplier, setAppliesMultiplier] = useState(false);
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -809,6 +859,7 @@ function VoucherForm({ onSubmit, isLoading }: VoucherFormProps) {
                             <SelectItem value="kenangan">Kopi Kenangan</SelectItem>
                             <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
                             <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
+                            <SelectItem value="chatime">Chatime</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -862,6 +913,8 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
                 return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Tomoro</Badge>;
             case 'janjijiwa':
                 return <Badge className="bg-zinc-800 text-zinc-100 hover:bg-zinc-800">Janji Jiwa</Badge>;
+            case 'chatime':
+                return <Badge className="bg-[#4e0d6b] text-white hover:bg-[#4e0d6b]">Chatime</Badge>;
             default:
                 return <Badge className="bg-slate-100 text-slate-700 hover:bg-slate-100">All</Badge>;
         }
@@ -1161,6 +1214,7 @@ export default function Operational() {
     const [isKenanganOpen, setIsKenanganOpen] = useState(true);
     const [isTomoroOpen, setIsTomoroOpen] = useState(true);
     const [isJanjijiwaOpen, setIsJanjijiwaOpen] = useState(true);
+    const [isChatimeOpen, setIsChatimeOpen] = useState(true);
     const [isCinemaOpen, setIsCinemaOpen] = useState(true);
     const [isCgvOpen, setIsCgvOpen] = useState(true);
     const [isCinepolisOpen, setIsCinepolisOpen] = useState(true);
@@ -1179,6 +1233,7 @@ export default function Operational() {
         kenangan: null,
         tomoro: null,
         janjijiwa: null,
+        chatime: null,
     });
 
     // Voucher state
@@ -1195,12 +1250,13 @@ export default function Operational() {
 
     const fetchInitialData = async (loadVouchers: boolean) => {
         try {
-            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, cinemaStatus, cgvStatus, cinepolisStatus, xxiStatus, orderWindows, templates, activeIds] = await Promise.all([
+            const [status, foreStatus, kenanganStatus, tomoroStatus, janjijiwaStatus, chatimeStatus, cinemaStatus, cgvStatus, cinepolisStatus, xxiStatus, orderWindows, templates, activeIds] = await Promise.all([
                 getStoreStatus(),
                 getServiceStatus('fore'),
                 getServiceStatus('kenangan'),
                 getServiceStatus('tomoro'),
                 getServiceStatus('janjijiwa'),
+                getServiceStatus('chatime'),
                 getServiceStatus('cinema'),
                 getServiceStatus('cgv'),
                 getServiceStatus('cinepolis'),
@@ -1214,6 +1270,7 @@ export default function Operational() {
             setIsKenanganOpen(kenanganStatus);
             setIsTomoroOpen(tomoroStatus);
             setIsJanjijiwaOpen(janjijiwaStatus);
+            setIsChatimeOpen(chatimeStatus);
             setIsCinemaOpen(cinemaStatus);
             setIsCgvOpen(cgvStatus);
             setIsCinepolisOpen(cinepolisStatus);
@@ -1310,6 +1367,22 @@ export default function Operational() {
         } catch (error) {
             console.error('Error toggling Janji Jiwa service:', error);
             toast.error('Gagal mengubah status layanan Kopi Janji Jiwa');
+        } finally {
+            setIsServiceLoading(false);
+        }
+    };
+
+    // Toggle Chatime service
+    const handleToggleChatime = async () => {
+        setIsServiceLoading(true);
+        try {
+            const newStatus = !isChatimeOpen;
+            await updateServiceStatus('chatime', newStatus);
+            setIsChatimeOpen(newStatus);
+            toast.success(`Layanan Chatime ${newStatus ? 'DIBUKA' : 'DITUTUP'}`);
+        } catch (error) {
+            console.error('Error toggling Chatime service:', error);
+            toast.error('Gagal mengubah status layanan Chatime');
         } finally {
             setIsServiceLoading(false);
         }
@@ -1453,11 +1526,13 @@ export default function Operational() {
                     isKenanganOpen={isKenanganOpen}
                     isTomoroOpen={isTomoroOpen}
                     isJanjijiwaOpen={isJanjijiwaOpen}
+                    isChatimeOpen={isChatimeOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
+                    onToggleChatime={handleToggleChatime}
                     popupTemplates={popupTemplates}
                     activeTemplateIds={activeTemplateIds}
                     onChangeTemplate={handleChangeTemplate}
@@ -1518,11 +1593,13 @@ export default function Operational() {
                     isKenanganOpen={isKenanganOpen}
                     isTomoroOpen={isTomoroOpen}
                     isJanjijiwaOpen={isJanjijiwaOpen}
+                    isChatimeOpen={isChatimeOpen}
                     isLoading={isServiceLoading}
                     onToggleFore={handleToggleFore}
                     onToggleKenangan={handleToggleKenangan}
                     onToggleTomoro={handleToggleTomoro}
                     onToggleJanjijiwa={handleToggleJanjijiwa}
+                    onToggleChatime={handleToggleChatime}
                     popupTemplates={popupTemplates}
                     activeTemplateIds={activeTemplateIds}
                     onChangeTemplate={handleChangeTemplate}

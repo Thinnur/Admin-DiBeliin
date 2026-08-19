@@ -65,7 +65,7 @@ function OutletFormDialog({
     editingOutlet
 }: OutletFormDialogProps) {
     const [name, setName] = useState('');
-    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('fore');
+    const [brand, setBrand] = useState<'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime'>('fore');
     const [city, setCity] = useState('Jakarta');
     const [isPremium, setIsPremium] = useState(false);
 
@@ -150,6 +150,7 @@ function OutletFormDialog({
                                     <SelectItem value="kenangan">Kopi Kenangan</SelectItem>
                                     <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
                                     <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
+                                    <SelectItem value="chatime">Chatime</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -225,6 +226,8 @@ function OutletTable({ outlets, onEdit, onDelete, isDeleting }: OutletTableProps
                 return <Badge className="bg-orange-100 text-orange-700 hover:bg-orange-100">Tomoro</Badge>;
             case 'janjijiwa':
                 return <Badge className="bg-zinc-800 text-zinc-100 hover:bg-zinc-800">Janji Jiwa</Badge>;
+            case 'chatime':
+                return <Badge className="bg-[#4e0d6b] text-white hover:bg-[#4e0d6b]">Chatime</Badge>;
             default:
                 return <Badge variant="secondary">{brand}</Badge>;
         }
@@ -377,7 +380,7 @@ export default function OutletManagement() {
 
     // Filters
     const [searchQuery, setSearchQuery] = useState('');
-    const [brandFilter, setBrandFilter] = useState<'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa'>('all');
+    const [brandFilter, setBrandFilter] = useState<'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime'>('all');
     const [cityFilter, setCityFilter] = useState<string>('all');
 
     // Initial data fetch
@@ -486,13 +489,14 @@ export default function OutletManagement() {
         kenangan: outlets.filter((o) => o.brand === 'kenangan').length,
         tomoro: outlets.filter((o) => o.brand === 'tomoro').length,
         janjijiwa: outlets.filter((o) => o.brand === 'janjijiwa').length,
+        chatime: outlets.filter((o) => o.brand === 'chatime').length,
         premium: outlets.filter((o) => o.is_premium).length,
     }), [outlets]);
 
     return (
         <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-2 md:grid-cols-6 gap-2 md:gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-7 gap-2 md:gap-4">
                 <Card className="border-0 shadow-md bg-gradient-to-br from-white to-slate-50">
                     <CardContent className="pt-3 pb-3 md:pt-4 md:pb-4 px-3 md:px-6">
                         <p className="text-xs md:text-sm text-slate-500">Total Outlets</p>
@@ -521,6 +525,12 @@ export default function OutletManagement() {
                     <CardContent className="pt-3 pb-3 md:pt-4 md:pb-4 px-3 md:px-6">
                         <p className="text-xs md:text-sm text-zinc-800 font-medium">Kopi Janji Jiwa</p>
                         <p className="text-xl md:text-2xl font-bold text-zinc-900">{stats.janjijiwa}</p>
+                    </CardContent>
+                </Card>
+                <Card className="border-0 shadow-md bg-gradient-to-br from-purple-100 to-white">
+                    <CardContent className="pt-3 pb-3 md:pt-4 md:pb-4 px-3 md:px-6">
+                        <p className="text-xs md:text-sm font-medium" style={{ color: '#4e0d6b' }}>Chatime</p>
+                        <p className="text-xl md:text-2xl font-bold" style={{ color: '#4e0d6b' }}>{stats.chatime}</p>
                     </CardContent>
                 </Card>
                 <Card className="border-0 shadow-md bg-gradient-to-br from-purple-50 to-white">
@@ -555,12 +565,13 @@ export default function OutletManagement() {
                 <CardContent className="space-y-4">
                     {/* Brand Tabs */}
                     <Tabs value={brandFilter} onValueChange={(v) => setBrandFilter(v as typeof brandFilter)}>
-                        <TabsList className="w-full sm:grid sm:grid-cols-5">
+                        <TabsList className="w-full sm:grid sm:grid-cols-6">
                             <TabsTrigger value="all">Semua</TabsTrigger>
                             <TabsTrigger value="fore">Fore Coffee</TabsTrigger>
                             <TabsTrigger value="kenangan">Kopi Kenangan</TabsTrigger>
                             <TabsTrigger value="tomoro">Tomoro Coffee</TabsTrigger>
                             <TabsTrigger value="janjijiwa">Kopi Janji Jiwa</TabsTrigger>
+                            <TabsTrigger value="chatime">Chatime</TabsTrigger>
                         </TabsList>
                     </Tabs>
 

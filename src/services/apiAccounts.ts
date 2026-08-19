@@ -131,6 +131,7 @@ export async function fetchAccountStatistics(): Promise<AccountStatistics> {
             fore: 0,
             tomoro: 0,
             janjijiwa: 0,
+            chatime: 0,
         },
         expiring_soon: 0,
         total_value: 0,

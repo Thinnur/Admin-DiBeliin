@@ -47,6 +47,7 @@ function BrandBadge({ brand }: { brand: AccountBrand }) {
         fore: 'bg-emerald-100 text-emerald-800 border-emerald-200',
         tomoro: 'bg-orange-100 text-orange-800 border-orange-200',
         janjijiwa: 'bg-zinc-800 text-white border-zinc-700',
+        chatime: 'bg-[#4e0d6b] text-white border-[#4e0d6b]',
     };
 
     const labels = {
@@ -54,6 +55,7 @@ function BrandBadge({ brand }: { brand: AccountBrand }) {
         fore: 'Fore Coffee',
         tomoro: 'Tomoro Coffee',
         janjijiwa: 'Kopi Janji Jiwa',
+        chatime: 'Chatime',
     };
 
     return (

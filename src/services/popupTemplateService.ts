@@ -22,13 +22,14 @@ export interface PopupTemplate {
 export type PopupTemplateInsert = Omit<PopupTemplate, 'id' | 'created_at'>;
 export type PopupTemplateUpdate = Partial<PopupTemplateInsert>;
 
-export type PopupBrand = 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa';
+export type PopupBrand = 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime';
 
 const ACTIVE_TEMPLATE_KEYS: Record<PopupBrand, string> = {
     fore: 'popup_template_fore',
     kenangan: 'popup_template_kenangan',
     tomoro: 'popup_template_tomoro',
     janjijiwa: 'popup_template_janjijiwa',
+    chatime: 'popup_template_chatime',
 };
 
 // -----------------------------------------------------------------------------
@@ -111,6 +112,7 @@ export async function getActiveTemplateIds(): Promise<Record<PopupBrand, string 
         kenangan: byKey.get(ACTIVE_TEMPLATE_KEYS.kenangan) ?? null,
         tomoro: byKey.get(ACTIVE_TEMPLATE_KEYS.tomoro) ?? null,
         janjijiwa: byKey.get(ACTIVE_TEMPLATE_KEYS.janjijiwa) ?? null,
+        chatime: byKey.get(ACTIVE_TEMPLATE_KEYS.chatime) ?? null,
     };
 }
 

@@ -12,7 +12,7 @@ import type { AddonGroup } from '@/types/database';
 
 export interface MenuItem {
     id: number;
-    brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa';
+    brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime';
     categories: string[];
     name: string;
     description: string | null;
@@ -37,7 +37,7 @@ export interface MenuItem {
 
 export interface MenuItemUpdate {
     name?: string;
-    brand?: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa';
+    brand?: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime';
     categories?: string[];
     description?: string | null;
     image_url?: string | null;
@@ -222,7 +222,7 @@ export async function updateMenuItem(id: number, data: MenuItemUpdate): Promise<
  * @param categoryOrder - Array of category names in desired display order
  */
 export async function updateCategorySortOrder(
-    brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa',
+    brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime',
     categoryOrder: string[]
 ): Promise<void> {
     // Build a map: category name → sort position

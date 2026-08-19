@@ -159,19 +159,18 @@ type KopKenUnit = { name: string; price: number; nonDiscountablePrice: number; a
 
 type KopKenTier = 'nomin' | 'min50k' | 'min70k';
 
+const KOPKEN_MIN50K_FLOOR = 50000;
+const KOPKEN_MIN70K_FLOOR = 70000;
+
 // Diskon per tier. min50k & min70k capnya SAMA (30rb), bedanya cuma ambang belanja.
 // Dua konsekuensinya dipakai di bawah: (a) min70k selalu tepat 30rb, karena subtotal
 // >=70rb bikin 50%-nya >=35rb sehingga pasti kena cap; (b) min50k tidak pernah masuk
 // akal buat keranjang >=70rb -- diskonnya sama persis tapi makan kupon 2x lebih banyak.
 const KOPKEN_DISCOUNT: Record<KopKenTier, (basketTotal: number) => number> = {
     nomin: t => Math.min(t * 0.5, 35000),
-    min50k: t => (t >= 50000 ? Math.min(t * 0.5, 30000) : 0),
-    min70k: t => (t >= 70000 ? Math.min(t * 0.5, 30000) : 0),
+    min50k: t => (t >= KOPKEN_MIN50K_FLOOR ? Math.min(t * 0.5, 30000) : 0),
+    min70k: t => (t >= KOPKEN_MIN70K_FLOOR ? Math.min(t * 0.5, 30000) : 0),
 };
-
-/** Tier termurah yang valid buat satu keranjang. null = cuma nomin yang bisa dipakai. */
-const kopKenCheapTier = (basketTotal: number): 'min50k' | 'min70k' | null =>
-    basketTotal >= 70000 ? 'min70k' : basketTotal >= 50000 ? 'min50k' : null;
 
 // Satu biaya admin (accountCost) = 1 "slot" yang menampung maks 2 kupon, maks 1 di
 // antaranya boleh nomin. Bobot kupon: nomin & min50k = 1, min70k = 1/2. Jadi 1 slot =
@@ -186,8 +185,104 @@ function kopKenAccountsAndAdminCost(groups: OptimizedGroup[], accountCost: numbe
     return { accountsNeeded, adminCost: accountsNeeded * accountCost };
 }
 
+/**
+ * Nilai terbaik dari satu cara membagi (net = total diskon - biaya admin), sekaligus
+ * tier mana yang dipakai tiap keranjang. EKSAK dan O(k^2), bukan tebak-tebakan:
+ *
+ * Tiap keranjang jatuh ke satu dari tiga kelompok -- F (<50rb, mau tak mau nomin),
+ * A (50-70rb, tier murahnya min50k, bobot 1 kupon), B (>=70rb, tier murahnya min70k,
+ * bobot 1/2 kupon). Diskon nomin selalu >= tier murah, jadi satu-satunya keputusan
+ * adalah "berapa keranjang A dan berapa keranjang B yang dinaikkan ke nomin" -- dan
+ * untuk jumlah tertentu, jelas yang dinaikkan adalah yang selisih diskonnya terbesar.
+ * Cukup enumerasi pasangan (a, b) lalu ambil selisih teratas lewat prefix sum.
+ *
+ * `totals` harus sudah bebas keranjang kosong; `tiers` yang dikembalikan sejajar dengannya.
+ */
+function kopKenScore(totals: number[], accountCost: number): { net: number; tiers: KopKenTier[] } {
+    if (totals.length === 0) return { net: -Infinity, tiers: [] };
+
+    const forced: number[] = [];
+    const midRange: number[] = [];
+    const highRange: number[] = [];
+    totals.forEach((t, i) => {
+        if (t >= KOPKEN_MIN70K_FLOOR) highRange.push(i);
+        else if (t >= KOPKEN_MIN50K_FLOOR) midRange.push(i);
+        else forced.push(i);
+    });
+
+    // Diskon kalau semua keranjang pakai tier termurahnya.
+    let base = 0;
+    for (const i of forced) base += KOPKEN_DISCOUNT.nomin(totals[i]);
+    for (const i of midRange) base += KOPKEN_DISCOUNT.min50k(totals[i]);
+    for (const i of highRange) base += KOPKEN_DISCOUNT.min70k(totals[i]);
+
+    // Tambahan diskon kalau keranjang itu dinaikkan ke nomin, terbesar duluan.
+    const midGain = (i: number) => KOPKEN_DISCOUNT.nomin(totals[i]) - KOPKEN_DISCOUNT.min50k(totals[i]);
+    const highGain = (i: number) => KOPKEN_DISCOUNT.nomin(totals[i]) - KOPKEN_DISCOUNT.min70k(totals[i]);
+    midRange.sort((x, y) => midGain(y) - midGain(x));
+    highRange.sort((x, y) => highGain(y) - highGain(x));
+    const midPrefix = [0];
+    midRange.forEach((i, j) => midPrefix.push(midPrefix[j] + midGain(i)));
+    const highPrefix = [0];
+    highRange.forEach((i, j) => highPrefix.push(highPrefix[j] + highGain(i)));
+
+    let bestNet = -Infinity;
+    let bestMid = 0;
+    let bestHigh = 0;
+    for (let a = 0; a <= midRange.length; a++) {
+        for (let b = 0; b <= highRange.length; b++) {
+            const nomin = forced.length + a + b;
+            const net = base + midPrefix[a] + highPrefix[b]
+                - kopKenSlots(nomin, midRange.length - a, highRange.length - b) * accountCost;
+            if (net > bestNet) {
+                bestNet = net;
+                bestMid = a;
+                bestHigh = b;
+            }
+        }
+    }
+
+    const tiers: KopKenTier[] = totals.map(() => 'nomin');
+    midRange.forEach((i, j) => { if (j >= bestMid) tiers[i] = 'min50k'; });
+    highRange.forEach((i, j) => { if (j >= bestHigh) tiers[i] = 'min70k'; });
+    return { net: bestNet, tiers };
+}
+
+/**
+ * Tiga titik awal dengan BENTUK berbeda, karena hill climbing di optimizeKopKen cuma
+ * sebagus titik awalnya. LPT membagi serata mungkin; dua "carve" sengaja membagi TIMPANG
+ * -- isi satu keranjang sampai lewat 50rb, baru pindah ke keranjang berikutnya. Bentuk
+ * timpang itu yang tidak akan pernah ditemukan LPT (lihat catatan regresi di optimizeKopKen).
+ */
+function kopKenSeeds(units: KopKenUnit[], k: number): number[][] {
+    const lpt = new Array<number>(units.length).fill(0);
+    const lptTotals = new Array<number>(k).fill(0);
+    for (let i = 0; i < units.length; i++) {
+        let b = 0;
+        for (let j = 1; j < k; j++) if (lptTotals[j] < lptTotals[b]) b = j;
+        lpt[i] = b;
+        lptTotals[b] += units[i].price;
+    }
+
+    // units sudah urut dari termahal, jadi order[] menentukan carve dari besar atau kecil.
+    const carve = (order: number[]): number[] => {
+        const assign = new Array<number>(units.length).fill(0);
+        const totals = new Array<number>(k).fill(0);
+        let b = 0;
+        for (const i of order) {
+            if (totals[b] >= KOPKEN_MIN50K_FLOOR && b < k - 1) b++;
+            assign[i] = b;
+            totals[b] += units[i].price;
+        }
+        return assign;
+    };
+    const fromLargest = units.map((_, i) => i);
+    const fromSmallest = [...fromLargest].reverse();
+    return [lpt, carve(fromLargest), carve(fromSmallest)];
+}
+
 // Cari pembagian dengan NET terbaik (total diskon - biaya admin), bukan yang diskonnya
-// terbesar. REWRITE 2026-08-18: versi lama (attemptAllMin50 + while-loop fallback +
+// terbesar. REWRITE 2026-08-19: versi lama (attemptAllMin50 + while-loop fallback +
 // pickCheaper) tidak pernah menilai kandidatnya pakai kopKenSlots, dan itu bocor 3 arah:
 //   (a) semua keranjang dipaksa min50k, termasuk yang >60rb -- di situ capnya bikin rugi
 //       sampai 5rb dibanding nomin, sering tanpa nambah slot sama sekali;
@@ -195,9 +290,17 @@ function kopKenAccountsAndAdminCost(groups: OptimizedGroup[], accountCost: numbe
 //       padahal keranjang terbanyak = admin termahal, dan jumlah ganjil membuang
 //       setengah slot (5x min50k = 3 slot, 4x min50k = 2 slot);
 //   (c) min70k tidak pernah dipakai sama sekali.
-// Rugi terukur: 125rb -5rb, 175rb -7,5rb, 198rb -5rb, 250rb -3rb. Order <=120rb sudah
-// benar sejak dulu. Pola pencarian di bawah menyamai optimizeTomoro/optimizeJanjiJiwa,
-// yang memang sudah membandingkan netBenefit antar kandidat.
+//
+// PENTING -- kenapa ada hill climbing dan bukan cuma LPT: percobaan pertama rewrite ini
+// cuma memakai pembagian LPT (serata mungkin), satu partisi per k. Itu REGRESI, ketahuan
+// dari order nyata ORD-260819-07ED (25rb + 14rb + 19rb + 28rb = 86rb): LPT bikin
+// 42rb + 44rb, dua-duanya di bawah 50rb sehingga dua-duanya wajib nomin = 2 slot, dan
+// pencarian akhirnya malah memilih 1 keranjang 86rb (diskon kena cap 35rb, bayar 59rb).
+// Yang benar justru pembagian TIMPANG: 33rb nomin + 53rb min50k -- satu keranjang sengaja
+// didorong lewat ambang 50rb, diskon penuh 43rb dan tetap 1 slot, bayar 51rb. While-loop
+// lama kebetulan menghasilkan bentuk timpang itu; LPT murni tidak akan pernah bisa.
+// Karena itu: 3 titik awal berbentuk beda (kopKenSeeds) + hill climbing pindah/tukar unit.
+// Diuji lawan brute force SEMUA partisi (scripts/verify-kenangan-pricing.mjs): 0 kalah.
 function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number): OptimizedGroup[] {
     // unit.price is discountable-only (see expandKopKenItems) -- full() restores the real
     // amount for display (subtotal / line items) without letting non-discountable addons
@@ -209,72 +312,89 @@ function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number): Optim
 
     if (expandedItems.length === 0) return [];
 
-    const sortedDesc = [...expandedItems].sort((a, b) => b.price - a.price);
-    /** LPT: unit termahal duluan, selalu masuk ke keranjang yang paling kosong. */
-    const packInto = (k: number): KopKenUnit[][] => {
-        const baskets = Array.from({ length: k }, () => ({ units: [] as KopKenUnit[], total: 0 }));
-        for (const u of sortedDesc) {
-            baskets.sort((a, b) => a.total - b.total);
-            baskets[0].units.push(u);
-            baskets[0].total += u.price;
-        }
-        return baskets.map(b => b.units);
+    const units = [...expandedItems].sort((a, b) => b.price - a.price);
+    const discountableTotal = units.reduce((s, u) => s + u.price, 0);
+    // Lebih banyak dari ini pasti menyisakan keranjang di bawah 50rb, yang wajib nomin
+    // (1 slot penuh) demi diskon kecil -- selalu kalah dibanding digabung.
+    const maxBaskets = Math.min(units.length, Math.floor(discountableTotal / KOPKEN_MIN50K_FLOOR) + 1);
+
+    /** Total tiap keranjang; keranjang kosong (total 0) dibuang sebelum dinilai. */
+    const scoreAssign = (assign: number[], k: number): number => {
+        const totals = new Array<number>(k).fill(0);
+        for (let i = 0; i < assign.length; i++) totals[assign[i]] += units[i].price;
+        return kopKenScore(totals.filter(t => t > 0), accountCost).net;
     };
 
-    const discountableTotal = expandedItems.reduce((s, u) => s + u.price, 0);
-    // Lebih banyak dari ini pasti menyisakan keranjang di bawah 50rb, yang wajib nomin
-    // (1 slot penuh) demi diskon kecil -- selalu kalah dibanding digabung. Batas ini juga
-    // yang menjaga enumerasi di bawah tetap kecil.
-    const maxBaskets = Math.min(expandedItems.length, Math.floor(discountableTotal / 50000) + 1);
-
     let bestNet = -Infinity;
-    let bestPlan: { units: KopKenUnit[]; total: number; tier: KopKenTier }[] = [];
+    let bestAssign = new Array<number>(units.length).fill(0);
+    let bestK = 1;
 
     for (let k = 1; k <= maxBaskets; k++) {
-        const baskets = packInto(k);
-        const totals = baskets.map(b => b.reduce((s, u) => s + u.price, 0));
-        const flex = totals
-            .map((t, i) => ({ i, tier: kopKenCheapTier(t) }))
-            .filter((f): f is { i: number; tier: 'min50k' | 'min70k' } => f.tier !== null);
+        for (const seed of kopKenSeeds(units, k)) {
+            const assign = seed;
+            let net = scoreAssign(assign, k);
 
-        // ponytail: enumerasi 2^flex -- tiap keranjang yang memenuhi syarat cuma punya 2
-        // pilihan (tier murahnya, atau nomin yang diskonnya lebih besar tapi makan 1 slot
-        // penuh). flex <= discountableTotal/50rb, dan order terbesar sepanjang riwayat
-        // 372rb => <=7 keranjang = 128 kombinasi, jadi ini murah. Guard 16 cuma jaga-jaga
-        // kalau suatu saat ada order raksasa; di atas itu semua keranjang flex ambil tier
-        // murahnya (hasilnya tetap valid, cuma tidak dijamin optimal).
-        const combos = flex.length <= 16 ? 1 << flex.length : 1;
-        for (let mask = 0; mask < combos; mask++) {
-            const tiers: KopKenTier[] = totals.map(() => 'nomin');
-            flex.forEach((f, j) => {
-                if (combos === 1 || !(mask & (1 << j))) tiers[f.i] = f.tier;
-            });
-
-            let discount = 0;
-            let nomin = 0;
-            let min50k = 0;
-            let min70k = 0;
-            for (let i = 0; i < tiers.length; i++) {
-                discount += KOPKEN_DISCOUNT[tiers[i]](totals[i]);
-                if (tiers[i] === 'nomin') nomin++;
-                else if (tiers[i] === 'min50k') min50k++;
-                else min70k++;
+            // ponytail: hill climbing polos (pindah 1 unit, lalu tukar 2 unit) sampai tidak
+            // ada perbaikan. Cukup untuk ukuran order nyata: order terbesar sepanjang
+            // riwayat 488rb (20 unit, 10 keranjang) diukur ~13ms, sisanya jauh di bawah itu.
+            // Kalau nanti ada order jauh lebih besar dan ini terasa lambat, batasi jumlah
+            // pass atau update totals secara inkremental (sekarang dihitung ulang tiap tetangga).
+            for (let pass = 0; pass < 20; pass++) {
+                let improved = false;
+                for (let i = 0; i < assign.length; i++) {
+                    for (let b = 0; b < k; b++) {
+                        if (b === assign[i]) continue;
+                        const previous = assign[i];
+                        assign[i] = b;
+                        const candidate = scoreAssign(assign, k);
+                        if (candidate > net) {
+                            net = candidate;
+                            improved = true;
+                        } else {
+                            assign[i] = previous;
+                        }
+                    }
+                }
+                for (let i = 0; i < assign.length; i++) {
+                    for (let j = i + 1; j < assign.length; j++) {
+                        if (assign[i] === assign[j]) continue;
+                        const a = assign[i];
+                        const b = assign[j];
+                        assign[i] = b;
+                        assign[j] = a;
+                        const candidate = scoreAssign(assign, k);
+                        if (candidate > net) {
+                            net = candidate;
+                            improved = true;
+                        } else {
+                            assign[i] = a;
+                            assign[j] = b;
+                        }
+                    }
+                }
+                if (!improved) break;
             }
 
-            const net = discount - kopKenSlots(nomin, min50k, min70k) * accountCost;
             if (net > bestNet) {
                 bestNet = net;
-                bestPlan = baskets.map((units, i) => ({ units, total: totals[i], tier: tiers[i] }));
+                bestAssign = assign.slice();
+                bestK = k;
             }
         }
     }
 
-    return bestPlan.map(b => ({
+    const buckets: KopKenUnit[][] = Array.from({ length: bestK }, () => []);
+    for (let i = 0; i < bestAssign.length; i++) buckets[bestAssign[i]].push(units[i]);
+    const filled = buckets.filter(b => b.length > 0);
+    const totals = filled.map(b => b.reduce((s, u) => s + u.price, 0));
+    const { tiers } = kopKenScore(totals, accountCost);
+
+    return filled.map((basket, i) => ({
         id: generateId(),
-        items: toDisplayItems(b.units),
-        totalPrice: sumFull(b.units),
-        recommendedVoucher: b.tier,
-        estimatedDiscount: KOPKEN_DISCOUNT[b.tier](b.total),
+        items: toDisplayItems(basket),
+        totalPrice: sumFull(basket),
+        recommendedVoucher: tiers[i],
+        estimatedDiscount: KOPKEN_DISCOUNT[tiers[i]](totals[i]),
     }));
 }
 
@@ -515,7 +635,7 @@ function optimizeJanjiJiwa(
 // --- MAIN EXPORT ---
 export function optimizeOrder(
     items: CartItem[],
-    brand: 'fore' | 'kopken' | 'tomoro' | 'janjijiwa',
+    brand: 'fore' | 'kopken' | 'tomoro' | 'janjijiwa' | 'chatime',
     accountCost: number
 ): OptimizationResult {
     if (!items || !Array.isArray(items) || items.length === 0) {

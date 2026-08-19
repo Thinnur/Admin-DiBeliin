@@ -15,7 +15,7 @@ export interface Voucher {
     min_purchase: number;
     max_purchase: number | null;
     discount_amount: number;
-    valid_for: 'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa';
+    valid_for: 'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime';
     quota: number;
     is_active: boolean;
     applies_multiplier: boolean; // true = potongan dikali jumlah biaya admin (kelipatan)
@@ -159,12 +159,13 @@ export async function deleteVoucher(id: number): Promise<void> {
  * @param brand - 'fore', 'kenangan', 'tomoro', 'janjijiwa', or 'cinema'
  * @returns boolean - true if service is open, false if closed
  */
-export async function getServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'cinema' | 'cgv' | 'cinepolis' | 'xxi'): Promise<boolean> {
+export async function getServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime' | 'cinema' | 'cgv' | 'cinepolis' | 'xxi'): Promise<boolean> {
     const keyMap = {
         fore: 'is_fore_open',
         kenangan: 'is_kenangan_open',
         tomoro: 'is_tomoro_open',
         janjijiwa: 'is_janjijiwa_open',
+        chatime: 'is_chatime_open',
         cinema: 'is_cinema_open',
         cgv: 'is_cgv_open',
         cinepolis: 'is_cinepolis_open',
@@ -196,12 +197,13 @@ export async function getServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | '
  * @param brand - 'fore', 'kenangan', 'tomoro', 'janjijiwa', or 'cinema'
  * @param isOpen - true to open service, false to close
  */
-export async function updateServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'cinema' | 'cgv' | 'cinepolis' | 'xxi', isOpen: boolean): Promise<void> {
+export async function updateServiceStatus(brand: 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime' | 'cinema' | 'cgv' | 'cinepolis' | 'xxi', isOpen: boolean): Promise<void> {
     const keyMap = {
         fore: 'is_fore_open',
         kenangan: 'is_kenangan_open',
         tomoro: 'is_tomoro_open',
         janjijiwa: 'is_janjijiwa_open',
+        chatime: 'is_chatime_open',
         cinema: 'is_cinema_open',
         cgv: 'is_cgv_open',
         cinepolis: 'is_cinepolis_open',
@@ -331,11 +333,12 @@ export interface AdminFees {
     fee_jasdor_kopken: number;
     fee_jasdor_tomoro: number;
     fee_jasdor_janjijiwa: number;
+    fee_jasdor_chatime: number;
     fee_special_item: number;
     fee_cinema: number;
 }
 
-const ADMIN_FEE_DEFAULTS: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000, fee_special_item: 5000, fee_cinema: 5000 };
+const ADMIN_FEE_DEFAULTS: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000, fee_jasdor_chatime: 2000, fee_special_item: 5000, fee_cinema: 5000 };
 
 /**
  * Fetch dynamic admin fees from app_settings
@@ -345,7 +348,7 @@ export async function getAdminFees(): Promise<AdminFees> {
         const { data, error } = await supabase
             .from('app_settings')
             .select('key, value')
-            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken', 'fee_jasdor_tomoro', 'fee_jasdor_janjijiwa', 'fee_special_item', 'fee_cinema']);
+            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken', 'fee_jasdor_tomoro', 'fee_jasdor_janjijiwa', 'fee_jasdor_chatime', 'fee_special_item', 'fee_cinema']);
 
         if (error) {
             console.error('Error fetching admin fees:', error);
@@ -362,6 +365,8 @@ export async function getAdminFees(): Promise<AdminFees> {
                 fees.fee_jasdor_tomoro = Number(row.value) || 2000;
             } else if (row.key === 'fee_jasdor_janjijiwa') {
                 fees.fee_jasdor_janjijiwa = Number(row.value) || 2000;
+            } else if (row.key === 'fee_jasdor_chatime') {
+                fees.fee_jasdor_chatime = Number(row.value) || 2000;
             } else if (row.key === 'fee_special_item') {
                 fees.fee_special_item = Number(row.value) || 5000;
             } else if (row.key === 'fee_cinema') {
@@ -379,7 +384,7 @@ export async function getAdminFees(): Promise<AdminFees> {
  * Update a specific admin fee in app_settings
  */
 export async function updateAdminFee(
-    key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_special_item' | 'fee_cinema',
+    key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_jasdor_chatime' | 'fee_special_item' | 'fee_cinema',
     value: string
 ): Promise<void> {
     const { error } = await supabase
