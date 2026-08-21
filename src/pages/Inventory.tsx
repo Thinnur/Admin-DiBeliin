@@ -70,7 +70,7 @@ import {
     isUnsetDevice,
     type DeviceFilterValue,
 } from '@/lib/deviceOptions';
-import type { Account, AccountBrand, AccountStatus } from '@/types/database';
+import type { Account, AccountBrand, AccountStatus, DawgAccount } from '@/types/database';
 import type { DawgScanStatus } from '@/services/dawgAccountService';
 
 // -----------------------------------------------------------------------------
@@ -108,6 +108,12 @@ function formatScanStatus(status?: DawgScanStatus): string {
 /** Vouchers are stored as raw "Label|tier_key" strings. Panel ini cuma peduli voucher "Pengguna Baru - Diskon 50%". */
 const DAWG_VOUCHER_LABEL_FILTER = 'Pengguna Baru - Diskon 50%';
 
+/** Jumlah akun panel yang masih punya voucher "Pengguna Baru - Diskon 50%" di tier tertentu. */
+function countDawgTier(accounts: DawgAccount[], tier: string): number {
+    const needle = `${DAWG_VOUCHER_LABEL_FILTER}|${tier}`;
+    return accounts.filter((a) => a.vouchers?.includes(needle)).length;
+}
+
 function DawgVoucherBadge({ raw }: { raw: string }) {
     const [label, tier] = raw.split('|');
     return (
@@ -123,12 +129,6 @@ function DawgVoucherBadge({ raw }: { raw: string }) {
 // -----------------------------------------------------------------------------
 
 interface VoucherStats {
-    foreBogo: number;
-    foreDisc35: number;
-    foreTotal: number;
-    kopkenNomin: number;
-    kopkenMin50k: number;
-    kopkenTotal: number;
     tomoroBogo: number;
     tomoroDisc50: number;
     tomoroTotal: number;
@@ -137,19 +137,11 @@ interface VoucherStats {
 }
 
 function calculateVoucherStats(accounts: Account[]): VoucherStats {
-    const foreAccounts = accounts.filter((a) => a.brand === 'fore');
-    const kopkenAccounts = accounts.filter((a) => a.brand === 'kopken');
     const tomoroAccounts = accounts.filter((a) => a.brand === 'tomoro');
     const janjijiwaAccounts = accounts.filter((a) => a.brand === 'janjijiwa');
     // Akun berstatus 'issue' tetap menyimpan vouchernya tapi tidak dihitung sebagai tersedia
     const notIssue = (a: Account) => a.status !== 'issue';
     return {
-        foreBogo: foreAccounts.filter((a) => notIssue(a) && a.is_bogo_ready === true).length,
-        foreDisc35: foreAccounts.filter((a) => notIssue(a) && a.is_discount35_ready === true).length,
-        foreTotal: foreAccounts.length,
-        kopkenNomin: kopkenAccounts.filter((a) => notIssue(a) && a.is_nomin_ready === true).length,
-        kopkenMin50k: kopkenAccounts.filter((a) => notIssue(a) && a.is_min50k_ready === true).length,
-        kopkenTotal: kopkenAccounts.length,
         tomoroBogo: tomoroAccounts.filter((a) => notIssue(a) && a.is_bogo_ready === true).length,
         tomoroDisc50: tomoroAccounts.filter((a) => notIssue(a) && a.is_discount35_ready === true).length,
         tomoroTotal: tomoroAccounts.length,
@@ -167,7 +159,7 @@ export default function InventoryPage() {
     const { isStaff, isSuperAdmin, isLoading: isAuthLoading } = useAuth();
 
     // Tab state for brand selection
-    const [activeTab, setActiveTab] = useState<InventoryTab>('kopken');
+    const [activeTab, setActiveTab] = useState<InventoryTab>('kopken_panel');
 
     // Status filter
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -248,7 +240,8 @@ export default function InventoryPage() {
         data: dawgAccounts,
         isLoading: isLoadingDawg,
     } = useDawgAccounts({
-        enabled: !isAuthLoading && activeTab === 'kopken_panel',
+        // Admin selalu butuh datanya buat kartu stok KopKen, bukan cuma pas tab panel dibuka.
+        enabled: !isAuthLoading && (activeTab === 'kopken_panel' || !isStaff),
         // Selagi worker scan jalan, daftar akunnya ikut nge-refresh sendiri
         // supaya akun baru langsung kelihatan tanpa reload halaman.
         refetchInterval: isScanning ? 5_000 : false,
@@ -271,6 +264,17 @@ export default function InventoryPage() {
         () => calculateVoucherStats(allAccounts || []),
         [allAccounts]
     );
+
+    // Stok KopKen diambil dari pool KopKen Panel (dawg_accounts), bukan tabel accounts.
+    const kopkenStats = useMemo(() => {
+        const list = dawgAccounts ?? [];
+        return {
+            nomin: countDawgTier(list, 'tanpa_minimal'),
+            min50k: countDawgTier(list, 'min_50k'),
+            min70k: countDawgTier(list, 'min_70k'),
+            total: list.length,
+        };
+    }, [dawgAccounts]);
 
     const isDeviceFilterActive = deviceFilter !== DEVICE_ALL_VALUE;
     const hasActiveFilters =
@@ -574,7 +578,7 @@ export default function InventoryPage() {
 
             {/* Summary Stats Cards - disembunyikan untuk Staff */}
             {!isStaff && (
-                <div className={`grid grid-cols-2 sm:grid-cols-4 ${ENABLE_FORE_35PCT ? 'lg:grid-cols-7' : 'lg:grid-cols-6'} gap-2 md:gap-4`}>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
                 {/* KopKen No Min */}
                 <Card className="shadow-sm bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
                     <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
@@ -589,8 +593,8 @@ export default function InventoryPage() {
                     </CardHeader>
                     <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
                         <p className="text-xl md:text-2xl font-bold tabular-nums">
-                            <span className="text-emerald-600">{voucherStats.kopkenNomin}</span>
-                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
+                            <span className="text-emerald-600">{kopkenStats.nomin}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{kopkenStats.total}</span>
                         </p>
                         <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">No Minimum</p>
                     </CardContent>
@@ -610,56 +614,33 @@ export default function InventoryPage() {
                     </CardHeader>
                     <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
                         <p className="text-xl md:text-2xl font-bold tabular-nums">
-                            <span className="text-blue-600">{voucherStats.kopkenMin50k}</span>
-                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.kopkenTotal}</span>
+                            <span className="text-blue-600">{kopkenStats.min50k}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{kopkenStats.total}</span>
                         </p>
                         <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Min. 50rb</p>
                     </CardContent>
                 </Card>
  
-                {/* Fore BOGO */}
-                <Card className="shadow-sm bg-gradient-to-br from-amber-50 to-white border-amber-100">
+                {/* KopKen Min 70k */}
+                <Card className="shadow-sm bg-gradient-to-br from-violet-50 to-white border-violet-100">
                     <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
                         <div className="flex items-center gap-1.5 md:gap-2">
-                            <div className="p-1 md:p-2 bg-amber-100 rounded-lg">
-                                <Coffee className="h-3.5 w-3.5 md:h-4 md:w-4 text-amber-600" />
+                            <div className="p-1 md:p-2 bg-violet-100 rounded-lg">
+                                <Package className="h-3.5 w-3.5 md:h-4 md:w-4 text-violet-600" />
                             </div>
                             <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
-                                Fore BOGO
+                                KopKen 70k
                             </CardTitle>
                         </div>
                     </CardHeader>
                     <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
                         <p className="text-xl md:text-2xl font-bold tabular-nums">
-                            <span className="text-amber-600">{voucherStats.foreBogo}</span>
-                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
+                            <span className="text-violet-600">{kopkenStats.min70k}</span>
+                            <span className="text-xs md:text-sm text-slate-400 font-semibold">/{kopkenStats.total}</span>
                         </p>
-                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Buy 1 Get 1</p>
+                        <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Min. 70rb</p>
                     </CardContent>
                 </Card>
- 
-                {/* Fore 35% */}
-                {ENABLE_FORE_35PCT && (
-                    <Card className="shadow-sm bg-gradient-to-br from-orange-50 to-white border-orange-100">
-                        <CardHeader className="pb-1 md:pb-2 p-2 md:p-4">
-                            <div className="flex items-center gap-1.5 md:gap-2">
-                                <div className="p-1 md:p-2 bg-orange-100 rounded-lg">
-                                    <Ticket className="h-3.5 w-3.5 md:h-4 md:w-4 text-orange-500" />
-                                </div>
-                                <CardTitle className="text-xs md:text-sm font-medium text-slate-700 leading-tight">
-                                    Fore 35%
-                                </CardTitle>
-                            </div>
-                        </CardHeader>
-                        <CardContent className="p-2 pt-0 md:p-4 md:pt-0">
-                            <p className="text-xl md:text-2xl font-bold tabular-nums">
-                                <span className="text-orange-500">{voucherStats.foreDisc35}</span>
-                                <span className="text-xs md:text-sm text-slate-400 font-semibold">/{voucherStats.foreTotal}</span>
-                            </p>
-                            <p className="text-[9px] md:text-xs text-slate-500 mt-0.5">Diskon 35%</p>
-                        </CardContent>
-                    </Card>
-                )}
 
                 {/* Tomoro BOGO */}
                 <Card className="shadow-sm bg-gradient-to-br from-red-50 to-white border-red-100">
@@ -736,7 +717,7 @@ export default function InventoryPage() {
                                 <CardDescription>
                                     Your coffee shop account collection
                                     <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
-                                        Total: {voucherStats.foreBogo + (ENABLE_FORE_35PCT ? voucherStats.foreDisc35 : 0) + voucherStats.kopkenNomin + voucherStats.kopkenMin50k + voucherStats.tomoroBogo + voucherStats.tomoroDisc50 + voucherStats.janjijiwaDisc50} siap
+                                        Total: {kopkenStats.nomin + kopkenStats.min50k + kopkenStats.min70k + voucherStats.tomoroBogo + voucherStats.tomoroDisc50 + voucherStats.janjijiwaDisc50} siap
                                     </span>
                                 </CardDescription>
                             )}
@@ -837,13 +818,9 @@ export default function InventoryPage() {
                     >
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
                             <TabsList className="mb-0">
-                                <TabsTrigger value="kopken" className="gap-2">
-                                    <Coffee className="h-4 w-4" />
-                                    Kopi Kenangan
-                                </TabsTrigger>
-                                <TabsTrigger value="fore" className="gap-2">
-                                    <Coffee className="h-4 w-4" />
-                                    Fore Coffee
+                                <TabsTrigger value="kopken_panel" className="gap-2">
+                                    <LayoutGrid className="h-4 w-4" />
+                                    KopKen Panel
                                 </TabsTrigger>
                                 <TabsTrigger value="tomoro" className="gap-2">
                                     <Coffee className="h-4 w-4" />
@@ -853,9 +830,13 @@ export default function InventoryPage() {
                                     <Coffee className="h-4 w-4" />
                                     Kopi Janji Jiwa
                                 </TabsTrigger>
-                                <TabsTrigger value="kopken_panel" className="gap-2">
-                                    <LayoutGrid className="h-4 w-4" />
-                                    KopKen Panel
+                                <TabsTrigger value="kopken" className="gap-2">
+                                    <Coffee className="h-4 w-4" />
+                                    Kopi Kenangan
+                                </TabsTrigger>
+                                <TabsTrigger value="fore" className="gap-2">
+                                    <Coffee className="h-4 w-4" />
+                                    Fore Coffee
                                 </TabsTrigger>
                             </TabsList>
 
