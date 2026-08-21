@@ -4,7 +4,7 @@
 // Premium inventory page for managing coffee shop accounts
 
 import { useState, useMemo } from 'react';
-import { Package, Coffee, Ticket, Plus, Search, LayoutGrid } from 'lucide-react';
+import { Package, Coffee, Ticket, Plus, Search, LayoutGrid, RefreshCw } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -62,7 +62,7 @@ import {
     useFixStaleAccounts,
 } from '@/hooks/useInventory';
 import { useAuth } from '@/contexts/AuthContext';
-import { useDawgAccounts } from '@/hooks/useDawgAccounts';
+import { useDawgAccounts, useDawgScanStatus, useRequestDawgScan } from '@/hooks/useDawgAccounts';
 import {
     DEVICE_ALL_VALUE,
     DEVICE_OPTIONS,
@@ -71,6 +71,7 @@ import {
     type DeviceFilterValue,
 } from '@/lib/deviceOptions';
 import type { Account, AccountBrand, AccountStatus } from '@/types/database';
+import type { DawgScanStatus } from '@/services/dawgAccountService';
 
 // -----------------------------------------------------------------------------
 // Filter Types
@@ -92,6 +93,16 @@ function formatDawgDate(iso: string | null): string {
         hour: '2-digit',
         minute: '2-digit',
     });
+}
+
+/** Ubah status mentah dari worker jadi satu baris teks buat admin. */
+function formatScanStatus(status?: DawgScanStatus): string {
+    if (!status || status.state === 'idle') return 'Belum ada data scan.';
+
+    const at = status.at ? formatDawgDate(status.at) : '-';
+    if (status.state === 'running') return 'Scan sedang jalan (mulai ' + at + ')...';
+    if (status.state === 'error') return 'Scan terakhir gagal (' + at + '): ' + status.message;
+    return 'Scan terakhir ' + at + ' — ' + status.message;
 }
 
 /** Vouchers are stored as raw "Label|tier_key" strings. Panel ini cuma peduli voucher "Pengguna Baru - Diskon 50%". */
@@ -228,11 +239,20 @@ export default function InventoryPage() {
         ? (isErrorStaffKopken || isErrorStaffFore || isErrorStaffTomoro || isErrorStaffJanjijiwa)
         : isErrorAdmin;
 
-    // KopKen Panel data (dawg.colok.me automation account pool)
+    // KopKen Panel data (kopsu.app automation account pool)
+    const scanStatus = useDawgScanStatus(activeTab === 'kopken_panel');
+    const requestScan = useRequestDawgScan();
+    const isScanning = scanStatus.data?.state === 'running';
+
     const {
         data: dawgAccounts,
         isLoading: isLoadingDawg,
-    } = useDawgAccounts({ enabled: !isAuthLoading && activeTab === 'kopken_panel' });
+    } = useDawgAccounts({
+        enabled: !isAuthLoading && activeTab === 'kopken_panel',
+        // Selagi worker scan jalan, daftar akunnya ikut nge-refresh sendiri
+        // supaya akun baru langsung kelihatan tanpa reload halaman.
+        refetchInterval: isScanning ? 5_000 : false,
+    });
 
     const filteredDawgAccounts = useMemo(() => {
         const query = searchQuery.trim().toLowerCase();
@@ -913,6 +933,23 @@ export default function InventoryPage() {
                         </TabsContent>
 
                         <TabsContent value="kopken_panel">
+                            {!isStaff && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 pb-3">
+                                    <p className="text-xs text-slate-500">
+                                        {formatScanStatus(scanStatus.data)}
+                                    </p>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => requestScan.mutate()}
+                                        disabled={isScanning || requestScan.isPending}
+                                        title="Daftarkan akun yang baru diambil manual di panel KopKen ke sistem"
+                                    >
+                                        <RefreshCw className={'mr-2 h-4 w-4 ' + (isScanning ? 'animate-spin' : '')} />
+                                        {isScanning ? 'Scanning...' : 'Scan Akun Baru'}
+                                    </Button>
+                                </div>
+                            )}
                             <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
                                 <Table>
                                     <TableHeader>

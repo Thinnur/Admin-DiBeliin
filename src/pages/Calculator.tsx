@@ -344,11 +344,15 @@ function StrategyCard({
 }
 
 // -----------------------------------------------------------------------------
-// Kopken Checkout Panel — trigger runCheckout.js (dawg.colok.me automation)
-// lewat job queue Supabase `checkout_jobs`, dikonsumsi checkout_worker.js (pm2)
-// di server automation. Cuma relevan buat brand kopken (brand lain belum ada
-// automation checkout-nya).
+// Checkout Panel — trigger otomasi checkout lewat job queue Supabase
+// `checkout_jobs`, dikonsumsi checkout_worker.js (pm2) di server automation.
+// Routing runner-nya lewat `order_payload.brand`:
+//   kopken -> runCheckout.js (dawg.colok.me / kopsu.app)
+//   fore   -> runCheckoutFore.js (api.fore.coffee)
+// Brand lain (tomoro/janjijiwa/chatime) belum ada automation-nya.
 // -----------------------------------------------------------------------------
+
+const CHECKOUT_BRANDS: AccountBrand[] = ['kopken', 'fore'];
 
 function mapVoucherToTier(recommendedVoucher: string): string {
     if (recommendedVoucher === 'min50k') return 'Minimal 50k';
@@ -423,7 +427,47 @@ function buildKopkenOrderPayload(
     };
 }
 
-function KopkenCheckoutPanel({
+/**
+ * Payload Fore. Beda dari Kopken:
+ *  - `brand: 'fore'` menentukan runner di checkout_worker.js;
+ *  - opsi item tetap array datar (hasil parser WA) — runCheckoutFore.js yang
+ *    memetakannya ke pa_id lewat resolveItem(), termasuk menebak varian
+ *    iced/hot dari token seperti "Iced";
+ *  - `qty` dipakai, bukan mengulang item, karena Fore punya cartpd_qty;
+ *  - voucher dicocokkan ke NAMA voucher yang hidup di akun (kode voucher
+ *    langganan Fore berganti tiap periode, jadi tidak boleh di-hardcode);
+ *  - tanpa pickupTime/needPackaging: penjadwalan Fore belum diimplementasi.
+ */
+function buildForeOrderPayload(
+    group: OptimizationResult['groups'][0],
+    outlet: string,
+    customerName: string,
+    orderNumber?: string,
+    groupIndex?: number,
+    groupTotal?: number
+): CheckoutJobOrderPayload {
+    return {
+        brand: 'fore',
+        outlet: outlet || '',
+        name: customerName || 'DiBeliin',
+        payment: 'QRIS',
+        voucher: group.recommendedVoucher === 'fore_25pct' ? 'Diskon 25%' : undefined,
+        subtotal: group.totalPrice,
+        items: group.items.map((item) => {
+            const { cleanName, size } = extractSize(item.name);
+            const { cleanAddons, note } = extractNote(item.addons ?? []);
+            const options = cleanAddons.map(addonToOptionValue);
+            if (size) options.push(size);
+            return { name: cleanName, options, qty: 1, ...(note ? { notes: note } : {}) };
+        }),
+        ...(orderNumber ? { orderNumber } : {}),
+        ...(groupIndex != null ? { groupIndex } : {}),
+        ...(groupTotal != null ? { groupTotal } : {}),
+    };
+}
+
+function CheckoutPanel({
+    brand,
     group,
     outlet,
     customerName,
@@ -433,6 +477,7 @@ function KopkenCheckoutPanel({
     index,
     groupTotal,
 }: {
+    brand: AccountBrand;
     group: OptimizationResult['groups'][0];
     outlet: string;
     customerName: string;
@@ -472,13 +517,14 @@ function KopkenCheckoutPanel({
         }
     }, [parsedPickupTime]);
 
+    const isFore = brand === 'fore';
+
     const openDialog = () => {
         const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
-        setJsonDraft(JSON.stringify(
-            buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal),
-            null,
-            2
-        ));
+        const payload = isFore
+            ? buildForeOrderPayload(group, outlet, customerName, orderNumber, index + 1, groupTotal)
+            : buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal);
+        setJsonDraft(JSON.stringify(payload, null, 2));
         setDialogOpen(true);
     };
 
@@ -512,6 +558,11 @@ function KopkenCheckoutPanel({
 
     return (
         <div className="mt-2">
+            {/* Jadwal & plastik cuma ada di alur Kopken — penjadwalan Fore
+                (schedule_date/schedule_time_slot) belum diimplementasi, jadi
+                jangan tampilkan kontrol yang hasilnya bakal diabaikan. */}
+            {!isFore && (
+            <>
             <div className="flex gap-1.5 mb-1.5">
                 <Button
                     type="button"
@@ -544,9 +595,11 @@ function KopkenCheckoutPanel({
                 <Switch id="need-packaging" checked={needPackaging} onCheckedChange={setNeedPackaging} />
                 <Label htmlFor="need-packaging" className="text-xs font-normal">Pakai Plastik</Label>
             </div>
+            </>
+            )}
             <Button variant="outline" size="sm" className="w-full" onClick={openDialog}>
                 <Zap className="w-4 h-4 mr-2" />
-                Proses Checkout (Kopken Otomatis)
+                {isFore ? 'Proses Checkout (Fore Otomatis)' : 'Proses Checkout (Kopken Otomatis)'}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -554,8 +607,9 @@ function KopkenCheckoutPanel({
                     <DialogHeader>
                         <DialogTitle>Review Order Sebelum Checkout</DialogTitle>
                         <DialogDescription>
-                            Cek nama menu &amp; opsi (Ice/Sugar/Size dll) sesuai tampilan dawg.colok.me sebelum kirim —
-                            voucher akun akan langsung terpakai begitu diproses.
+                            {isFore
+                                ? 'Cek nama menu & opsi (Ukuran Cup/Ice Cube/Dairy dll) sesuai aplikasi Fore sebelum kirim. Nama pemesan hanya diganti kalau tidak ada order yang masih berjalan di akun itu.'
+                                : 'Cek nama menu & opsi (Ice/Sugar/Size dll) sesuai tampilan dawg.colok.me sebelum kirim — voucher akun akan langsung terpakai begitu diproses.'}
                         </DialogDescription>
                     </DialogHeader>
                     <textarea
@@ -1223,8 +1277,9 @@ Example:
                                 {result.groups.map((group, index) => (
                                     <div key={group.id}>
                                         <StrategyCard group={group} index={index} />
-                                        {brand === 'kopken' && (
-                                            <KopkenCheckoutPanel
+                                        {CHECKOUT_BRANDS.includes(brand) && (
+                                            <CheckoutPanel
+                                                brand={brand}
                                                 group={group}
                                                 outlet={outletName}
                                                 customerName={customerName}

@@ -1,9 +1,10 @@
 // =============================================================================
 // DiBeliin Admin - Checkout Job Service
 // =============================================================================
-// Job queue buat tombol "Proses Checkout" di Calculator (brand kopken only).
-// Insert row di sini -> checkout_worker.js (pm2, server dawg.colok.me automation)
-// yang polling & jalanin runCheckout(), stream progress ke kolom `log`.
+// Job queue buat tombol "Proses Checkout" di Calculator (brand kopken & fore).
+// Insert row di sini -> checkout_worker.js (pm2, server automation) yang polling
+// & jalanin runCheckout()/runCheckoutFore() sesuai order_payload.brand, stream
+// progress ke kolom `log`.
 
 import { supabase } from '@/lib/supabase';
 
@@ -14,9 +15,21 @@ export interface CheckoutJobOrderItem {
     options: string[];
     /** Catatan bebas per item (mis. dari baris "Catatan:" WA order) — diteruskan ke orderNotes di runCheckout.js. */
     notes?: string;
+    /** Fore: jumlah cup. Kopken mengulang item, Fore pakai cartpd_qty. */
+    qty?: number;
 }
 
 export interface CheckoutJobOrderPayload {
+    /** Menentukan runner mana yang dipakai checkout_worker.js: 'kopken' ->
+     * runCheckout.js, 'fore' -> runCheckoutFore.js. Sengaja di dalam payload,
+     * bukan kolom tersendiri — checkout_jobs tidak punya kolom `brand` dan
+     * payload lama (tanpa field ini) tetap dibaca sebagai kopken. */
+    brand?: 'kopken' | 'fore';
+    /** Fore: nomor akun yang dipakai. Boleh kosong kalau di server cuma ada
+     * satu sesi Fore tersimpan (lihat fore_session.js). */
+    phone?: string;
+    /** Fore: nama metode bayar, dicocokkan ke user/order/list-payment. Default QRIS. */
+    payment?: string;
     outlet: string;
     name: string;
     voucher?: string;
