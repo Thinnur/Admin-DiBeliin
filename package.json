@@ -30,6 +30,7 @@
     "csv-parser": "^3.2.0",
     "date-fns": "^4.1.0",
     "dotenv": "^17.2.3",
+    "html-to-image": "^1.11.13",
     "lucide-react": "^0.563.0",
     "papaparse": "^5.5.3",
     "pdfjs-dist": "^5.5.207",

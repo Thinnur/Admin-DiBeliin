@@ -29,6 +29,7 @@ import { supabase } from '@/lib/supabase';
 import { getCheckoutJob, cancelCheckoutJob, type CheckoutJob } from '@/services/checkoutJobService';
 import {
     QrisImage,
+    PaymentCountdown,
     CheckoutStatusBadge,
     PaymentStatusBadge,
     OrderPhaseBadge,
@@ -228,7 +229,10 @@ export default function CheckoutProcessPage() {
                         {job.status === 'success' && r && (
                             <div className="space-y-3">
                                 {r.qrOrRedirect && !isPaymentStatusFinal(r.paymentStatus) && (
-                                    <QrisImage qrisString={r.qrOrRedirect} />
+                                    <div className="flex flex-col items-center gap-1.5">
+                                        <QrisImage qrisString={r.qrOrRedirect} />
+                                        <PaymentCountdown expiresAt={r.paymentExpiresAt} />
+                                    </div>
                                 )}
                                 <ReceiptSection
                                     job={job}
