@@ -7,6 +7,7 @@ import { toast } from 'sonner';
 import {
     fetchDawgAccounts,
     fetchDawgScanStatus,
+    fetchDawgVoucherUsage,
     requestDawgAccountScan,
 } from '@/services/dawgAccountService';
 import type { DawgAccount } from '@/types/database';
@@ -48,5 +49,15 @@ export function useRequestDawgScan() {
         onError: (error: Error) => {
             toast.error(error.message);
         },
+    });
+}
+
+/** Rekap harian pemakaian voucher (default 14 hari terakhir). */
+export function useDawgVoucherUsage(enabled: boolean, hari = 14) {
+    return useQuery({
+        queryKey: ['dawg-voucher-usage', hari],
+        queryFn: () => fetchDawgVoucherUsage(hari),
+        enabled,
+        staleTime: 60_000,
     });
 }

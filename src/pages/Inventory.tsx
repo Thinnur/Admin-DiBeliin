@@ -48,6 +48,7 @@ import {
 
 import { AddAccountDialog } from '@/components/inventory/AddAccountDialog';
 import { AccountLogViewer } from '@/components/inventory/AccountLogViewer';
+import { DawgVoucherUsage } from '@/components/inventory/DawgVoucherUsage';
 import {
     createAccountColumns,
     type AccountColumnActions,
@@ -931,6 +932,11 @@ export default function InventoryPage() {
                                     </Button>
                                 </div>
                             )}
+
+                            {/* Rekap pemakaian voucher per tier per hari. Datanya dari
+                                dawg_voucher_log, ditulis di dalam RPC klaim/restore. */}
+                            <DawgVoucherUsage enabled={activeTab === 'kopken_panel'} />
+
                             <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
                                 <Table>
                                     <TableHeader>

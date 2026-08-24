@@ -76,3 +76,38 @@ export async function fetchDawgScanStatus(): Promise<DawgScanStatus> {
         message: rest.join('|'),
     };
 }
+
+// -----------------------------------------------------------------------------
+// Log Pemakaian Voucher
+// -----------------------------------------------------------------------------
+// Sumbernya view `dawg_voucher_usage_daily` di Supabase, yang merangkum tabel
+// `dawg_voucher_log`. Log itu ditulis dari DALAM RPC claim_dawg_voucher /
+// restore_dawg_voucher, jadi semua jalur pemakaian (checkout admin, API
+// reseller, script) ikut tercatat.
+//
+// terpakai = diklaim - dikembalikan. Voucher yang diklaim lalu di-rollback
+// karena checkout gagal tidak dihitung habis.
+
+export type DawgVoucherTier = 'tanpa_minimal' | 'min_50k' | 'min_70k';
+
+export interface DawgVoucherUsageDay {
+    tanggal: string;
+    tier: DawgVoucherTier;
+    diklaim: number;
+    dikembalikan: number;
+    terpakai: number;
+}
+
+/** Rekap harian pemakaian voucher, terbaru dulu. */
+export async function fetchDawgVoucherUsage(hari = 14): Promise<DawgVoucherUsageDay[]> {
+    const sejak = new Date(Date.now() - hari * 86400_000).toISOString().slice(0, 10);
+
+    const { data, error } = await supabase
+        .from('dawg_voucher_usage_daily')
+        .select('*')
+        .gte('tanggal', sejak)
+        .order('tanggal', { ascending: false });
+
+    if (error) throw new Error(`Gagal memuat log voucher: ${error.message}`);
+    return (data ?? []) as DawgVoucherUsageDay[];
+}
