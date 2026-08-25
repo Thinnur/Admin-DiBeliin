@@ -28,13 +28,13 @@ export interface QrisOrder {
     created_at: string;
 }
 
-/** Pesanan yang sudah dibayar. PROCESSED tetap ditampilkan supaya admin bisa
- * membuka ulang / memproses grup sisanya. */
+/** Pesanan yang sudah dibayar. PROCESSED & COMPLETED tetap ditampilkan supaya admin
+ * bisa membuka ulang / memproses grup sisanya dan melihat yang sudah selesai. */
 export async function listNewQrisOrders(limit = 100): Promise<QrisOrder[]> {
     const { data, error } = await supabase
         .from('qris_orders')
         .select('*')
-        .in('status', ['PAID', 'PROCESSED'])
+        .in('status', ['PAID', 'PROCESSED', 'COMPLETED'])
         .order('paid_at', { ascending: false })
         .limit(limit);
 
@@ -68,8 +68,8 @@ export async function deleteQrisOrder(id: string): Promise<void> {
     if (error) throw new Error(`Gagal menghapus pesanan: ${error.message}`);
 }
 
-/** Tandai selesai (sudah diambil/dikirim) -- keluar dari daftar "Pesanan Baru"
- * tanpa menghapus datanya, beda dari deleteQrisOrder yang permanen. */
+/** Tandai selesai (sudah diambil/dikirim) -- barisnya tetap tampil di "Pesanan Baru",
+ * cuma statusnya yang berubah. Beda dari deleteQrisOrder yang menghapus permanen. */
 export async function completeQrisOrder(id: string): Promise<void> {
     const { error } = await supabase.from('qris_orders').update({ status: 'COMPLETED' }).eq('id', id);
     if (error) throw new Error(`Gagal menandai pesanan selesai: ${error.message}`);

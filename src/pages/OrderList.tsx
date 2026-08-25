@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import DayFilter from '@/components/common/DayFilter';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -49,7 +50,7 @@ export default function OrderListPage() {
     const navigate = useNavigate();
     const [orders, setOrders] = useState<QrisOrder[]>([]);
     const [loading, setLoading] = useState(true);
-    const [dayTab, setDayTab] = useState('all');
+    const [selectedDay, setSelectedDay] = useState<string | null>(null);
     const [brandTab, setBrandTab] = useState<BrandTab>('all');
     const [deletingId, setDeletingId] = useState<string | null>(null);
     const [completingId, setCompletingId] = useState<string | null>(null);
@@ -86,7 +87,9 @@ export default function OrderListPage() {
         setCompletingId(orderId);
         try {
             await completeQrisOrder(orderId);
-            setOrders((prev) => prev.filter((order) => order.id !== orderId));
+            setOrders((prev) => prev.map((order) => (
+                order.id === orderId ? { ...order, status: 'COMPLETED' as const } : order
+            )));
             toast.success('Pesanan ditandai selesai.');
         } catch (error) {
             toast.error(error instanceof Error ? error.message : 'Gagal menandai pesanan selesai');
@@ -104,15 +107,9 @@ export default function OrderListPage() {
         return () => clearInterval(interval);
     }, []);
 
-    // Tab hari: digenerate dari tanggal yang benar-benar ada di data, terbaru dulu.
-    const dayTabs = useMemo(() => {
-        const days = new Set(orders.map(dayKey));
-        return Array.from(days).sort((a, b) => b.localeCompare(a));
-    }, [orders]);
-
     const ordersOnSelectedDay = useMemo(
-        () => (dayTab === 'all' ? orders : orders.filter((order) => dayKey(order) === dayTab)),
-        [orders, dayTab]
+        () => (selectedDay === null ? orders : orders.filter((order) => dayKey(order) === selectedDay)),
+        [orders, selectedDay]
     );
 
     // Badge per brand: jumlah "Belum diproses" pada hari yang sedang dilihat --
@@ -120,7 +117,7 @@ export default function OrderListPage() {
     const unprocessedCountByBrand = useMemo(() => {
         const counts: Record<string, number> = {};
         for (const order of ordersOnSelectedDay) {
-            if (order.status !== 'PROCESSED') {
+            if (order.status === 'PAID') {
                 counts[order.brand] = (counts[order.brand] ?? 0) + 1;
             }
         }
@@ -151,18 +148,7 @@ export default function OrderListPage() {
                 <CardHeader className="space-y-3">
                     <CardTitle>Sudah Dibayar</CardTitle>
 
-                    {dayTabs.length > 0 && (
-                        <Tabs value={dayTab} onValueChange={setDayTab}>
-                            <TabsList>
-                                <TabsTrigger value="all">Semua Hari</TabsTrigger>
-                                {dayTabs.map((day) => (
-                                    <TabsTrigger key={day} value={day}>
-                                        {format(new Date(day), 'dd MMM')}
-                                    </TabsTrigger>
-                                ))}
-                            </TabsList>
-                        </Tabs>
-                    )}
+                    <DayFilter value={selectedDay} onChange={setSelectedDay} />
 
                     <Tabs value={brandTab} onValueChange={(value) => setBrandTab(value as BrandTab)}>
                         <TabsList>
@@ -231,17 +217,19 @@ export default function OrderListPage() {
                                             Rp {order.total_amount.toLocaleString('id-ID')}
                                         </TableCell>
                                         <TableCell>
-                                            {order.status === 'PROCESSED'
-                                                ? `Diproses (${order.checkout_job_ids.length} job)`
-                                                : 'Belum diproses'}
+                                            {order.status === 'COMPLETED'
+                                                ? 'Selesai'
+                                                : order.status === 'PROCESSED'
+                                                    ? `Diproses (${order.checkout_job_ids.length} job)`
+                                                    : 'Belum diproses'}
                                         </TableCell>
                                         <TableCell onClick={(event) => event.stopPropagation()} className="flex gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"
-                                                className="h-8 w-8 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50"
-                                                disabled={completingId === order.id}
-                                                title="Tandai selesai"
+                                                className={`h-8 w-8 hover:text-emerald-600 hover:bg-emerald-50 ${order.status === 'COMPLETED' ? 'text-emerald-600' : 'text-slate-400'}`}
+                                                disabled={completingId === order.id || order.status === 'COMPLETED'}
+                                                title={order.status === 'COMPLETED' ? 'Sudah selesai' : 'Tandai selesai'}
                                                 onClick={() => void handleComplete(order.id)}
                                             >
                                                 {completingId === order.id

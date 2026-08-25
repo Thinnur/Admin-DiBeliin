@@ -111,6 +111,8 @@ function StatusBadge({ status, inUseBy }: { status: AccountStatus; inUseBy?: str
 function VoucherStatusBadges({ account }: { account: Account }) {
     const { brand } = account;
 
+    if (brand === 'chatime') return null;
+
     const getBadgeStyle = (isReady: boolean) => {
         if (isReady) {
             return 'bg-emerald-50 text-emerald-700 border-emerald-200';
@@ -578,11 +580,13 @@ function MobileInfoCell({ account }: { account: Account }) {
                 <DeviceBadgeCell deviceName={account.device_name} />
             </div>
 
-            {/* Line 3: Voucher & Expiry (The Value) */}
+            {/* Line 3: Voucher & Expiry (The Value) -- Chatime cuma tanggal masuk */}
             <div className="flex items-center gap-2">
                 <VoucherStatusBadges account={account} />
                 <span className="text-xs text-muted-foreground">
-                    {format(expiryDate, 'dd MMM yyyy')}
+                    {account.brand === 'chatime'
+                        ? `Masuk ${format(new Date(account.created_at), 'dd MMM yyyy')}`
+                        : format(expiryDate, 'dd MMM yyyy')}
                 </span>
             </div>
         </div>
@@ -690,6 +694,62 @@ export function createAccountColumns(
         },
 
         // Actions Column - always visible
+        {
+            id: 'actions',
+            header: '',
+            cell: ({ row }) => <ActionsCell account={row.original} actions={actions} />,
+        },
+    ];
+}
+
+/**
+ * Chatime: akun tanpa voucher/expiry -- cukup identitas akun + kapan dimasukkan.
+ */
+export function createChatimeAccountColumns(
+    actions?: AccountColumnActions
+): ColumnDef<Account>[] {
+    const hiddenOnMobile = { className: 'hidden md:table-cell' };
+    return [
+        {
+            id: 'mobile_info',
+            header: '',
+            cell: ({ row }) => <MobileInfoCell account={row.original} />,
+            meta: { className: 'md:hidden' },
+        },
+        {
+            accessorKey: 'brand',
+            header: 'Brand',
+            cell: ({ row }) => <BrandBadge brand={row.getValue('brand')} />,
+            meta: hiddenOnMobile,
+        },
+        {
+            accessorKey: 'phone_number',
+            header: 'Phone',
+            cell: ({ row }) => <PhoneCell phone={row.getValue('phone_number')} />,
+            meta: hiddenOnMobile,
+        },
+        {
+            accessorKey: 'password',
+            header: 'PIN',
+            cell: ({ row }) => <PINCell pin={row.original.password} />,
+            meta: hiddenOnMobile,
+        },
+        {
+            accessorKey: 'device_name',
+            header: 'Perangkat',
+            cell: ({ row }) => <DeviceBadgeCell deviceName={row.original.device_name} />,
+            meta: hiddenOnMobile,
+        },
+        {
+            accessorKey: 'created_at',
+            header: 'Tanggal Masuk',
+            cell: ({ row }) => (
+                <span className="text-sm text-muted-foreground">
+                    {format(new Date(row.original.created_at), 'dd MMM yyyy')}
+                </span>
+            ),
+            meta: hiddenOnMobile,
+        },
         {
             id: 'actions',
             header: '',

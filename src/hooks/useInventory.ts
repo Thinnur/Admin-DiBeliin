@@ -285,7 +285,21 @@ export function useStaffAccounts(
                 return (data || []) as Account[];
             }
 
-            return [];
+            // Brand tanpa voucher (mis. Chatime): cukup akun 'ready' yang paling baru masuk.
+            let query = supabase
+                .from('accounts')
+                .select('*')
+                .eq('brand', brand)
+                .eq('status', 'ready');
+
+            if (deviceFilter === DEVICE_UNSET_VALUE) {
+                query = query.or('device_name.is.null,device_name.eq.');
+            } else if (deviceFilter !== DEVICE_ALL_VALUE) {
+                query = query.eq('device_name', deviceFilter);
+            }
+
+            const { data } = await query.order('created_at', { ascending: false }).limit(6);
+            return (data || []) as Account[];
         },
         enabled: !!brand,
         ...options,

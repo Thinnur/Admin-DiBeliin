@@ -51,6 +51,7 @@ import { AccountLogViewer } from '@/components/inventory/AccountLogViewer';
 import { DawgVoucherUsage } from '@/components/inventory/DawgVoucherUsage';
 import {
     createAccountColumns,
+    createChatimeAccountColumns,
     type AccountColumnActions,
 } from '@/components/inventory/AccountColumns';
 import { ENABLE_FORE_35PCT } from '@/lib/logic/optimizer';
@@ -213,6 +214,12 @@ export default function InventoryPage() {
         isError: isErrorStaffJanjijiwa,
     } = useStaffAccounts('janjijiwa', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'janjijiwa' });
 
+    const {
+        data: staffAccountsChatime,
+        isLoading: isLoadingStaffChatime,
+        isError: isErrorStaffChatime,
+    } = useStaffAccounts('chatime', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'chatime' });
+
     // Gabungkan berdasarkan role
     const allAccounts = useMemo(() => (
         isStaff
@@ -220,16 +227,17 @@ export default function InventoryPage() {
                 ...(staffAccountsKopken || []),
                 ...(staffAccountsFore || []),
                 ...(staffAccountsTomoro || []),
-                ...(staffAccountsJanjijiwa || [])
+                ...(staffAccountsJanjijiwa || []),
+                ...(staffAccountsChatime || [])
               ]
             : (allAccountsAdmin || [])
-    ), [isStaff, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, allAccountsAdmin]);
+    ), [isStaff, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, staffAccountsChatime, allAccountsAdmin]);
     // isLoading harus true juga selama sesi auth belum selesai dipulihkan
     const isLoading = isAuthLoading || (isStaff
-        ? (isLoadingStaffKopken || isLoadingStaffFore || isLoadingStaffTomoro || isLoadingStaffJanjijiwa)
+        ? (isLoadingStaffKopken || isLoadingStaffFore || isLoadingStaffTomoro || isLoadingStaffJanjijiwa || isLoadingStaffChatime)
         : isLoadingAdmin);
     const isError = isStaff
-        ? (isErrorStaffKopken || isErrorStaffFore || isErrorStaffTomoro || isErrorStaffJanjijiwa)
+        ? (isErrorStaffKopken || isErrorStaffFore || isErrorStaffTomoro || isErrorStaffJanjijiwa || isErrorStaffChatime)
         : isErrorAdmin;
 
     // KopKen Panel data (kopsu.app automation account pool)
@@ -341,6 +349,7 @@ export default function InventoryPage() {
             else if (activeTab === 'fore') staffData = staffAccountsFore || [];
             else if (activeTab === 'tomoro') staffData = staffAccountsTomoro || [];
             else if (activeTab === 'janjijiwa') staffData = staffAccountsJanjijiwa || [];
+            else if (activeTab === 'chatime') staffData = staffAccountsChatime || [];
 
             let result = staffData;
             if (deviceFilter === DEVICE_UNSET_VALUE) {
@@ -403,7 +412,7 @@ export default function InventoryPage() {
         });
 
         return result;
-    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, activeTab, searchQuery, statusFilter, deviceFilter, isStaff]);
+    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, staffAccountsChatime, activeTab, searchQuery, statusFilter, deviceFilter, isStaff]);
 
     // Action handlers
     const handleEdit = (account: Account) => {
@@ -502,6 +511,8 @@ export default function InventoryPage() {
         isStaff, // Staff tidak bisa Edit/Delete
     };
     const columns = createAccountColumns(columnActions);
+    // Chatime tanpa voucher/expiry -- kolomnya cuma identitas akun + tanggal masuk.
+    const chatimeColumns = createChatimeAccountColumns(columnActions);
 
     // Handle search input change (for smart filtering logic)
     const handleSearchChange = (value: string) => {
@@ -839,6 +850,10 @@ export default function InventoryPage() {
                                     <Coffee className="h-4 w-4" />
                                     Fore Coffee
                                 </TabsTrigger>
+                                <TabsTrigger value="chatime" className="gap-2">
+                                    <Coffee className="h-4 w-4" />
+                                    Chatime
+                                </TabsTrigger>
                             </TabsList>
 
                             {!isStaff && (
@@ -880,6 +895,21 @@ export default function InventoryPage() {
                                     hideFilterInput={true}
                                     disablePagination={true}
                                     emptyMessage={getEmptyMessage('Fore Coffee')}
+                                />
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="chatime">
+                            <div className="max-h-[80vh] overflow-y-auto overflow-x-auto">
+                                <DataTable
+                                    columns={chatimeColumns}
+                                    data={filteredAccounts}
+                                    isLoading={isLoading}
+                                    filterColumnName={isStaff ? undefined : 'phone_number'}
+                                    filterValue={searchQuery}
+                                    hideFilterInput={true}
+                                    disablePagination={true}
+                                    emptyMessage={getEmptyMessage('Chatime')}
                                 />
                             </div>
                         </TabsContent>

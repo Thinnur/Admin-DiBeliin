@@ -366,6 +366,7 @@ export function AddAccountDialog({
                             <SelectItem value="fore">Fore Coffee</SelectItem>
                             <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
                             <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
+                            <SelectItem value="chatime">Chatime</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>
@@ -563,6 +564,7 @@ export function AddAccountDialog({
                             <SelectItem value="fore">Fore Coffee</SelectItem>
                             <SelectItem value="tomoro">Tomoro Coffee</SelectItem>
                             <SelectItem value="janjijiwa">Kopi Janji Jiwa</SelectItem>
+                            <SelectItem value="chatime">Chatime</SelectItem>
                         </SelectContent>
                     </Select>
                 </div>

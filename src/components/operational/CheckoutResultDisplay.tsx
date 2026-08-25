@@ -7,8 +7,9 @@
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import { toBlob } from 'html-to-image';
+import foreLogo from '@/assets/fore-logo.svg';
 import { toast } from 'sonner';
-import { Copy, Download, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Copy, Download, RefreshCw } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -90,35 +91,6 @@ function Putus() {
 }
 
 /**
- * QR pengambilan pesanan. Fore hanya menampilkannya saat status
- * `ready_for_pickup`, dan isinya `is_hash ? uorsh_hash : uor_code`
- * (disalin dari bundle track.fore.coffee) — sudah dihitung di backend
- * jadi di sini tinggal digambar.
- */
-export function PickupQr({ value, orderId }: { value: string; orderId?: number }) {
-    const [dataUrl, setDataUrl] = useState<string | null>(null);
-
-    useEffect(() => {
-        let batal = false;
-        QRCode.toDataURL(value, { width: 260, margin: 1 })
-            .then((url) => { if (!batal) setDataUrl(url); })
-            .catch(() => { if (!batal) setDataUrl(null); });
-        return () => { batal = true; };
-    }, [value]);
-
-    if (!dataUrl) return null;
-    return (
-        <div className="flex flex-col items-center gap-1 rounded-lg border border-amber-200 bg-amber-50/60 p-3">
-            <span className="text-[11px] font-semibold tracking-wide text-amber-800">
-                SCAN UNTUK MENGAMBIL PESANANMU
-            </span>
-            {!!orderId && <span className="font-mono text-[11px] text-amber-700">{orderId}</span>}
-            <img src={dataUrl} alt="QR pengambilan pesanan" className="h-44 w-44" />
-        </div>
-    );
-}
-
-/**
  * Struk Fore digambar ulang di admin supaya tidak perlu membuka situs lain.
  *
  * Datanya dari endpoint struk resmi Fore (`user/order-offline/receipt/{hash}`,
@@ -128,21 +100,15 @@ export function PickupQr({ value, orderId }: { value: string; orderId?: number }
  * terisi setelah JS-nya jalan.
  */
 /**
- * Struk + tombol ekspor gambar.
- *
- * Gambarnya dibuat dari node DOM struk itu sendiri (html-to-image), bukan
- * digambar ulang di canvas — supaya PNG-nya dijamin sama persis dengan yang
- * tampil, dan tidak ada dua tata letak yang harus dijaga tetap sinkron.
+ * Ekspor node DOM apa pun jadi PNG — dipakai bersama oleh kartu QR pengambilan
+ * dan kartu struk, supaya logika blob/clipboard/unduh cuma ada di satu tempat.
  */
-export function ForeReceiptCard({ data, fileName }: { data: ForeReceiptData; fileName?: string }) {
-    const strukRef = useRef<HTMLDivElement>(null);
+function useEksporGambar(ref: React.RefObject<HTMLDivElement | null>, namaFile: string, label: string) {
     const [sibuk, setSibuk] = useState<'salin' | 'unduh' | null>(null);
 
-    const namaFile = `Struk_Fore_${fileName ?? data.orderCode ?? data.orderId ?? 'pesanan'}.png`;
-
-    // pixelRatio 2 supaya teks struk tetap tajam saat dizoom / dikirim ke WA.
+    // pixelRatio 2 supaya teks tetap tajam saat dizoom / dikirim ke WA.
     const buatBlob = () =>
-        toBlob(strukRef.current!, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
+        toBlob(ref.current!, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
 
     const unduh = async () => {
         setSibuk('unduh');
@@ -156,7 +122,7 @@ export function ForeReceiptCard({ data, fileName }: { data: ForeReceiptData; fil
             a.click();
             URL.revokeObjectURL(url);
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Gagal mengunduh struk');
+            toast.error(e instanceof Error ? e.message : `Gagal mengunduh ${label}`);
         } finally {
             setSibuk(null);
         }
@@ -173,38 +139,169 @@ export function ForeReceiptCard({ data, fileName }: { data: ForeReceiptData; fil
                 throw new Error('Browser ini tidak mendukung salin gambar — pakai Download.');
             }
             await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            toast.success('Struk disalin sebagai gambar.');
+            toast.success(`${label} disalin sebagai gambar.`);
         } catch (e) {
-            toast.error(e instanceof Error ? e.message : 'Gagal menyalin struk');
+            toast.error(e instanceof Error ? e.message : `Gagal menyalin ${label}`);
         } finally {
             setSibuk(null);
         }
     };
+
+    return { sibuk, salin, unduh };
+}
+
+function TombolEkspor({
+    sibuk,
+    salin,
+    unduh,
+    className,
+}: {
+    sibuk: 'salin' | 'unduh' | null;
+    salin: () => void;
+    unduh: () => void;
+    className?: string;
+}) {
+    return (
+        <div className={cn('mx-auto flex gap-2', className)}>
+            <Button variant="outline" size="sm" className="flex-1" onClick={salin} disabled={!!sibuk}>
+                <Copy className="mr-1.5 h-3.5 w-3.5" />
+                {sibuk === 'salin' ? 'Menyalin...' : 'Salin Gambar'}
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1" onClick={unduh} disabled={!!sibuk}>
+                <Download className="mr-1.5 h-3.5 w-3.5" />
+                {sibuk === 'unduh' ? 'Mengunduh...' : 'Download PNG'}
+            </Button>
+        </div>
+    );
+}
+
+/**
+ * Replika layar "Complete Order" aplikasi Fore, supaya gambar yang dikirim ke
+ * pelanggan terlihat sama seperti dari aplikasi aslinya.
+ *
+ * Tata letak & ukuran disalin dari Compose di APK (`defpackage.oc5`):
+ * judul 16sp semibold, jarak dp6x, QR 220dp, logo 54dp, jarak dp2x, label 14sp
+ * (nomor antrean bold + " - " + nama), jarak dp5x, pembatas "or"
+ * (`R.string.checkout_or_text`, 14sp, padding dp1_5x/dp1x), lalu tombol
+ * SECONDARY "Complete without Scan" 14sp. Skala dpNx = N x 8dp.
+ *
+ * Tombol "Complete without Scan" sengaja dirender sebagai <div>, BUKAN tombol:
+ * ini bagian dari gambar, dan di aplikasi tombol itu menandai pesanan selesai
+ * (`order/completed/{id}`) — jangan sampai ter-klik dari admin tanpa diminta.
+ */
+export function ForePickupScreen({ data }: { data: ForeReceiptData }) {
+    const [dataUrl, setDataUrl] = useState<string | null>(null);
+    const nilai = data.pickupQr ?? '';
+
+    useEffect(() => {
+        if (!nilai) return;
+        let batal = false;
+        // errorCorrectionLevel 'H' WAJIB: logo menutup ~24,5% sisi QR (54dp di
+        // atas 220dp, sesuai aplikasi). Diuji headless: masih terbaca sampai
+        // ~28%, putus di 30%.
+        QRCode.toDataURL(nilai, { width: 440, margin: 0, errorCorrectionLevel: 'H' })
+            .then((url) => { if (!batal) setDataUrl(url); })
+            .catch(() => { if (!batal) setDataUrl(null); });
+        return () => { batal = true; };
+    }, [nilai]);
+
+    if (!nilai || !dataUrl) return null;
+
+    return (
+        // Setinggi layar ponsel penuh (411 x 824 dp). Posisi tiap elemen diukur
+        // dari screenshot aplikasi: skala 220dp QR / 507px QR = 0,434 dp per px,
+        // jadi lebar layar 924px -> 401dp dan tinggi 1900px -> 824dp. Bilah
+        // status ponsel (jam/baterai) sengaja TIDAK ditiru — itu chrome sistem,
+        // bukan UI Fore, dan jam palsu di gambar cuma bikin bingung.
+        <div className="mx-auto flex h-[824px] w-[411px] flex-col bg-white font-sans">
+            {/* Header — judul di ~57dp dari atas */}
+            <div className="relative flex h-14 shrink-0 items-center justify-center px-4">
+                <ChevronLeft className="absolute left-4 h-6 w-6 text-[#1F2429]" strokeWidth={2.5} />
+                <span className="text-lg font-bold text-[#1F2429]">Complete Order</span>
+            </div>
+
+            {/* Jarak besar sebelum judul — di aplikasi judul jatuh di ~237dp */}
+            <div className="flex flex-col items-center px-4 pt-[168px]">
+                <p className="w-full whitespace-nowrap text-center text-[17px] font-bold leading-snug text-[#1F2429]">
+                    Scan the QR code when pick up your order!
+                </p>
+
+                {/* QR 220dp + logo 54dp */}
+                <div className="relative mt-12 h-[220px] w-[220px]">
+                    <img src={dataUrl} alt="QR pengambilan pesanan" className="h-full w-full" />
+                    <div className="absolute left-1/2 top-1/2 flex h-[54px] w-[54px] -translate-x-1/2 -translate-y-1/2 items-center justify-center bg-white">
+                        <img src={foreLogo} alt="" className="h-[38px] w-[38px]" />
+                    </div>
+                </div>
+
+                <p className="mt-4 text-center text-sm text-[#858A8E]">
+                    {data.queue != null && <span className="font-bold text-[#1F2429]">{data.queue}</span>}
+                    {data.customerName ? ` - ${data.customerName}` : ''}
+                </p>
+
+                {/* Pembatas "or" */}
+                <div className="mt-10 flex w-full items-center">
+                    <div className="h-px flex-1 bg-[#E3E3E3]" />
+                    <span className="px-3 py-2 text-sm text-[#858A8E]">or</span>
+                    <div className="h-px flex-1 bg-[#E3E3E3]" />
+                </div>
+
+                {/* Tombol tiruan — lihat catatan di JSDoc, sengaja tidak bisa diklik */}
+                <div className="mt-10 w-full rounded-full border-2 border-[#00623B] px-6 py-3 text-center text-sm font-bold text-[#00623B]">
+                    Complete without Scan
+                </div>
+            </div>
+        </div>
+    );
+}
+
+export function ForePickupCard({ data, fileName }: { data: ForeReceiptData; fileName?: string }) {
+    const ref = useRef<HTMLDivElement>(null);
+    const eksport = useEksporGambar(
+        ref,
+        `QR_Ambil_Fore_${fileName ?? data.orderCode ?? data.orderId ?? 'pesanan'}.png`,
+        'QR pengambilan'
+    );
+
+    if (!data.pickupQr) return null;
+    return (
+        <div className="space-y-2">
+            <div ref={ref} className="w-fit bg-white">
+                <ForePickupScreen data={data} />
+            </div>
+            <TombolEkspor {...eksport} className="max-w-[360px]" />
+        </div>
+    );
+}
+
+/**
+ * Struk + tombol ekspor gambar.
+ *
+ * Gambarnya dibuat dari node DOM struk itu sendiri (html-to-image), bukan
+ * digambar ulang di canvas — supaya PNG-nya dijamin sama persis dengan yang
+ * tampil, dan tidak ada dua tata letak yang harus dijaga tetap sinkron.
+ */
+export function ForeReceiptCard({ data, fileName }: { data: ForeReceiptData; fileName?: string }) {
+    const strukRef = useRef<HTMLDivElement>(null);
+    const eksport = useEksporGambar(
+        strukRef,
+        `Struk_Fore_${fileName ?? data.orderCode ?? data.orderId ?? 'pesanan'}.png`,
+        'Struk'
+    );
 
     return (
         <div className="space-y-2">
             <div ref={strukRef} className="bg-white">
                 <ForeReceipt data={data} />
             </div>
-            <div className="mx-auto flex max-w-[340px] gap-2">
-                <Button variant="outline" size="sm" className="flex-1" onClick={salin} disabled={!!sibuk}>
-                    <Copy className="mr-1.5 h-3.5 w-3.5" />
-                    {sibuk === 'salin' ? 'Menyalin...' : 'Salin Gambar'}
-                </Button>
-                <Button variant="outline" size="sm" className="flex-1" onClick={unduh} disabled={!!sibuk}>
-                    <Download className="mr-1.5 h-3.5 w-3.5" />
-                    {sibuk === 'unduh' ? 'Mengunduh...' : 'Download PNG'}
-                </Button>
-            </div>
+            <TombolEkspor {...eksport} className="max-w-[340px]" />
         </div>
     );
 }
 
 export function ForeReceipt({ data }: { data: ForeReceiptData }) {
     return (
-        <div className="mx-auto max-w-[340px] space-y-3">
-            {data.pickupQr && <PickupQr value={data.pickupQr} orderId={data.orderId} />}
-
+        <div className="mx-auto max-w-[340px]">
             <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 text-[12px] leading-relaxed text-slate-700">
                 <div className="space-y-0.5 text-center">
                     <p className="text-base font-bold text-slate-900">Fore Coffee</p>
@@ -483,7 +580,12 @@ export function ReceiptSection({
                 </p>
             ) : null;
         }
-        return <ForeReceiptCard data={r.receipt} fileName={r.orderId} />;
+        return (
+                    <div className="space-y-6">
+                        <ForePickupCard data={r.receipt} fileName={r.orderId} />
+                        <ForeReceiptCard data={r.receipt} fileName={r.orderId} />
+                    </div>
+                );
     }
 
     // Sama-sama minta payment_status_worker.js ambil struk (via

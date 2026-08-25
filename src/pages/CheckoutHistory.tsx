@@ -9,8 +9,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { format, isToday, isYesterday } from 'date-fns';
-import { id as localeId } from 'date-fns/locale';
+import { format } from 'date-fns';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +21,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import DayFilter, { DAY_FORMAT, todayKey } from '@/components/common/DayFilter';
 import {
     Table,
     TableBody,
@@ -59,6 +59,19 @@ import {
 
 type StatusFilter = CheckoutJobStatus | 'all';
 
+// Cuma Kopken & Fore yang punya skrip checkout (lihat checkout_worker.js).
+// Payload lama tanpa field brand = kopken.
+const BRAND_TABS = [
+    { value: 'all', label: 'Semua Brand' },
+    { value: 'kopken', label: 'Kopi Kenangan' },
+    { value: 'fore', label: 'Fore Coffee' },
+] as const;
+type BrandFilter = (typeof BRAND_TABS)[number]['value'];
+
+function jobBrand(job: CheckoutJob): string {
+    return job.order_payload.brand ?? 'kopken';
+}
+
 function formatDateTime(iso: string): string {
     return new Date(iso).toLocaleString('id-ID', {
         day: '2-digit',
@@ -73,7 +86,8 @@ export default function CheckoutHistoryPage() {
     const [jobs, setJobs] = useState<CheckoutJob[]>([]);
     const [loading, setLoading] = useState(true);
     const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
-    const [selectedDay, setSelectedDay] = useState<string | null>(null);
+    const [selectedDay, setSelectedDay] = useState<string | null>(todayKey());
+    const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
 
@@ -129,24 +143,14 @@ export default function CheckoutHistoryPage() {
         return () => { supabase.removeChannel(channel); };
     }, []);
 
-    const statusFilteredJobs = statusFilter === 'all' ? jobs : jobs.filter((j) => j.status === statusFilter);
-
-    // Tanggal unik (yyyy-MM-dd) dari job yang lolos filter status, terbaru dulu.
-    const uniqueDays = useMemo(() => {
-        const days = statusFilteredJobs.map((j) => format(new Date(j.created_at), 'yyyy-MM-dd'));
-        return Array.from(new Set(days)).sort((a, b) => b.localeCompare(a));
-    }, [statusFilteredJobs]);
-
-    const activeDay = (selectedDay && uniqueDays.includes(selectedDay))
-        ? selectedDay
-        : (uniqueDays[0] || null);
-
     const filteredJobs = useMemo(() => {
-        if (!activeDay) return [];
-        return statusFilteredJobs.filter(
-            (j) => format(new Date(j.created_at), 'yyyy-MM-dd') === activeDay
-        );
-    }, [statusFilteredJobs, activeDay]);
+        let result = statusFilter === 'all' ? jobs : jobs.filter((j) => j.status === statusFilter);
+        if (brandFilter !== 'all') result = result.filter((j) => jobBrand(j) === brandFilter);
+        if (selectedDay) {
+            result = result.filter((j) => format(new Date(j.created_at), DAY_FORMAT) === selectedDay);
+        }
+        return result;
+    }, [jobs, statusFilter, brandFilter, selectedDay]);
 
     // Selection cuma relevan buat baris yang lagi kelihatan (sesuai filter status + hari aktif).
     useEffect(() => {
@@ -156,7 +160,7 @@ export default function CheckoutHistoryPage() {
             return next.size === prev.size ? prev : next;
         });
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, activeDay, jobs]);
+    }, [statusFilter, brandFilter, selectedDay, jobs]);
 
     const allVisibleSelected = filteredJobs.length > 0 && filteredJobs.every((j) => selectedIds.has(j.id));
 
@@ -256,39 +260,28 @@ export default function CheckoutHistoryPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
-                    {/* Tab Filter Hari */}
-                    {uniqueDays.length > 0 && (
-                        <div className="mb-4 overflow-x-auto pb-2 -mx-1 px-1">
-                            <Tabs
-                                value={activeDay || ''}
-                                onValueChange={(val) => setSelectedDay(val || null)}
-                            >
-                                <TabsList className="inline-flex w-auto bg-slate-100 p-1 rounded-lg">
-                                    {uniqueDays.map((dayStr) => {
-                                        const date = new Date(dayStr);
-                                        let label = format(date, 'd MMM yyyy', { locale: localeId });
-                                        if (isToday(date)) {
-                                            label = 'Hari Ini';
-                                        } else if (isYesterday(date)) {
-                                            label = 'Kemarin';
-                                        }
-                                        return (
-                                            <TabsTrigger
-                                                key={dayStr}
-                                                value={dayStr}
-                                                className="text-xs px-3 py-1.5 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900"
-                                            >
-                                                {label}
-                                            </TabsTrigger>
-                                        );
-                                    })}
-                                </TabsList>
-                            </Tabs>
-                        </div>
-                    )}
+                    {/* Filter hari + brand */}
+                    <div className="mb-4 space-y-2 overflow-x-auto pb-1 -mx-1 px-1">
+                        <DayFilter value={selectedDay} onChange={setSelectedDay} />
+                        <Tabs value={brandFilter} onValueChange={(v) => setBrandFilter(v as BrandFilter)}>
+                            <TabsList className="inline-flex w-auto bg-slate-100 p-1 rounded-lg">
+                                {BRAND_TABS.map((brand) => (
+                                    <TabsTrigger
+                                        key={brand.value}
+                                        value={brand.value}
+                                        className="text-xs px-3 py-1.5 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900"
+                                    >
+                                        {brand.label}
+                                    </TabsTrigger>
+                                ))}
+                            </TabsList>
+                        </Tabs>
+                    </div>
 
                     {filteredJobs.length === 0 && !loading && (
-                        <p className="text-sm text-slate-400 text-center py-8">Belum ada order.</p>
+                        <p className="text-sm text-slate-400 text-center py-8">
+                            Tidak ada order di filter ini.
+                        </p>
                     )}
                     {filteredJobs.length > 0 && (
                         <div className="overflow-x-auto">
