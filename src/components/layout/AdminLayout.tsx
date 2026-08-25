@@ -32,6 +32,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import PushToggle from '@/components/common/PushToggle';
 
 // -----------------------------------------------------------------------------
 // Navigation Items
@@ -620,6 +621,11 @@ function Header({ pageInfo }: HeaderProps) {
                             {pageInfo.description}
                         </p>
                     </div>
+                </div>
+
+                {/* Lonceng: selalu tampil, termasuk di mobile/PWA */}
+                <div className="flex items-center gap-2">
+                    <PushToggle />
                 </div>
 
                 {/* Desktop: logo */}
