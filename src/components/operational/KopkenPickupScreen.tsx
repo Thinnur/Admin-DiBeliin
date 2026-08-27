@@ -313,19 +313,25 @@ function KartuIsiProfil() {
         <div className="flex items-center justify-between rounded-xl bg-white px-5 py-4 shadow-[0_2px_8px_rgba(0,0,0,0.08)]">
             <div className="flex items-center gap-4">
                 <div className="relative h-12 w-12">
+                    {/* Warnanya ditulis langsung di atribut `stroke`, BUKAN lewat
+                        `stroke="currentColor"` + kelas Tailwind seperti di kopsu.
+                        html-to-image menyalin computed style ke elemen <svg> induk
+                        tapi TIDAK ke anak-anaknya, jadi `currentColor` di dalam
+                        <path> jatuh ke warna teks yang diwarisi — cincinnya terekspor
+                        jadi slate-800 pekat (diukur: rgb(29,41,61)) padahal di layar
+                        abu-abu + oranye. Aturan yang sama berlaku buat SVG mana pun
+                        di berkas ini: warna anak <svg> harus atribut, bukan CSS. */}
                     <svg className="h-full w-full transform" viewBox="0 0 36 36">
                         <path
-                            className="text-slate-200"
                             strokeWidth="3.5"
-                            stroke="currentColor"
+                            stroke="#e2e8f0"
                             fill="none"
                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         />
                         <path
-                            className="text-[#c98751]"
                             strokeDasharray="20, 100"
                             strokeWidth="3.5"
-                            stroke="currentColor"
+                            stroke="#c98751"
                             fill="none"
                             strokeLinecap="round"
                             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
