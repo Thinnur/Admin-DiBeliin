@@ -52,6 +52,9 @@ export interface KopkenReceiptItem {
 
 export interface KopkenReceiptData {
     v?: number;
+    /** 'checkout' = struk awal yang disusun worker sesaat setelah order dibuat
+     *  (belum ada nomor antrean); 'd5rk' = sudah dikonfirmasi Kopken. */
+    sumber?: 'checkout' | 'd5rk';
     queueNumber?: string | null;
     phase?: string | null;
     phases?: string[] | null;
@@ -84,6 +87,13 @@ const A = '/kopken-assets';
 const FALLBACK_MENU = `${A}/menu_image.png`;
 
 const rp = (n?: number | null) => `Rp${Math.round(n ?? 0).toLocaleString('id-ID')}`;
+
+/** Harga yang ditampilkan per baris: harga asli kalau ada (ikut kopsu), kalau
+ *  tidak harga bayarnya. null = belum diketahui, jangan digambar sama sekali. */
+function hargaBaris(it: KopkenReceiptItem): number | null {
+    if ((it.origPrice ?? 0) > 0) return it.origPrice!;
+    return typeof it.price === 'number' ? it.price : null;
+}
 
 /**
  * Gambar produk & logo pembayaran Kopken dilayani cdn.kopikenangan.com yang
@@ -535,9 +545,12 @@ export function KopkenPickupScreen({ data }: { data: KopkenReceiptData }) {
                                             )}
                                             <div className="mt-3 flex items-center justify-between">
                                                 <div className="flex flex-col">
-                                                    <div className="text-[13px] font-bold text-slate-800">
-                                                        {rp((it.origPrice ?? 0) > 0 ? it.origPrice : it.price)}
-                                                    </div>
+                                                    {/* Struk awal (sebelum polling d5rk berhasil) bisa belum tahu
+                                                        harga per baris. Kosongkan saja — "Rp0" di struk yang
+                                                        dikirim ke pelanggan jauh lebih menyesatkan. */}
+                                                    {hargaBaris(it) !== null && (
+                                                        <div className="text-[13px] font-bold text-slate-800">{rp(hargaBaris(it))}</div>
+                                                    )}
                                                 </div>
                                                 <div className="text-[13px] font-bold text-slate-800">{it.quantity ?? 1}x</div>
                                             </div>
