@@ -6,10 +6,8 @@
 
 import { useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
-import { toBlob } from 'html-to-image';
 import foreLogo from '@/assets/fore-logo.svg';
-import { toast } from 'sonner';
-import { ChevronLeft, Copy, Download, RefreshCw } from 'lucide-react';
+import { ChevronLeft, Download, RefreshCw } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +17,8 @@ import {
     requestReceiptRefresh,
     type CheckoutJob,
 } from '@/services/checkoutJobService';
+import { useEksporGambar, TombolEkspor } from './useEksporGambar';
+import { KopkenPickupCard, type KopkenReceiptData } from './KopkenPickupScreen';
 
 export interface KopkenCheckoutResult {
     orderId?: string;
@@ -41,8 +41,10 @@ export interface KopkenCheckoutResult {
     paymentCheckedAt?: string;
     /** ISO batas waktu bayar (Fore: dari `payment_timeout` order). Null = tidak diketahui. */
     paymentExpiresAt?: string | null;
-    /** Fore: struk dari endpoint resmi Fore, dirender langsung di sini. */
-    receipt?: ForeReceiptData | null;
+    /** Struk yang digambar sendiri di admin, bukan gambar jadi dari luar.
+     *  Bentuknya beda per brand: Fore dari endpoint struk resminya, Kopken
+     *  dari d5rk (order-status) — dibedakan lewat `order_payload.brand`. */
+    receipt?: ForeReceiptData | KopkenReceiptData | null;
 }
 
 export interface ForeReceiptData {
@@ -99,82 +101,6 @@ function Putus() {
  * `url_webview_e_receipt` sendiri tidak bisa di-embed: itu SPA kosong yang baru
  * terisi setelah JS-nya jalan.
  */
-/**
- * Ekspor node DOM apa pun jadi PNG — dipakai bersama oleh kartu QR pengambilan
- * dan kartu struk, supaya logika blob/clipboard/unduh cuma ada di satu tempat.
- */
-function useEksporGambar(ref: React.RefObject<HTMLDivElement | null>, namaFile: string, label: string) {
-    const [sibuk, setSibuk] = useState<'salin' | 'unduh' | null>(null);
-
-    // pixelRatio 2 supaya teks tetap tajam saat dizoom / dikirim ke WA.
-    const buatBlob = () =>
-        toBlob(ref.current!, { pixelRatio: 2, backgroundColor: '#ffffff', cacheBust: true });
-
-    const unduh = async () => {
-        setSibuk('unduh');
-        try {
-            const blob = await buatBlob();
-            if (!blob) throw new Error('Gagal membuat gambar');
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = namaFile;
-            a.click();
-            URL.revokeObjectURL(url);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : `Gagal mengunduh ${label}`);
-        } finally {
-            setSibuk(null);
-        }
-    };
-
-    const salin = async () => {
-        setSibuk('salin');
-        try {
-            const blob = await buatBlob();
-            if (!blob) throw new Error('Gagal membuat gambar');
-            // Clipboard gambar butuh secure context (https / localhost) dan
-            // dukungan ClipboardItem — Firefox lama tidak punya.
-            if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
-                throw new Error('Browser ini tidak mendukung salin gambar — pakai Download.');
-            }
-            await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-            toast.success(`${label} disalin sebagai gambar.`);
-        } catch (e) {
-            toast.error(e instanceof Error ? e.message : `Gagal menyalin ${label}`);
-        } finally {
-            setSibuk(null);
-        }
-    };
-
-    return { sibuk, salin, unduh };
-}
-
-function TombolEkspor({
-    sibuk,
-    salin,
-    unduh,
-    className,
-}: {
-    sibuk: 'salin' | 'unduh' | null;
-    salin: () => void;
-    unduh: () => void;
-    className?: string;
-}) {
-    return (
-        <div className={cn('mx-auto flex gap-2', className)}>
-            <Button variant="outline" size="sm" className="flex-1" onClick={salin} disabled={!!sibuk}>
-                <Copy className="mr-1.5 h-3.5 w-3.5" />
-                {sibuk === 'salin' ? 'Menyalin...' : 'Salin Gambar'}
-            </Button>
-            <Button variant="outline" size="sm" className="flex-1" onClick={unduh} disabled={!!sibuk}>
-                <Download className="mr-1.5 h-3.5 w-3.5" />
-                {sibuk === 'unduh' ? 'Mengunduh...' : 'Download PNG'}
-            </Button>
-        </div>
-    );
-}
-
 /**
  * Replika layar "Complete Order" aplikasi Fore, supaya gambar yang dikirim ke
  * pelanggan terlihat sama seperti dari aplikasi aslinya.
@@ -582,8 +508,8 @@ export function ReceiptSection({
         }
         return (
                     <div className="space-y-6">
-                        <ForePickupCard data={r.receipt} fileName={r.orderId} />
-                        <ForeReceiptCard data={r.receipt} fileName={r.orderId} />
+                        <ForePickupCard data={r.receipt as ForeReceiptData} fileName={r.orderId} />
+                        <ForeReceiptCard data={r.receipt as ForeReceiptData} fileName={r.orderId} />
                     </div>
                 );
     }
@@ -606,6 +532,22 @@ export function ReceiptSection({
             setRefreshing(false);
         }
     };
+
+    // Kopken juga digambar sendiri sekarang, dari data d5rk yang disimpan
+    // worker di `result.receipt`. Job lama (sebelum perubahan ini) tidak punya
+    // field itu dan jatuh ke cabang `receiptUrl` di bawah — screenshot kopsu
+    // yang lama tetap tampil, jadi riwayat tidak jadi kosong.
+    if (r?.receipt) {
+        return (
+            <div className="space-y-3">
+                <KopkenPickupCard data={r.receipt as KopkenReceiptData} fileName={r.orderId} />
+                <Button variant="outline" size="sm" className="w-full" onClick={handleRefresh} disabled={refreshing}>
+                    <RefreshCw className={`w-3.5 h-3.5 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} />
+                    {refreshing ? 'Memperbarui...' : 'Perbarui Status'}
+                </Button>
+            </div>
+        );
+    }
 
     if (!r?.receiptUrl) {
         // Worker gagal ambil struk pas checkout (mis. koneksi putus, timeout) --
