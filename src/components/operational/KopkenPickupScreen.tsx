@@ -83,6 +83,11 @@ export interface KopkenReceiptData {
     priceTable?: { name: string; value: number; wording?: string | null; fontSize?: string | null; color?: string | null }[] | null;
 }
 
+/** Lebar ekspor, mengikuti kopsu (`style.width='400px'` sebelum snapdom scale 2,
+ *  jadi PNG-nya 800px). Dipaksakan sesaat saat memotret supaya gambar yang
+ *  dikirim ke pelanggan berukuran sama, diekspor dari ponsel maupun desktop. */
+const LEBAR_EKSPOR = 400;
+
 const A = '/kopken-assets';
 const FALLBACK_MENU = `${A}/menu_image.png`;
 
@@ -411,7 +416,11 @@ export function KopkenPickupScreen({ data }: { data: KopkenReceiptData }) {
     const wifi = data.wifi;
 
     return (
-        <div className="w-[400px] bg-slate-50 pb-8 font-sans text-slate-800">
+        // Lebarnya lentur (dibatasi 400px oleh pembungkus di KopkenPickupCard)
+        // supaya muat di layar ponsel — di 375px versi w-[400px] bikin seluruh
+        // halaman meluber 49px. Lebar 400px tetap dipakai saat ekspor, lihat
+        // `lebarEkspor` di useEksporGambar.
+        <div className="w-full bg-slate-50 pb-8 font-sans text-slate-800">
             <div style={{ backgroundColor: '#eefaf5' }}>
                 <BarStatus />
                 <header className="flex h-14 items-center px-4">
@@ -617,11 +626,12 @@ export function KopkenPickupCard({ data, fileName }: { data: KopkenReceiptData; 
         ref,
         `Struk_${fileName ?? data.transactionId ?? 'kopken'}.png`,
         'Struk',
+        LEBAR_EKSPOR,
     );
 
     return (
         <div className="space-y-3">
-            <div ref={ref} className="mx-auto w-fit">
+            <div ref={ref} className="mx-auto w-full max-w-[400px]">
                 <KopkenPickupScreen data={data} />
             </div>
             <TombolEkspor sibuk={sibuk} salin={salin} unduh={unduh} className="max-w-[400px]" />

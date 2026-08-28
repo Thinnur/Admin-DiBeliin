@@ -12,7 +12,17 @@ import { Copy, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-export function useEksporGambar(ref: React.RefObject<HTMLDivElement | null>, namaFile: string, label: string) {
+export function useEksporGambar(
+    ref: React.RefObject<HTMLDivElement | null>,
+    namaFile: string,
+    label: string,
+    /** Lebar (px) yang dipaksakan sesaat sebelum dipotret. Dipakai struk yang di
+     *  layar dibiarkan lentur supaya muat di ponsel, tapi hasil PNG-nya harus
+     *  selalu berukuran sama — persis trik kopsu (`style.width='400px'` sebelum
+     *  snapdom, lalu dikembalikan). Tanpa ini, ekspor dari ponsel 360px
+     *  menghasilkan gambar yang lebih sempit daripada ekspor dari desktop. */
+    lebarEkspor?: number,
+) {
     const [sibuk, setSibuk] = useState<'salin' | 'unduh' | null>(null);
 
     // pixelRatio 2 supaya teks tetap tajam saat dizoom / dikirim ke WA.
@@ -24,7 +34,21 @@ export function useEksporGambar(ref: React.RefObject<HTMLDivElement | null>, nam
     // ekspor, cacheBust:false = 0, dengan PNG yang isinya sama persis dan
     // malah 300 ms lebih cepat. Foto Kopken juga tidak pernah basi karena
     // URL-nya memuat UUID — gambar berubah artinya URL-nya ikut berubah.
-    const buatBlob = () => toBlob(ref.current!, { pixelRatio: 2, backgroundColor: '#ffffff' });
+    const buatBlob = async () => {
+        const el = ref.current!;
+        const lebarAsal = el.style.width;
+        if (lebarEkspor) {
+            el.style.width = `${lebarEkspor}px`;
+            // Beri satu frame supaya layout selesai sebelum node dipotret;
+            // tanpa jeda ini html-to-image bisa membaca ukuran yang lama.
+            await new Promise(requestAnimationFrame);
+        }
+        try {
+            return await toBlob(el, { pixelRatio: 2, backgroundColor: '#ffffff' });
+        } finally {
+            el.style.width = lebarAsal;
+        }
+    };
 
     const unduh = async () => {
         setSibuk('unduh');

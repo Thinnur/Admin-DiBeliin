@@ -204,13 +204,16 @@ export default function CheckoutProcessPage() {
                                 ))}
                             </div>
 
+                            {/* flex-wrap: di ponsel nomor order + nominal sudah makan satu
+                                baris penuh, jadi kedua badge harus boleh turun ke baris
+                                berikutnya daripada terhimpit. */}
                             {job.status === 'success' && r && (
-                                <div className="flex items-center justify-between">
+                                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
                                     <p className="text-xs text-emerald-600">
                                         Order berhasil dibuat: {r.orderId ?? '-'}
                                         {r.amount != null && ` — ${formatPrice(r.amount)}`}
                                     </p>
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex flex-wrap items-center gap-1.5">
                                         <PaymentStatusBadge paymentStatus={r.paymentStatus} />
                                         <OrderPhaseBadge paymentStatus={r.paymentStatus} phase={r.phase} />
                                     </div>

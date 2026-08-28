@@ -192,8 +192,15 @@ export function ForePickupCard({ data, fileName }: { data: ForeReceiptData; file
     if (!data.pickupQr) return null;
     return (
         <div className="space-y-2">
-            <div ref={ref} className="w-fit bg-white">
-                <ForePickupScreen data={data} />
+            {/* Lebar 411px di sini TIDAK boleh dibikin lentur — ukurannya pixel-exact
+                dari Compose di APK (QR 220dp, logo 54dp, jarak dp6x), reflow akan
+                merusak kemiripannya. Jadi cukup dikurung: tanpa overflow-x-auto,
+                411px memaksa SELURUH halaman admin bisa digeser ke samping di
+                ponsel 375px. Sekarang yang menggeser hanya kartu ini. */}
+            <div className="overflow-x-auto">
+                <div ref={ref} className="w-fit bg-white">
+                    <ForePickupScreen data={data} />
+                </div>
             </div>
             <TombolEkspor {...eksport} className="max-w-[360px]" />
         </div>
