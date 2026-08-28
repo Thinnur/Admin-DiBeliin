@@ -20,7 +20,11 @@ function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
     <div
       data-slot="card-header"
       className={cn(
-        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
+        // [&>*]:min-w-0 -- item grid defaultnya min-width:auto, jadi konten lebar
+        // (mis. TabsList banyak brand) melebarkan track -> seluruh Card ikut
+        // melebar dan halaman bisa digeser ke samping di ponsel. min-w-0 bikin
+        // track boleh menyusut, konten lebar scroll di dalam dirinya sendiri.
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6 [&>*]:min-w-0",
         className
       )}
       {...props}

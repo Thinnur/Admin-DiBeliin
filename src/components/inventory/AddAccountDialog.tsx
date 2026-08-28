@@ -354,7 +354,7 @@ export function AddAccountDialog({
     const singleForm = (
         <form onSubmit={handleSubmit} className="space-y-4">
             {/* Brand & Device */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="brand">Brand</Label>
                     <Select value={brand} onValueChange={(v) => setBrand(v as AccountBrand)}>
@@ -386,7 +386,7 @@ export function AddAccountDialog({
             </div>
 
             {/* Phone Number & Password Row */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="phone_number">Phone Number</Label>
                     <Input
@@ -490,7 +490,7 @@ export function AddAccountDialog({
             </div>
 
             {/* Expiry Date & Price Row */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="expiry_date">Expiry Date</Label>
                     <Input
@@ -552,7 +552,7 @@ export function AddAccountDialog({
     const bulkForm = (
         <div className="space-y-4">
             {/* Brand & Device */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>Brand</Label>
                     <Select value={bulkBrand} onValueChange={(v) => setBulkBrand(v as AccountBrand)}>
@@ -633,7 +633,7 @@ export function AddAccountDialog({
             )}
 
             {/* Expiry Date & Price Row */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>Expiry Date</Label>
                     <Input

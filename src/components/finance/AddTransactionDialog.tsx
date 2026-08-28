@@ -362,7 +362,7 @@ export function AddTransactionDialog({
     const bulkForm = (
         <div className="space-y-4">
             {/* Type & Category Row */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label>Tipe Transaksi</Label>
                     <Select value={bulkType} onValueChange={(v) => handleBulkTypeChange(v as TransactionType)}>

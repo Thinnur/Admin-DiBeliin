@@ -31,13 +31,15 @@ export default function DayFilter({ value, onChange }: DayFilterProps) {
         onChange(next);
     };
 
+    // flex-1 di ponsel supaya tombolnya rata kanan-kiri memenuhi lebar layar;
+    // sm: ke atas balik ke lebar seperlunya biar tidak melar di desktop.
     const btn = (active: boolean) =>
-        `flex items-center gap-1 px-2 py-1 md:px-3 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+        `flex flex-1 sm:flex-none items-center justify-center gap-1 px-2 py-1 md:px-3 md:py-1.5 rounded-md text-xs md:text-sm font-medium transition-all ${active ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
         }`;
 
     return (
         <div className="flex items-center gap-2 flex-wrap">
-            <div className="inline-flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
+            <div className="flex flex-1 sm:flex-none sm:inline-flex bg-slate-100 rounded-lg p-0.5 gap-0.5">
                 <button type="button" onClick={() => onChange(todayKey())} className={btn(value !== null)}>
                     <Calendar className="h-3 w-3 md:h-3.5 md:w-3.5" />
                     Harian
@@ -48,7 +50,7 @@ export default function DayFilter({ value, onChange }: DayFilterProps) {
             </div>
 
             {value !== null && (
-                <div className="inline-flex items-center gap-0.5 bg-white border border-slate-200 rounded-lg px-0.5 py-0.5">
+                <div className="flex flex-1 items-center justify-between gap-0.5 sm:inline-flex sm:flex-none sm:justify-start bg-white border border-slate-200 rounded-lg px-0.5 py-0.5">
                     <button
                         type="button"
                         onClick={() => shift(-1)}

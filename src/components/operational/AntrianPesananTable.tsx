@@ -545,7 +545,7 @@ export default function AntrianPesananTable() {
                 ) : (
                     <>
                         {/* Desktop Table */}
-                        <div className="hidden md:block rounded-xl border border-slate-200 overflow-hidden">
+                        <div className="hidden md:block rounded-xl border border-slate-200 overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow className="bg-slate-50 hover:bg-slate-50">

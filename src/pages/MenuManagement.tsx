@@ -330,7 +330,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                     </div>
 
                     {/* Prices */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="edit-smallPrice">Harga Small (Rp)</Label>
                             <Input
@@ -364,7 +364,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                     </div>
 
                     {/* Discount Prices */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="edit-smallDiscount">Diskon Small (Rp)</Label>
                             <Input
@@ -411,7 +411,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                     {/* Size Availability */}
                     <div className="space-y-3 p-4 rounded-lg bg-slate-50 border">
                         <Label className="font-medium text-sm">Ketersediaan Ukuran</Label>
-                        <div className="grid grid-cols-3 gap-4 pt-1">
+                        <div className="grid grid-cols-3 gap-2 pt-1">
                             <div className="flex items-center space-x-2">
                                 <Switch
                                     id="edit-isSmallAvailable"
@@ -654,7 +654,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                     </div>
 
                     {/* Prices */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="smallPrice">Harga Small (Rp)</Label>
                             <Input
@@ -688,7 +688,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                     </div>
 
                     {/* Discount Prices */}
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="smallDiscount">Diskon Small (Rp)</Label>
                             <Input
@@ -747,7 +747,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                     {/* Size Availability */}
                     <div className="space-y-3 p-4 rounded-lg bg-slate-50 border">
                         <Label className="font-medium text-sm">Ketersediaan Ukuran</Label>
-                        <div className="grid grid-cols-3 gap-4 pt-1">
+                        <div className="grid grid-cols-3 gap-2 pt-1">
                             <div className="flex items-center space-x-2">
                                 <Switch
                                     id="isSmallAvailable"
@@ -1452,7 +1452,7 @@ function FoodMenuDialog({ item, isOpen, onClose, onSave, isSaving }: FoodMenuDia
                 </DialogHeader>
                 <div className="space-y-4 py-4">
                     {/* Name & Brand */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="food-name">Nama Makanan *</Label>
                             <Input
@@ -1498,7 +1498,7 @@ function FoodMenuDialog({ item, isOpen, onClose, onSave, isSaving }: FoodMenuDia
                     </div>
 
                     {/* Prices */}
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="food-originalPrice">Harga Asli (Rp) *</Label>
                             <Input

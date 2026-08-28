@@ -229,7 +229,7 @@ function SubFormDialog({ open, onOpenChange, onSubmit, isLoading, editingSub, ca
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Info Pelanggan
                         </p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-2">
                                 <Label htmlFor="customer_name">Nama Pelanggan</Label>
                                 <Input
@@ -284,7 +284,7 @@ function SubFormDialog({ open, onOpenChange, onSubmit, isLoading, editingSub, ca
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Info Akun
                         </p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-2">
                                 <Label htmlFor="account_email">Email Akun</Label>
                                 <Input
@@ -318,7 +318,7 @@ function SubFormDialog({ open, onOpenChange, onSubmit, isLoading, editingSub, ca
                         <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
                             Masa Aktif
                         </p>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                             <div className="space-y-2">
                                 <Label htmlFor="start_date">Tanggal Mulai</Label>
                                 <Input

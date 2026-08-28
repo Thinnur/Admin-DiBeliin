@@ -90,6 +90,10 @@ export default function CheckoutHistoryPage() {
     const [brandFilter, setBrandFilter] = useState<BrandFilter>('all');
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
     const [deleting, setDeleting] = useState(false);
+    // Mode pilih cuma buat tampilan ponsel: checkbox baru muncul setelah ditekan
+    // "Pilih", seperti kebanyakan aplikasi mobile. Tabel desktop tetap selalu
+    // menampilkan checkbox-nya.
+    const [selectMode, setSelectMode] = useState(false);
 
     const loadJobs = useCallback(async (opts?: { silent?: boolean }) => {
         if (!opts?.silent) setLoading(true);
@@ -207,11 +211,22 @@ export default function CheckoutHistoryPage() {
 
             <Card className="shadow-sm">
                 <CardHeader className="pb-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                         <CardTitle className="text-base">
                             Order ({filteredJobs.length})
                         </CardTitle>
                         <div className="flex items-center gap-2">
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                className="md:hidden"
+                                onClick={() => {
+                                    setSelectMode((on) => !on);
+                                    setSelectedIds(new Set());
+                                }}
+                            >
+                                {selectMode ? 'Batal' : 'Pilih'}
+                            </Button>
                             {selectedIds.size > 0 && (
                                 <AlertDialog>
                                     <AlertDialogTrigger asChild>
@@ -264,12 +279,12 @@ export default function CheckoutHistoryPage() {
                     <div className="mb-4 space-y-2 overflow-x-auto pb-1 -mx-1 px-1">
                         <DayFilter value={selectedDay} onChange={setSelectedDay} />
                         <Tabs value={brandFilter} onValueChange={(v) => setBrandFilter(v as BrandFilter)}>
-                            <TabsList className="inline-flex w-auto bg-slate-100 p-1 rounded-lg">
+                            <TabsList className="flex w-full sm:inline-flex sm:w-auto bg-slate-100 p-1 rounded-lg">
                                 {BRAND_TABS.map((brand) => (
                                     <TabsTrigger
                                         key={brand.value}
                                         value={brand.value}
-                                        className="text-xs px-3 py-1.5 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900"
+                                        className="flex-1 sm:flex-none text-xs px-1.5 sm:px-3 py-1.5 whitespace-nowrap data-[state=active]:bg-white data-[state=active]:text-slate-900"
                                     >
                                         {brand.label}
                                     </TabsTrigger>
@@ -283,8 +298,76 @@ export default function CheckoutHistoryPage() {
                             Tidak ada order di filter ini.
                         </p>
                     )}
+                    {/* Mobile: kartu 3 baris -- semua data muat tanpa geser ke samping */}
                     {filteredJobs.length > 0 && (
-                        <div className="overflow-x-auto">
+                        <div className="md:hidden space-y-2">
+                            {filteredJobs.map((job) => {
+                                const r = job.result as KopkenCheckoutResult | null;
+                                const p = job.order_payload;
+                                return (
+                                    <div
+                                        key={job.id}
+                                        onClick={() => selectMode
+                                            ? toggleSelectOne(job.id)
+                                            : navigate(`/checkout-process/${job.id}`)}
+                                        className={`p-3 rounded-xl border bg-white shadow-sm active:bg-slate-50 ${
+                                            selectMode && selectedIds.has(job.id)
+                                                ? 'border-amber-300 bg-amber-50/40'
+                                                : 'border-slate-100'
+                                        }`}
+                                    >
+                                        <div className="flex items-start gap-2">
+                                            {selectMode && (
+                                                <input
+                                                    type="checkbox"
+                                                    checked={selectedIds.has(job.id)}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onChange={() => toggleSelectOne(job.id)}
+                                                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                                    aria-label={`Pilih order ${job.id}`}
+                                                />
+                                            )}
+                                            <div className="min-w-0 flex-1">
+                                                <div className="text-sm font-medium text-slate-800">
+                                                    {p.name} — {p.outlet}
+                                                </div>
+                                                <p className="mt-0.5 text-xs text-slate-500">
+                                                    {p.orderNumber && (
+                                                        <>
+                                                            #{p.orderNumber}
+                                                            {p.groupIndex && p.groupTotal
+                                                                ? ` · Akun ${p.groupIndex}/${p.groupTotal}`
+                                                                : ''}
+                                                            {' · '}
+                                                        </>
+                                                    )}
+                                                    {p.items.map((i) => i.name).join(', ')}
+                                                </p>
+                                            </div>
+                                            <span className="shrink-0 text-sm font-semibold text-slate-800 tabular-nums">
+                                                {formatPrice(r?.amount ?? p.subtotal)}
+                                            </span>
+                                        </div>
+                                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                            <CheckoutStatusBadge status={job.status} />
+                                            {job.status === 'success' && (
+                                                <>
+                                                    <PaymentStatusBadge paymentStatus={r?.paymentStatus} />
+                                                    <OrderPhaseBadge paymentStatus={r?.paymentStatus} phase={r?.phase} />
+                                                </>
+                                            )}
+                                            <span className="ml-auto text-xs text-slate-400">
+                                                {formatDateTime(job.created_at)}
+                                            </span>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {filteredJobs.length > 0 && (
+                        <div className="hidden md:block overflow-x-auto">
                             <Table>
                                 <TableHeader>
                                     <TableRow>

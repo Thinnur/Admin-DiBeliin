@@ -180,6 +180,98 @@ export default function OrderListPage() {
                                 : 'Tidak ada pesanan di filter ini.'}
                         </p>
                     ) : (
+                        <>
+                        {/* Mobile: kartu 3 baris -- semua data muat tanpa geser ke samping */}
+                        <div className="md:hidden space-y-2">
+                            {visibleOrders.map((order) => (
+                                <div
+                                    key={order.id}
+                                    onClick={() => navigate(`/calculator/${order.id}`)}
+                                    className="p-3 rounded-xl border border-slate-100 bg-white shadow-sm active:bg-slate-50"
+                                >
+                                    <div className="flex items-start gap-2">
+                                        <div className="min-w-0 flex-1">
+                                            <div className="text-sm font-medium text-slate-800">
+                                                {order.customer_name}
+                                                <span className="ml-1.5 text-xs font-normal text-slate-400">
+                                                    {BRAND_LABEL[order.brand] ?? order.brand}
+                                                </span>
+                                            </div>
+                                            <p className="mt-0.5 text-xs text-slate-500">{order.outlet}</p>
+                                        </div>
+                                        <span className="shrink-0 text-sm font-semibold text-slate-800 tabular-nums">
+                                            Rp {order.total_amount.toLocaleString('id-ID')}
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <div className="min-w-0 flex-1 text-xs text-slate-400">
+                                            <span className="font-mono">{order.order_number}</span>
+                                            {' · '}
+                                            {order.paid_at ? format(new Date(order.paid_at), 'dd MMM HH:mm') : '—'}
+                                            {' · '}
+                                            {order.items.reduce((sum, item) => sum + item.quantity, 0)} item
+                                            {' · '}
+                                            {order.status === 'COMPLETED'
+                                                ? 'Selesai'
+                                                : order.status === 'PROCESSED'
+                                                    ? `Diproses (${order.checkout_job_ids.length} job)`
+                                                    : 'Belum diproses'}
+                                        </div>
+                                        <div
+                                            className="flex shrink-0 gap-1"
+                                            onClick={(event) => event.stopPropagation()}
+                                        >
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className={`h-8 w-8 hover:text-emerald-600 hover:bg-emerald-50 ${order.status === 'COMPLETED' ? 'text-emerald-600' : 'text-slate-400'}`}
+                                                disabled={completingId === order.id || order.status === 'COMPLETED'}
+                                                title={order.status === 'COMPLETED' ? 'Sudah selesai' : 'Tandai selesai'}
+                                                onClick={() => void handleComplete(order.id)}
+                                            >
+                                                {completingId === order.id
+                                                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                    : <CheckCircle2 className="h-4 w-4" />}
+                                            </Button>
+                                            <AlertDialog>
+                                                <AlertDialogTrigger asChild>
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-8 w-8 text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                                        disabled={deletingId === order.id}
+                                                    >
+                                                        {deletingId === order.id
+                                                            ? <Loader2 className="h-4 w-4 animate-spin" />
+                                                            : <Trash2 className="h-4 w-4" />}
+                                                    </Button>
+                                                </AlertDialogTrigger>
+                                                <AlertDialogContent>
+                                                    <AlertDialogHeader>
+                                                        <AlertDialogTitle>Hapus Pesanan {order.order_number}?</AlertDialogTitle>
+                                                        <AlertDialogDescription>
+                                                            Untuk pesanan dibatalkan/refund atau data uji coba. Tindakan ini
+                                                            permanen dan tidak bisa dibatalkan.
+                                                        </AlertDialogDescription>
+                                                    </AlertDialogHeader>
+                                                    <AlertDialogFooter>
+                                                        <AlertDialogCancel>Batal</AlertDialogCancel>
+                                                        <AlertDialogAction
+                                                            onClick={() => void handleDelete(order.id)}
+                                                            className="bg-red-600 hover:bg-red-700"
+                                                        >
+                                                            Hapus
+                                                        </AlertDialogAction>
+                                                    </AlertDialogFooter>
+                                                </AlertDialogContent>
+                                            </AlertDialog>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="hidden md:block overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
@@ -273,6 +365,8 @@ export default function OrderListPage() {
                                 ))}
                             </TableBody>
                         </Table>
+                        </div>
+                        </>
                     )}
                 </CardContent>
             </Card>

@@ -82,6 +82,11 @@ const rp = (n?: number | null) =>
 const rpRaw = (n?: number | null) =>
     typeof n === 'number' ? `Rp ${Number(n.toFixed(2))}` : '—';
 
+/** Lebar layar pickup Fore saat diekspor — 411dp, sesuai Compose di APK. Di
+ *  layar lebarnya dibiarkan menyusut agar muat di ponsel; hanya saat memotret
+ *  dipaksakan ke angka ini supaya PNG-nya selalu sama. */
+const LEBAR_EKSPOR_FORE = 411;
+
 const TIPE_ORDER: Record<string, string> = {
     take_away: 'Take Away Order',
     dine_in: 'Dine In Order',
@@ -139,7 +144,10 @@ export function ForePickupScreen({ data }: { data: ForeReceiptData }) {
         // jadi lebar layar 924px -> 401dp dan tinggi 1900px -> 824dp. Bilah
         // status ponsel (jam/baterai) sengaja TIDAK ditiru — itu chrome sistem,
         // bukan UI Fore, dan jam palsu di gambar cuma bikin bingung.
-        <div className="mx-auto flex h-[824px] w-[411px] flex-col bg-white font-sans">
+        // Lebar 411px jadi batas ATAS, bukan lebar mati: di ponsel 375px versi
+        // w-[411px] memaksa seluruh halaman admin bisa digeser ke samping.
+        // Ukuran ekspornya tetap 411px, dipaksakan sesaat lewat `lebarEkspor`.
+        <div className="mx-auto flex h-[824px] w-full max-w-[411px] flex-col bg-white font-sans">
             {/* Header — judul di ~57dp dari atas */}
             <div className="relative flex h-14 shrink-0 items-center justify-center px-4">
                 <ChevronLeft className="absolute left-4 h-6 w-6 text-[#1F2429]" strokeWidth={2.5} />
@@ -148,7 +156,11 @@ export function ForePickupScreen({ data }: { data: ForeReceiptData }) {
 
             {/* Jarak besar sebelum judul — di aplikasi judul jatuh di ~237dp */}
             <div className="flex flex-col items-center px-4 pt-[168px]">
-                <p className="w-full whitespace-nowrap text-center text-[17px] font-bold leading-snug text-[#1F2429]">
+                {/* TANPA whitespace-nowrap: teksnya 357px, dan pada lebar ekspor
+                    411px (ruang 379px) memang sudah muat satu baris dengan
+                    sendirinya. Dipaksa nowrap justru meluber 30px saat kartunya
+                    menyusut di ponsel, dan luberan itu menyeret seluruh halaman. */}
+                <p className="w-full text-center text-[17px] font-bold leading-snug text-[#1F2429]">
                     Scan the QR code when pick up your order!
                 </p>
 
@@ -186,21 +198,15 @@ export function ForePickupCard({ data, fileName }: { data: ForeReceiptData; file
     const eksport = useEksporGambar(
         ref,
         `QR_Ambil_Fore_${fileName ?? data.orderCode ?? data.orderId ?? 'pesanan'}.png`,
-        'QR pengambilan'
+        'QR pengambilan',
+        LEBAR_EKSPOR_FORE,
     );
 
     if (!data.pickupQr) return null;
     return (
         <div className="space-y-2">
-            {/* Lebar 411px di sini TIDAK boleh dibikin lentur — ukurannya pixel-exact
-                dari Compose di APK (QR 220dp, logo 54dp, jarak dp6x), reflow akan
-                merusak kemiripannya. Jadi cukup dikurung: tanpa overflow-x-auto,
-                411px memaksa SELURUH halaman admin bisa digeser ke samping di
-                ponsel 375px. Sekarang yang menggeser hanya kartu ini. */}
-            <div className="overflow-x-auto">
-                <div ref={ref} className="w-fit bg-white">
-                    <ForePickupScreen data={data} />
-                </div>
+            <div ref={ref} className="mx-auto w-full max-w-[411px] bg-white">
+                <ForePickupScreen data={data} />
             </div>
             <TombolEkspor {...eksport} className="max-w-[360px]" />
         </div>

@@ -264,7 +264,7 @@ export function ImportBankJagoDialog({ open, onOpenChange }: { open: boolean; on
 
                             {/* Table — proper <table> avoids grid-column crush issue */}
                             <div className="border border-slate-200 rounded-xl overflow-hidden">
-                                <div style={{ maxHeight: '55vh', overflowY: 'auto' }}>
+                                <div className="overflow-x-auto" style={{ maxHeight: '55vh', overflowY: 'auto' }}>
                                     <table className="w-full text-sm border-collapse">
                                         <thead className="sticky top-0 bg-slate-50 z-10">
                                             <tr className="border-b border-slate-200">
