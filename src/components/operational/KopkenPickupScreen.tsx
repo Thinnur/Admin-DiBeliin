@@ -62,6 +62,10 @@ export interface KopkenReceiptData {
     statusDesc?: string | null;
     /** Epoch (detik atau milidetik) perkiraan pesanan siap diambil. */
     estimatedDropoffAt?: number | null;
+    /** Jam pickup yang DIJADWALKAN pelanggan, "HH:MM". Bukan perkiraan: Kopken
+     *  menerima jadwal ini saat order dibuat, tapi tidak pernah mengembalikannya
+     *  lewat d5rk — nilainya dibawa dari order_payload kita sendiri. */
+    pickupTime?: string | null;
     customerName?: string | null;
     outletName?: string | null;
     transactionId?: string | null;
@@ -113,6 +117,13 @@ export function proxyGambar(url?: string | null): string | null {
     if (url.startsWith('/') || url.startsWith('data:')) return url;
     const base = import.meta.env.VITE_SUPABASE_URL as string | undefined;
     if (!base) return url;
+    // Foto yang sudah kita salin sendiri ke Supabase Storage TIDAK boleh
+    // diproksikan: Storage sudah mengirim `access-control-allow-origin: *`, dan
+    // host-nya tidak ada di allowlist kopken-image sehingga proxy justru
+    // membalas 403 dan gambarnya jatuh ke placeholder. Ini dipakai untuk produk
+    // yang fotonya cuma tersedia di balik sesi kopsu — lihat
+    // scripts/backfill_menu_images.js.
+    if (url.startsWith(base)) return url;
     return `${base}/functions/v1/kopken-image?url=${encodeURIComponent(url)}`;
 }
 
@@ -431,14 +442,24 @@ export function KopkenPickupScreen({ data }: { data: KopkenReceiptData }) {
                     <div className="w-10" />
                 </header>
                 <div className="pb-8 pt-4">
-                    {jendela && (
+                    {/* Pesanan terjadwal menang atas perkiraan: jamnya PASTI (dikirim
+                        ke Kopken saat order dibuat), jadi ditulis apa adanya tanpa
+                        rentang 10 menit yang cuma cocok untuk estimasi. */}
+                    {data.pickupTime ? (
+                        <div className="flex justify-center px-6 pb-5">
+                            <div className="rounded-full bg-white px-5 py-2.5 text-[13px] shadow-sm">
+                                <span className="text-slate-500">Dijadwalkan pickup</span>
+                                <span className="ml-1 font-bold text-slate-800">{data.pickupTime}</span>
+                            </div>
+                        </div>
+                    ) : jendela ? (
                         <div className="flex justify-center px-6 pb-5">
                             <div className="rounded-full bg-white px-5 py-2.5 text-[13px] shadow-sm">
                                 <span className="text-slate-500">Perkiraan siap pickup</span>
                                 <span className="ml-1 font-bold text-slate-800">{jendela}</span>
                             </div>
                         </div>
-                    )}
+                    ) : null}
                     <Tahapan phases={phases} aktif={aktif} />
                     <div className="mt-8 pb-2 text-center">
                         <div className="text-[13px] font-bold text-slate-800">Nomor Order</div>
