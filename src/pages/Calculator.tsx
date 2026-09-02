@@ -5,6 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Calculator,
     Sparkles,
@@ -53,7 +54,12 @@ import {
     type ParsedItem,
 } from '@/lib/logic/orderParser';
 import { getMenuItems, type MenuItem } from '@/services/menuService';
-import { getAdminFees, type AdminFees } from '@/services/operationalService';
+import {
+    getAdminFees,
+    getKopkenBluAccount,
+    updateKopkenBluAccount,
+    type AdminFees,
+} from '@/services/operationalService';
 import {
     optimizeOrder,
     type CartItem,
@@ -519,11 +525,41 @@ function CheckoutPanel({
 
     const isFore = brand === 'fore';
 
+    // Metode bayar Kopken: kopsu.app cuma menawarkan QRIS (10461) dan blu by
+    // BCA Digital (10369). Nomor blu-nya nomor DiBeliin yang sama terus, jadi
+    // disimpan di app_settings dan cuma di-prefill di sini — useQuery biar N
+    // panel (satu per grup akun) berbagi satu fetch & ikut ter-refresh bareng
+    // begitu nomornya diganti.
+    const queryClient = useQueryClient();
+    const { data: savedBluAccount = '' } = useQuery({
+        queryKey: ['kopkenBluAccount'],
+        queryFn: getKopkenBluAccount,
+        enabled: !isFore,
+    });
+    // Default blu (bukan QRIS): pembayaran normal sehari-hari lewat blu, QRIS
+    // dipakai kalau blu bermasalah. Worker tetap default 10461 kalau payload
+    // tidak menyebut paymentMethod — itu jaring pengaman buat job lama.
+    const [paymentMethod, setPaymentMethod] = useState<'qris' | 'blu'>('blu');
+    const [bluAccount, setBluAccount] = useState('');
+
+    useEffect(() => {
+        setBluAccount(savedBluAccount);
+    }, [savedBluAccount]);
+
     const openDialog = () => {
+        if (!isFore && paymentMethod === 'blu' && !bluAccount.trim()) {
+            toast.error('Masukkan nomor blu by BCA Digital dulu.');
+            return;
+        }
         const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
         const payload = isFore
             ? buildForeOrderPayload(group, outlet, customerName, orderNumber, index + 1, groupTotal)
-            : buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal);
+            : {
+                ...buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal),
+                // Hanya dikirim kalau blu — payload QRIS tetap sama persis
+                // seperti sebelumnya, jadi worker versi lama tidak terganggu.
+                ...(paymentMethod === 'blu' ? { paymentMethod, bluAccount: bluAccount.trim() } : {}),
+            };
         setJsonDraft(JSON.stringify(payload, null, 2));
         setDialogOpen(true);
     };
@@ -538,6 +574,15 @@ function CheckoutPanel({
         }
         setSubmitting(true);
         try {
+            // Nomor blu yang benar-benar dipakai (admin bisa mengeditnya di JSON
+            // draft) jadi default berikutnya. Gagal simpan tidak boleh
+            // membatalkan checkout — cuma default tampilan.
+            const usedBlu = payload.bluAccount?.trim();
+            if (usedBlu && usedBlu !== savedBluAccount) {
+                await updateKopkenBluAccount(usedBlu)
+                    .then(() => queryClient.invalidateQueries({ queryKey: ['kopkenBluAccount'] }))
+                    .catch(() => toast.warning('Nomor blu gagal disimpan sebagai default, checkout tetap jalan.'));
+            }
             const created = await createCheckoutJob(payload, user?.email ?? undefined);
             if (qrisOrderId) {
                 await attachCheckoutJob(qrisOrderId, created.id)
@@ -595,6 +640,40 @@ function CheckoutPanel({
                 <Switch id="need-packaging" checked={needPackaging} onCheckedChange={setNeedPackaging} />
                 <Label htmlFor="need-packaging" className="text-xs font-normal">Pakai Plastik</Label>
             </div>
+            <div className="flex gap-1.5 mb-1.5">
+                <Button
+                    type="button"
+                    variant={paymentMethod === 'qris' ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => setPaymentMethod('qris')}
+                >
+                    Bayar QRIS
+                </Button>
+                <Button
+                    type="button"
+                    variant={paymentMethod === 'blu' ? 'default' : 'outline'}
+                    size="sm"
+                    className="flex-1 text-xs"
+                    onClick={() => setPaymentMethod('blu')}
+                >
+                    Bayar blu
+                </Button>
+            </div>
+            {paymentMethod === 'blu' && (
+                <div className="mb-1.5">
+                    <input
+                        inputMode="numeric"
+                        value={bluAccount}
+                        placeholder="Nomor blu, mis: 85894628645"
+                        onChange={(e) => setBluAccount(e.target.value.replace(/\D/g, ''))}
+                        className="w-full border rounded-md px-2 py-1 text-xs"
+                    />
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                        Tagihan dikirim ke nomor blu ini. Nomor terakhir yang dipakai jadi default berikutnya.
+                    </p>
+                </div>
+            )}
             </>
             )}
             <Button variant="outline" size="sm" className="w-full" onClick={openDialog}>

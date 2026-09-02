@@ -402,3 +402,41 @@ export async function updateAdminFee(
         throw new Error(`Failed to update admin fee: ${error.message}`);
     }
 }
+
+// -----------------------------------------------------------------------------
+// Nomor blu by BCA Digital (metode bayar Kopken selain QRIS)
+// -----------------------------------------------------------------------------
+
+const KOPKEN_BLU_ACCOUNT_KEY = 'kopken_blu_account';
+
+/**
+ * Nomor HP terdaftar di aplikasi blu yang dipakai buat bayar order Kopken —
+ * tagihan dikirim ke nomor ini, jadi biasanya satu nomor DiBeliin yang sama
+ * terus. Disimpan di app_settings supaya tidak perlu diketik ulang tiap
+ * checkout; Calculator memakainya sebagai prefill. '' = belum diisi.
+ * Format yang diminta kopsu.app: tanpa 0 di depan (mis. 85894628645).
+ */
+export async function getKopkenBluAccount(): Promise<string> {
+    const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', KOPKEN_BLU_ACCOUNT_KEY)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Error fetching kopken blu account:', error);
+        return '';
+    }
+    return typeof data?.value === 'string' ? data.value : '';
+}
+
+export async function updateKopkenBluAccount(value: string): Promise<void> {
+    const { error } = await supabase
+        .from('app_settings')
+        .upsert({ key: KOPKEN_BLU_ACCOUNT_KEY, value }, { onConflict: 'key' });
+
+    if (error) {
+        console.error('Error updating kopken blu account:', error);
+        throw new Error(`Failed to update kopken blu account: ${error.message}`);
+    }
+}

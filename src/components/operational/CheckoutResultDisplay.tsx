@@ -23,6 +23,13 @@ import { KopkenPickupCard, type KopkenReceiptData } from './KopkenPickupScreen';
 export interface KopkenCheckoutResult {
     orderId?: string;
     qrOrRedirect?: string;
+    /** Metode bayar yang dipakai di Kopken. "QRIS" berarti `qrOrRedirect` itu
+     * string EMV yang di-render jadi QR; selain itu (mis. blu by BCA Digital)
+     * `qrOrRedirect` adalah URL pembayaran yang harus dibuka. Kosong = job lama
+     * dari sebelum metode bayar bisa dipilih, perlakukan sebagai QRIS. */
+    paymentType?: string | null;
+    /** Nama channel pembayaran dari Kopken (mis. "blu") — cuma buat label. */
+    paymentChannel?: string | null;
     receiptUrl?: string;
     receiptRefreshedAt?: string;
     amount?: number;

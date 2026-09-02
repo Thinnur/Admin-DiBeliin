@@ -30,6 +30,13 @@ export interface CheckoutJobOrderPayload {
     phone?: string;
     /** Fore: nama metode bayar, dicocokkan ke user/order/list-payment. Default QRIS. */
     payment?: string;
+    /** Kopken: 'qris' (default) atau 'blu'. Dipetakan ke paymentMethodCode
+     * 10461/10369 di runCheckout.js — kopsu.app cuma menawarkan dua ini. */
+    paymentMethod?: 'qris' | 'blu';
+    /** Kopken + blu: nomor HP terdaftar di aplikasi blu (tanpa 0 di depan,
+     * mis. 85894628645) — tagihan dikirim ke sini. Wajib kalau
+     * paymentMethod === 'blu'. Default-nya dari app_settings.kopken_blu_account. */
+    bluAccount?: string;
     outlet: string;
     name: string;
     voucher?: string;

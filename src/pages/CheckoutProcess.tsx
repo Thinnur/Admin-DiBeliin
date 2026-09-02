@@ -233,7 +233,21 @@ export default function CheckoutProcessPage() {
                             <div className="space-y-3">
                                 {r.qrOrRedirect && !isPaymentStatusFinal(r.paymentStatus) && (
                                     <div className="flex flex-col items-center gap-1.5">
-                                        <QrisImage qrisString={r.qrOrRedirect} />
+                                        {/* Non-QRIS (blu by BCA Digital): qrOrRedirect itu URL
+                                            pembayaran, bukan string EMV — di-render jadi QR malah
+                                            gak kepakai. Job lama tanpa paymentType = QRIS. */}
+                                        {r.paymentType && r.paymentType !== 'QRIS' ? (
+                                            <a
+                                                href={r.qrOrRedirect}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="text-sm font-medium text-amber-700 underline underline-offset-2"
+                                            >
+                                                Buka pembayaran ({r.paymentChannel || r.paymentType})
+                                            </a>
+                                        ) : (
+                                            <QrisImage qrisString={r.qrOrRedirect} />
+                                        )}
                                         <PaymentCountdown expiresAt={r.paymentExpiresAt} />
                                     </div>
                                 )}
