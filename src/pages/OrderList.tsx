@@ -150,14 +150,21 @@ export default function OrderListPage() {
 
                     <DayFilter value={selectedDay} onChange={setSelectedDay} />
 
+                    {/* Di ponsel chip-nya membungkus ke baris kedua, bukan jadi strip
+                        yang digeser ke samping -- 5 brand tetap kelihatan semua
+                        berikut badge jumlah pesanan barunya. */}
                     <Tabs value={brandTab} onValueChange={(value) => setBrandTab(value as BrandTab)}>
-                        <TabsList>
+                        <TabsList className="flex h-auto flex-wrap justify-start gap-1 sm:h-10 sm:flex-nowrap">
                             {BRAND_TABS.map((brand) => {
                                 const count = brand === 'all'
                                     ? Object.values(unprocessedCountByBrand).reduce((sum, n) => sum + n, 0)
                                     : unprocessedCountByBrand[brand] ?? 0;
                                 return (
-                                    <TabsTrigger key={brand} value={brand} className="gap-1.5">
+                                    <TabsTrigger
+                                        key={brand}
+                                        value={brand}
+                                        className="gap-1.5 px-2.5 py-1.5 text-xs sm:px-4 sm:py-2 sm:text-sm"
+                                    >
                                         {brand === 'all' ? 'Semua Brand' : BRAND_LABEL[brand]}
                                         {count > 0 && (
                                             <Badge variant="destructive" className="px-1.5">

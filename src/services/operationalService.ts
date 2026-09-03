@@ -407,36 +407,64 @@ export async function updateAdminFee(
 // Nomor blu by BCA Digital (metode bayar Kopken selain QRIS)
 // -----------------------------------------------------------------------------
 
-const KOPKEN_BLU_ACCOUNT_KEY = 'kopken_blu_account';
+const KOPKEN_BLU_ACCOUNTS_KEY = 'kopken_blu_accounts';
+
+export interface BluAccount {
+    /** Nama yang muncul di pilihan checkout, mis. "blu1". Nomornya sengaja
+     * tidak ikut ditampilkan di sana. */
+    label: string;
+    /** Nomor HP terdaftar di aplikasi blu, tanpa 0 di depan (mis. 85163592203) —
+     * tagihan dikirim ke nomor ini. */
+    number: string;
+}
 
 /**
- * Nomor HP terdaftar di aplikasi blu yang dipakai buat bayar order Kopken —
- * tagihan dikirim ke nomor ini, jadi biasanya satu nomor DiBeliin yang sama
- * terus. Disimpan di app_settings supaya tidak perlu diketik ulang tiap
- * checkout; Calculator memakainya sebagai prefill. '' = belum diisi.
- * Format yang diminta kopsu.app: tanpa 0 di depan (mis. 85894628645).
+ * Daftar akun blu buat bayar order Kopken, disimpan sebagai satu baris JSON di
+ * `app_settings` (kolom `value` bertipe text, jadi array-nya di-stringify).
+ * Satu key untuk seluruh daftar, bukan satu key per akun: jumlahnya bebas dan
+ * cukup sekali baca/tulis. Dikelola di Operational, dipakai di Calculator.
+ * Isi yang rusak/bukan array diperlakukan sebagai daftar kosong — pilihan blu
+ * hilang dari checkout, QRIS tetap jalan.
  */
-export async function getKopkenBluAccount(): Promise<string> {
+export async function getKopkenBluAccounts(): Promise<BluAccount[]> {
     const { data, error } = await supabase
         .from('app_settings')
         .select('value')
-        .eq('key', KOPKEN_BLU_ACCOUNT_KEY)
+        .eq('key', KOPKEN_BLU_ACCOUNTS_KEY)
         .maybeSingle();
 
     if (error) {
-        console.error('Error fetching kopken blu account:', error);
-        return '';
+        console.error('Error fetching kopken blu accounts:', error);
+        return [];
     }
-    return typeof data?.value === 'string' ? data.value : '';
+    if (typeof data?.value !== 'string' || !data.value.trim()) return [];
+
+    try {
+        const parsed: unknown = JSON.parse(data.value);
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .filter((row): row is BluAccount =>
+                !!row && typeof row === 'object'
+                && typeof (row as BluAccount).label === 'string'
+                && typeof (row as BluAccount).number === 'string')
+            .map((row) => ({ label: row.label.trim(), number: row.number.trim() }))
+            .filter((row) => row.label && row.number);
+    } catch (parseError) {
+        console.error('Error parsing kopken blu accounts:', parseError);
+        return [];
+    }
 }
 
-export async function updateKopkenBluAccount(value: string): Promise<void> {
+export async function updateKopkenBluAccounts(accounts: BluAccount[]): Promise<void> {
     const { error } = await supabase
         .from('app_settings')
-        .upsert({ key: KOPKEN_BLU_ACCOUNT_KEY, value }, { onConflict: 'key' });
+        .upsert(
+            { key: KOPKEN_BLU_ACCOUNTS_KEY, value: JSON.stringify(accounts) },
+            { onConflict: 'key' }
+        );
 
     if (error) {
-        console.error('Error updating kopken blu account:', error);
-        throw new Error(`Failed to update kopken blu account: ${error.message}`);
+        console.error('Error updating kopken blu accounts:', error);
+        throw new Error(`Failed to update kopken blu accounts: ${error.message}`);
     }
 }

@@ -4,7 +4,7 @@
 // Store status control, service toggles, voucher management, and banner management
 
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, Store, Power, Tag, Coffee, Settings, Key, Server, Save, Clapperboard } from 'lucide-react';
+import { Trash2, Plus, Store, Power, Tag, Coffee, Settings, Key, Server, Save, Clapperboard, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
@@ -45,8 +45,11 @@ import {
     updateCinemaOrderWindow,
     getAdminFees,
     updateAdminFee,
+    getKopkenBluAccounts,
+    updateKopkenBluAccounts,
     type Voucher,
     type AdminFees,
+    type BluAccount,
     type CinemaChain,
     type CinemaOrderWindow,
 } from '@/services/operationalService';
@@ -729,6 +732,146 @@ function AdminFeeSection() {
                         <Button type="submit" disabled={updateFeeMutation.isPending} className="w-full sm:w-auto">
                             {updateFeeMutation.isPending ? 'Menyimpan...' : 'Simpan Perubahan'}
                         </Button>
+                    </form>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+// -----------------------------------------------------------------------------
+// Akun blu by BCA Digital (metode bayar Kopken)
+// -----------------------------------------------------------------------------
+
+// Daftar nomor blu yang dipakai buat bayar order Kopken. Label-nya (blu1, blu2,
+// ...) yang muncul di pilihan checkout Calculator, nomornya sengaja tidak —
+// admin cuma perlu tahu pakai akun yang mana. Disimpan sebagai satu baris JSON
+// di app_settings, lihat getKopkenBluAccounts().
+function BluAccountSection() {
+    const queryClient = useQueryClient();
+    const { data: saved, isLoading } = useQuery<BluAccount[]>({
+        queryKey: ['kopkenBluAccounts'],
+        queryFn: getKopkenBluAccounts,
+    });
+
+    const [rows, setRows] = useState<BluAccount[]>([]);
+
+    useEffect(() => {
+        if (saved) setRows(saved);
+    }, [saved]);
+
+    const saveMutation = useMutation({
+        mutationFn: updateKopkenBluAccounts,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['kopkenBluAccounts'] });
+            toast.success('Daftar akun blu tersimpan');
+        },
+        onError: (error) => {
+            console.error('Failed to update blu accounts:', error);
+            toast.error('Gagal menyimpan daftar akun blu');
+        },
+    });
+
+    const setRow = (index: number, patch: Partial<BluAccount>) => {
+        setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const bersih = rows.map((row) => ({ label: row.label.trim(), number: row.number.trim() }));
+
+        if (bersih.some((row) => !row.label || !row.number)) {
+            toast.error('Nama dan nomor tidak boleh kosong');
+            return;
+        }
+        // Label dipakai sebagai identitas pilihan di checkout — kalau dobel,
+        // admin tidak bisa membedakan mana yang dia pilih.
+        const labels = bersih.map((row) => row.label.toLowerCase());
+        if (new Set(labels).size !== labels.length) {
+            toast.error('Nama akun tidak boleh sama');
+            return;
+        }
+        saveMutation.mutate(bersih);
+    };
+
+    return (
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
+            <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-br from-sky-500 to-sky-600 rounded-xl shadow-lg shadow-sky-500/20">
+                        <Wallet className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-lg">Akun blu by BCA Digital</CardTitle>
+                        <CardDescription>
+                            Nomor buat bayar order Kopken. Nama akun yang muncul di pilihan checkout, nomornya tidak.
+                        </CardDescription>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="text-center py-6 text-slate-500">
+                        <div className="animate-pulse">Memuat akun blu...</div>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {rows.length === 0 && (
+                            <p className="text-sm text-slate-500">
+                                Belum ada akun blu. Tanpa ini, checkout Kopken cuma bisa lewat QRIS.
+                            </p>
+                        )}
+                        {rows.map((row, index) => (
+                            <div key={index} className="flex items-end gap-2">
+                                <div className="space-y-2 w-32 shrink-0">
+                                    <Label htmlFor={`blu-label-${index}`}>Nama</Label>
+                                    <Input
+                                        id={`blu-label-${index}`}
+                                        placeholder="blu1"
+                                        value={row.label}
+                                        onChange={(e) => setRow(index, { label: e.target.value })}
+                                        disabled={saveMutation.isPending}
+                                    />
+                                </div>
+                                <div className="space-y-2 flex-1">
+                                    <Label htmlFor={`blu-number-${index}`}>Nomor HP (tanpa 0 di depan)</Label>
+                                    <Input
+                                        id={`blu-number-${index}`}
+                                        inputMode="numeric"
+                                        placeholder="85163592203"
+                                        value={row.number}
+                                        onChange={(e) => setRow(index, { number: e.target.value.replace(/\D/g, '') })}
+                                        disabled={saveMutation.isPending}
+                                    />
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Hapus akun blu ${row.label || index + 1}`}
+                                    className="text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                    disabled={saveMutation.isPending}
+                                    onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={saveMutation.isPending}
+                                onClick={() => setRows((prev) => [...prev, { label: `blu${prev.length + 1}`, number: '' }])}
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Tambah Akun
+                            </Button>
+                            <Button type="submit" disabled={saveMutation.isPending}>
+                                <Save className="h-4 w-4 mr-2" />
+                                {saveMutation.isPending ? 'Menyimpan...' : 'Simpan'}
+                            </Button>
+                        </div>
                     </form>
                 )}
             </CardContent>
@@ -1620,6 +1763,10 @@ export default function Operational() {
                 />
 
                 <AdminFeeSection />
+
+                {/* Sengaja cuma di tampilan super_admin — ini kredensial bayar,
+                    bukan pengaturan operasional biasa. */}
+                <BluAccountSection />
 
                 {/* Voucher Management */}
                 <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">

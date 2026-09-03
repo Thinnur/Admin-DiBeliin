@@ -177,6 +177,40 @@ Sudah diterapkan 2026-08-28 di `CheckoutHistory.tsx` dan `OrderList.tsx`.
 Semua kolom tetap tampil, cuma disusun vertikal: baris 1 identitas + nominal,
 baris 2 metadata (order#, waktu, jumlah item, status), baris 3 badge/aksi.
 
+### Filter brand: chip membungkus, bukan strip yang digeser
+
+`TabsList` bawaan punya `overflow-x-auto`, jadi tab yang kebanyakan "aman" —
+tapi di ponsel hasilnya kotak kecil yang harus digeser ke samping, dan chip
+yang kepotong tidak kelihatan sama sekali. Diukur di lebar konten 303px
+dengan 5 brand + badge:
+
+```
+strip digeser (lama) : tinggi 40px, perlu digeser 238px, 3 chip kepotong
+chip membungkus (baru): tinggi 80px, perlu digeser 0px,  0 chip kepotong
+```
+
+Aturannya: **≤3 tab -> satu baris penuh** (`flex-1`, seperti
+`CheckoutHistory.tsx`); **≥4 tab -> biarkan membungkus** (`flex h-auto
+flex-wrap gap-1`, seperti `OrderList.tsx`), balik ke satu baris di `sm:`.
+Tukar 40px tinggi demi menghilangkan geseran samping — di halaman yang
+dipakai buat memantau pesanan masuk, badge tiap brand harus kelihatan
+sekaligus, bukan disembunyikan di balik scroll.
+
+Catatan `cn()`: menimpa `inline-flex`/`h-10` bawaan `TabsList` memang jalan
+(tailwind-merge membuang yang lama), sudah dicek langsung lewat `twMerge`.
+
+### Panel setelan per grup di Calculator: dilipat
+
+Tiap grup Kopken dulu menumpuk 5 baris kontrol (jadwal, plastik, metode bayar,
+nomor blu, checkout) padahal nilainya hampir selalu sudah benar dari hasil
+parse + `app_settings`. Sekarang jadi satu baris ringkasan + tombol checkout,
+kontrolnya muncul kalau ditekan "Ubah". Diukur di lebar panel 275px:
+207px -> 76px per grup (order 2 grup: hemat 262px).
+
+Jebakan yang harus dipertahankan: kalau nomor blu kosong, panel **dipaksa
+terbuka**. Tanpa itu admin kena toast "Masukkan nomor blu dulu" sementara
+kolomnya tersembunyi — jalan buntu.
+
 ### Ditinjau tapi SENGAJA tidak diubah (bukan bug, false positive dari regex)
 
 - **Lebar dialog `sm:max-w-[Npx]`** (`AddAccountDialog`, `AddTransactionDialog`,

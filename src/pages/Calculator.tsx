@@ -5,7 +5,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
     Calculator,
     Sparkles,
@@ -56,9 +56,9 @@ import {
 import { getMenuItems, type MenuItem } from '@/services/menuService';
 import {
     getAdminFees,
-    getKopkenBluAccount,
-    updateKopkenBluAccount,
+    getKopkenBluAccounts,
     type AdminFees,
+    type BluAccount,
 } from '@/services/operationalService';
 import {
     optimizeOrder,
@@ -526,29 +526,59 @@ function CheckoutPanel({
     const isFore = brand === 'fore';
 
     // Metode bayar Kopken: kopsu.app cuma menawarkan QRIS (10461) dan blu by
-    // BCA Digital (10369). Nomor blu-nya nomor DiBeliin yang sama terus, jadi
-    // disimpan di app_settings dan cuma di-prefill di sini — useQuery biar N
-    // panel (satu per grup akun) berbagi satu fetch & ikut ter-refresh bareng
-    // begitu nomornya diganti.
-    const queryClient = useQueryClient();
-    const { data: savedBluAccount = '' } = useQuery({
-        queryKey: ['kopkenBluAccount'],
-        queryFn: getKopkenBluAccount,
+    // BCA Digital (10369). Daftar akun blu dikelola di Operational — di sini
+    // yang dipilih namanya saja (blu1, blu2, ...), nomornya sengaja tidak
+    // ditampilkan. useQuery biar N panel (satu per grup akun) berbagi satu
+    // fetch dan ikut ter-refresh bareng kalau daftarnya diubah.
+    const { data: bluAccounts = [] } = useQuery<BluAccount[]>({
+        queryKey: ['kopkenBluAccounts'],
+        queryFn: getKopkenBluAccounts,
         enabled: !isFore,
     });
-    // Default blu (bukan QRIS): pembayaran normal sehari-hari lewat blu, QRIS
-    // dipakai kalau blu bermasalah. Worker tetap default 10461 kalau payload
-    // tidak menyebut paymentMethod — itu jaring pengaman buat job lama.
-    const [paymentMethod, setPaymentMethod] = useState<'qris' | 'blu'>('blu');
-    const [bluAccount, setBluAccount] = useState('');
+    // 'qris' atau label akun blu. Worker tetap default 10461 kalau payload tidak
+    // menyebut paymentMethod — itu jaring pengaman buat job lama.
+    const [paymentChoice, setPaymentChoice] = useState('qris');
+    const akunBluTerpilih = bluAccounts.find((akun) => akun.label === paymentChoice) ?? null;
 
+    // Sekali saja begitu daftarnya sampai: default ke akun blu pertama, karena
+    // pembayaran sehari-hari lewat blu dan QRIS cuma cadangan. Ref-nya supaya
+    // refetch berikutnya tidak menimpa pilihan admin yang sudah dipindah ke QRIS.
+    const sudahSetDefaultBayar = useRef(false);
     useEffect(() => {
-        setBluAccount(savedBluAccount);
-    }, [savedBluAccount]);
+        if (!sudahSetDefaultBayar.current && bluAccounts.length > 0) {
+            sudahSetDefaultBayar.current = true;
+            setPaymentChoice(bluAccounts[0].label);
+            return;
+        }
+        // Akun yang sedang dipilih hilang dari daftar (dihapus/diganti nama di
+        // Operational) -> jatuh balik, daripada mengirim label yang tidak bisa
+        // diterjemahkan jadi nomor.
+        setPaymentChoice((prev) => (
+            prev !== 'qris' && !bluAccounts.some((akun) => akun.label === prev)
+                ? bluAccounts[0]?.label ?? 'qris'
+                : prev
+        ));
+    }, [bluAccounts]);
+
+    // Panel setelan per grup (jadwal/plastik/metode bayar) ditutup secara default:
+    // nilainya hampir selalu sudah benar dari hasil parse + app_settings, jadi
+    // admin cuma perlu "Proses Checkout". Menumpuk 5 baris tombol per grup bikin
+    // halaman ini tidak kepakai di ponsel.
+    const [showSettings, setShowSettings] = useState(false);
+    // Pilihan menunjuk akun blu yang sudah tidak ada -> panel dipaksa terbuka,
+    // kalau tidak admin kena toast error sementara pemilihnya tersembunyi.
+    const bluMissing = !isFore && paymentChoice !== 'qris' && !akunBluTerpilih;
+    const settingsOpen = showSettings || bluMissing;
+
+    const ringkasanSetelan = [
+        pickupMode === 'schedule' ? `Ambil ${pickupTimeValue}` : 'Ambil sekarang',
+        paymentChoice === 'qris' ? 'Bayar QRIS' : `Bayar ${paymentChoice}`,
+        needPackaging ? 'pakai plastik' : null,
+    ].filter(Boolean).join(' · ');
 
     const openDialog = () => {
-        if (!isFore && paymentMethod === 'blu' && !bluAccount.trim()) {
-            toast.error('Masukkan nomor blu by BCA Digital dulu.');
+        if (bluMissing) {
+            toast.error(`Akun blu "${paymentChoice}" sudah tidak ada — pilih ulang metode bayar.`);
             return;
         }
         const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
@@ -558,7 +588,7 @@ function CheckoutPanel({
                 ...buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal),
                 // Hanya dikirim kalau blu — payload QRIS tetap sama persis
                 // seperti sebelumnya, jadi worker versi lama tidak terganggu.
-                ...(paymentMethod === 'blu' ? { paymentMethod, bluAccount: bluAccount.trim() } : {}),
+                ...(akunBluTerpilih ? { paymentMethod: 'blu' as const, bluAccount: akunBluTerpilih.number } : {}),
             };
         setJsonDraft(JSON.stringify(payload, null, 2));
         setDialogOpen(true);
@@ -574,15 +604,6 @@ function CheckoutPanel({
         }
         setSubmitting(true);
         try {
-            // Nomor blu yang benar-benar dipakai (admin bisa mengeditnya di JSON
-            // draft) jadi default berikutnya. Gagal simpan tidak boleh
-            // membatalkan checkout — cuma default tampilan.
-            const usedBlu = payload.bluAccount?.trim();
-            if (usedBlu && usedBlu !== savedBluAccount) {
-                await updateKopkenBluAccount(usedBlu)
-                    .then(() => queryClient.invalidateQueries({ queryKey: ['kopkenBluAccount'] }))
-                    .catch(() => toast.warning('Nomor blu gagal disimpan sebagai default, checkout tetap jalan.'));
-            }
             const created = await createCheckoutJob(payload, user?.email ?? undefined);
             if (qrisOrderId) {
                 await attachCheckoutJob(qrisOrderId, created.id)
@@ -607,6 +628,18 @@ function CheckoutPanel({
                 (schedule_date/schedule_time_slot) belum diimplementasi, jadi
                 jangan tampilkan kontrol yang hasilnya bakal diabaikan. */}
             {!isFore && (
+            <>
+            <button
+                type="button"
+                onClick={() => setShowSettings((open) => !open)}
+                className="mb-1.5 flex w-full items-center justify-between gap-2 rounded-md border border-slate-200 px-2 py-1.5 text-xs text-slate-600 hover:bg-slate-50"
+            >
+                <span className="truncate">{ringkasanSetelan}</span>
+                <span className={`shrink-0 font-medium ${bluMissing ? 'text-red-600' : 'text-slate-900'}`}>
+                    {bluMissing ? 'Akun blu hilang' : settingsOpen ? 'Tutup' : 'Ubah'}
+                </span>
+            </button>
+            {settingsOpen && (
             <>
             <div className="flex gap-1.5 mb-1.5">
                 <Button
@@ -640,39 +673,27 @@ function CheckoutPanel({
                 <Switch id="need-packaging" checked={needPackaging} onCheckedChange={setNeedPackaging} />
                 <Label htmlFor="need-packaging" className="text-xs font-normal">Pakai Plastik</Label>
             </div>
-            <div className="flex gap-1.5 mb-1.5">
-                <Button
-                    type="button"
-                    variant={paymentMethod === 'qris' ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1 text-xs"
-                    onClick={() => setPaymentMethod('qris')}
-                >
-                    Bayar QRIS
-                </Button>
-                <Button
-                    type="button"
-                    variant={paymentMethod === 'blu' ? 'default' : 'outline'}
-                    size="sm"
-                    className="flex-1 text-xs"
-                    onClick={() => setPaymentMethod('blu')}
-                >
-                    Bayar blu
-                </Button>
-            </div>
-            {paymentMethod === 'blu' && (
-                <div className="mb-1.5">
-                    <input
-                        inputMode="numeric"
-                        value={bluAccount}
-                        placeholder="Nomor blu, mis: 85894628645"
-                        onChange={(e) => setBluAccount(e.target.value.replace(/\D/g, ''))}
-                        className="w-full border rounded-md px-2 py-1 text-xs"
-                    />
+            {/* Nomornya sengaja tidak ditampilkan — cukup nama akunnya.
+                Daftarnya dikelola di Operational > Akun blu by BCA Digital. */}
+            <div className="mb-1.5">
+                <Select value={paymentChoice} onValueChange={setPaymentChoice}>
+                    <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="qris">Bayar QRIS</SelectItem>
+                        {bluAccounts.map((akun) => (
+                            <SelectItem key={akun.label} value={akun.label}>Bayar {akun.label}</SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                {bluAccounts.length === 0 && (
                     <p className="text-[10px] text-slate-500 mt-0.5">
-                        Tagihan dikirim ke nomor blu ini. Nomor terakhir yang dipakai jadi default berikutnya.
+                        Belum ada akun blu — tambahkan di Operational kalau mau bayar lewat blu.
                     </p>
-                </div>
+                )}
+            </div>
+            </>
             )}
             </>
             )}
