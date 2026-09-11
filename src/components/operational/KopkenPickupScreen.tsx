@@ -164,8 +164,25 @@ function menitDariStatusDesc(data: KopkenReceiptData): number | null {
     return j > 23 || m > 59 ? null : j * 60 + m;
 }
 
-/** "Perkiraan siap pickup 22.35 - 22.45" — jendela 10 menit, ikut kopsu. */
-function jendelaPickup(data: KopkenReceiptData, menitPickup: number | null): string | null {
+/** "HH:MM" -> menit sejak tengah malam, atau null kalau bukan jam yang sah. */
+function menitDariJam(nilai?: string | null): number | null {
+    const cocok = (nilai || '').trim().match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+    return cocok ? Number(cocok[1]) * 60 + Number(cocok[2]) : null;
+}
+
+/**
+ * "Perkiraan siap pickup 14.45 - 14.55" — jendela 10 menit, format kopsu.
+ *
+ * Pesanan terjadwal memakai pil dan label yang SAMA, bukan bentuk sendiri:
+ * dicek di struk kopsu asli (order 9168604379244299, dijadwalkan 14:45) yang
+ * menulis "Perkiraan siap pickup 14.45 - 14.55". Sempat kubuat "Dijadwalkan
+ * pickup 14:45" dengan alasan jamnya pasti — tapi yang diminta memang mengikuti
+ * bentuk aslinya.
+ *
+ * Urutan sumber: estimasi dari Kopken -> jadwal kita -> jam telanjang di
+ * statusDesc.
+ */
+function jendelaPickup(data: KopkenReceiptData, menitStatusDesc: number | null): string | null {
     const epoch = data.estimatedDropoffAt;
     if (epoch) {
         // Kopken kadang mengirim detik, kadang milidetik.
@@ -173,9 +190,10 @@ function jendelaPickup(data: KopkenReceiptData, menitPickup: number | null): str
         const mulai = new Date(ms);
         if (!Number.isNaN(mulai.getTime())) return `${jam(mulai)} - ${jam(new Date(ms + 10 * 60_000))}`;
     }
-    if (menitPickup === null) return null;
+    const menit = menitDariJam(data.pickupTime) ?? menitStatusDesc;
+    if (menit === null) return null;
     const d = new Date();
-    d.setHours(Math.floor(menitPickup / 60), menitPickup % 60, 0, 0);
+    d.setHours(Math.floor(menit / 60), menit % 60, 0, 0);
     return `${jam(d)} - ${jam(new Date(d.getTime() + 10 * 60_000))}`;
 }
 
@@ -442,24 +460,14 @@ export function KopkenPickupScreen({ data }: { data: KopkenReceiptData }) {
                     <div className="w-10" />
                 </header>
                 <div className="pb-8 pt-4">
-                    {/* Pesanan terjadwal menang atas perkiraan: jamnya PASTI (dikirim
-                        ke Kopken saat order dibuat), jadi ditulis apa adanya tanpa
-                        rentang 10 menit yang cuma cocok untuk estimasi. */}
-                    {data.pickupTime ? (
-                        <div className="flex justify-center px-6 pb-5">
-                            <div className="rounded-full bg-white px-5 py-2.5 text-[13px] shadow-sm">
-                                <span className="text-slate-500">Dijadwalkan pickup</span>
-                                <span className="ml-1 font-bold text-slate-800">{data.pickupTime}</span>
-                            </div>
-                        </div>
-                    ) : jendela ? (
+                    {jendela && (
                         <div className="flex justify-center px-6 pb-5">
                             <div className="rounded-full bg-white px-5 py-2.5 text-[13px] shadow-sm">
                                 <span className="text-slate-500">Perkiraan siap pickup</span>
                                 <span className="ml-1 font-bold text-slate-800">{jendela}</span>
                             </div>
                         </div>
-                    ) : null}
+                    )}
                     <Tahapan phases={phases} aktif={aktif} />
                     <div className="mt-8 pb-2 text-center">
                         <div className="text-[13px] font-bold text-slate-800">Nomor Order</div>

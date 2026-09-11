@@ -511,7 +511,7 @@ export default function InventoryPage() {
         isStaff, // Staff tidak bisa Edit/Delete
     };
     const columns = createAccountColumns(columnActions);
-    // Chatime tanpa voucher/expiry -- kolomnya cuma identitas akun + tanggal masuk.
+    // Chatime tanpa voucher/expiry -- kolomnya cuma email + PIN.
     const chatimeColumns = createChatimeAccountColumns(columnActions);
 
     // Handle search input change (for smart filtering logic)

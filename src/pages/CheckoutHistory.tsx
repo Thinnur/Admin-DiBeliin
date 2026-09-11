@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DayFilter, { DAY_FORMAT, todayKey } from '@/components/common/DayFilter';
+import RowLink from '@/components/common/RowLink';
 import {
     Table,
     TableBody,
@@ -395,15 +396,21 @@ export default function CheckoutHistoryPage() {
                                         return (
                                             <TableRow
                                                 key={job.id}
-                                                className="cursor-pointer hover:bg-slate-50/50"
+                                                className="relative cursor-pointer hover:bg-slate-50/50"
                                                 onClick={() => navigate(`/checkout-process/${job.id}`)}
                                             >
                                                 <TableCell onClick={(e) => e.stopPropagation()}>
+                                                    {!selectMode && (
+                                                        <RowLink
+                                                            to={`/checkout-process/${job.id}`}
+                                                            label={`Buka detail checkout ${job.order_payload.name}`}
+                                                        />
+                                                    )}
                                                     <input
                                                         type="checkbox"
                                                         checked={selectedIds.has(job.id)}
                                                         onChange={() => toggleSelectOne(job.id)}
-                                                        className="h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
+                                                        className="relative z-10 h-4 w-4 rounded border-slate-300 text-amber-500 focus:ring-amber-500"
                                                         aria-label={`Pilih order ${job.id}`}
                                                     />
                                                 </TableCell>

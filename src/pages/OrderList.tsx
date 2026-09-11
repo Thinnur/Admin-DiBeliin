@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import DayFilter from '@/components/common/DayFilter';
+import RowLink from '@/components/common/RowLink';
 import {
     AlertDialog,
     AlertDialogAction,
@@ -297,10 +298,13 @@ export default function OrderListPage() {
                                 {visibleOrders.map((order) => (
                                     <TableRow
                                         key={order.id}
-                                        className="cursor-pointer hover:bg-slate-50/50"
+                                        className="relative cursor-pointer hover:bg-slate-50/50"
                                         onClick={() => navigate(`/calculator/${order.id}`)}
                                     >
-                                        <TableCell className="font-mono text-xs">{order.order_number}</TableCell>
+                                        <TableCell className="font-mono text-xs">
+                                            <RowLink to={`/calculator/${order.id}`} label={`Buka pesanan ${order.order_number}`} />
+                                            {order.order_number}
+                                        </TableCell>
                                         <TableCell>
                                             {order.paid_at
                                                 ? format(new Date(order.paid_at), 'dd MMM HH:mm')
@@ -322,7 +326,7 @@ export default function OrderListPage() {
                                                     ? `Diproses (${order.checkout_job_ids.length} job)`
                                                     : 'Belum diproses'}
                                         </TableCell>
-                                        <TableCell onClick={(event) => event.stopPropagation()} className="flex gap-1">
+                                        <TableCell onClick={(event) => event.stopPropagation()} className="relative z-10 flex gap-1">
                                             <Button
                                                 variant="ghost"
                                                 size="icon"

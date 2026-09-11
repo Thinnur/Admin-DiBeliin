@@ -244,10 +244,10 @@ function ExpiryCell({ date }: { date: string }) {
 /**
  * Phone number cell with copy button
  */
-function PhoneCell({ phone }: { phone: string }) {
+function PhoneCell({ phone, label = 'Phone number' }: { phone: string; label?: string }) {
     const handleCopy = () => {
         navigator.clipboard.writeText(phone);
-        toast.success('Phone number copied!');
+        toast.success(`${label} copied!`);
     };
 
     return (
@@ -703,7 +703,7 @@ export function createAccountColumns(
 }
 
 /**
- * Chatime: akun tanpa voucher/expiry -- cukup identitas akun + kapan dimasukkan.
+ * Chatime: akun tanpa voucher/expiry -- cukup email + PIN.
  */
 export function createChatimeAccountColumns(
     actions?: AccountColumnActions
@@ -723,31 +723,17 @@ export function createChatimeAccountColumns(
             meta: hiddenOnMobile,
         },
         {
+            // ponytail: Chatime login pakai email, disimpan di kolom identitas yang sama
+            // (phone_number) -- belum ada kolom email terpisah di tabel accounts.
             accessorKey: 'phone_number',
-            header: 'Phone',
-            cell: ({ row }) => <PhoneCell phone={row.getValue('phone_number')} />,
+            header: 'Email',
+            cell: ({ row }) => <PhoneCell phone={row.getValue('phone_number')} label="Email" />,
             meta: hiddenOnMobile,
         },
         {
             accessorKey: 'password',
             header: 'PIN',
             cell: ({ row }) => <PINCell pin={row.original.password} />,
-            meta: hiddenOnMobile,
-        },
-        {
-            accessorKey: 'device_name',
-            header: 'Perangkat',
-            cell: ({ row }) => <DeviceBadgeCell deviceName={row.original.device_name} />,
-            meta: hiddenOnMobile,
-        },
-        {
-            accessorKey: 'created_at',
-            header: 'Tanggal Masuk',
-            cell: ({ row }) => (
-                <span className="text-sm text-muted-foreground">
-                    {format(new Date(row.original.created_at), 'dd MMM yyyy')}
-                </span>
-            ),
             meta: hiddenOnMobile,
         },
         {

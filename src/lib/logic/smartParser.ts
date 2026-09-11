@@ -2,13 +2,14 @@
 // DiBeliin Admin - Smart Bulk Text Parser
 // =============================================================================
 // Parses unstructured seller text into structured account data.
-// Handles phone normalization, global PIN detection, and Indonesian date parsing.
+// Handles phone/email normalization, global PIN detection, and Indonesian date parsing.
 
 // -----------------------------------------------------------------------------
 // Types
 // -----------------------------------------------------------------------------
 
 export interface ParsedAccount {
+    /** Identitas login akun: nomor HP (mayoritas brand) atau email (Chatime). */
     phone: string;
     password: string;
 }
@@ -166,6 +167,10 @@ export function parseBulkText(text: string): ParseResult {
     // Phone number regex: matches +62xxx, 62xxx, 08xxx, or standalone 8xxx
     const phoneRegex = /(?:\+?62|0)?8\d{8,12}/;
 
+    // Email regex (Chatime login pakai email, bukan nomor HP).
+    // Sengaja longgar: cukup "ada@ada.ada" tanpa spasi/pipe -- validasi beneran urusan brand.
+    const emailRegex = /[^\s@|]+@[^\s@|]+\.[^\s@|]+/;
+
     // PIN/Password keywords regex
     const pinRegex = /(?:pin|pass|password)\s*[:=]\s*(.+)/i;
 
@@ -189,11 +194,28 @@ export function parseBulkText(text: string): ParseResult {
         // Check for per-account format: "Nomor|PIN"
         const phonePinMatch = trimmed.match(phonePinRegex);
         if (phonePinMatch) {
-            const normalized = normalizePhone(phonePinMatch[1]);
-            if (normalized) {
+            const left = phonePinMatch[1].trim();
+            // Email dicek duluan: email bisa mengandung angka yang lolos phoneRegex
+            // (mis. 08123456789@mail.com).
+            const identifier = left.includes('@')
+                ? left.match(emailRegex)?.[0] ?? null
+                : normalizePhone(left);
+            if (identifier) {
                 accounts.push({
-                    phone: normalized,
+                    phone: identifier,
                     password: phonePinMatch[2].trim(),
+                });
+                continue;
+            }
+        }
+
+        // Check for standalone email (Chatime)
+        if (trimmed.includes('@')) {
+            const emailMatch = trimmed.match(emailRegex);
+            if (emailMatch) {
+                accounts.push({
+                    phone: emailMatch[0],
+                    password: '',
                 });
                 continue;
             }

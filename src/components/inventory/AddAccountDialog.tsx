@@ -105,6 +105,9 @@ export function AddAccountDialog({
     const [notes, setNotes] = useState('');
     const [errors, setErrors] = useState<Record<string, string>>({});
 
+    // Chatime login pakai email, brand lain pakai nomor HP -- keduanya disimpan di phone_number.
+    const isEmailLogin = brand === 'chatime';
+
     // Bulk-mode form state
     const [bulkText, setBulkText] = useState('');
     const [bulkBrand, setBulkBrand] = useState<AccountBrand>('kopken');
@@ -112,6 +115,7 @@ export function AddAccountDialog({
     const [bulkExpiryDate, setBulkExpiryDate] = useState('');
     const [bulkPurchasePrice, setBulkPurchasePrice] = useState('');
     const [bulkIsSubmitting, setBulkIsSubmitting] = useState(false);
+    const isBulkEmailLogin = bulkBrand === 'chatime';
 
     // Parse bulk text in real-time
     const parseResult = useMemo(() => {
@@ -219,7 +223,12 @@ export function AddAccountDialog({
         const newErrors: Record<string, string> = {};
 
         if (!phoneNumber.trim()) {
-            newErrors.phoneNumber = 'Phone number is required';
+            newErrors.phoneNumber = isEmailLogin ? 'Email is required' : 'Phone number is required';
+        } else if (isEmailLogin) {
+            // ponytail: cek bentuk seadanya -- validasi email beneran tugas server/brand-nya.
+            if (!/^\S+@\S+\.\S+$/.test(phoneNumber.trim())) {
+                newErrors.phoneNumber = 'Email tidak valid (contoh: nama@email.com)';
+            }
         } else if (phoneNumber.length < 10) {
             newErrors.phoneNumber = 'Phone number must be at least 10 digits';
         }
@@ -388,10 +397,10 @@ export function AddAccountDialog({
             {/* Phone Number & Password Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="phone_number">Phone Number</Label>
+                    <Label htmlFor="phone_number">{isEmailLogin ? 'Email' : 'Phone Number'}</Label>
                     <Input
                         id="phone_number"
-                        placeholder="08123456789"
+                        placeholder={isEmailLogin ? 'nama@email.com' : '08123456789'}
                         value={phoneNumber}
                         onChange={(e) => setPhoneNumber(e.target.value)}
                         className={errors.phoneNumber ? 'border-red-500' : ''}
@@ -587,7 +596,21 @@ export function AddAccountDialog({
             <div className="space-y-2">
                 <Label>Paste Text dari Seller</Label>
                 <Textarea
-                    placeholder={`Paste text dari seller di sini...\n\nContoh format lama:\nakun :\n+6285607637577\n+6283821585437\n085839073898\n\nPin : 080808\nBerlaku sampai : 20 maret 2026\n\nContoh format baru (PIN per akun):\n85600756930|227224\n85600756214|662387`}
+                    placeholder={isBulkEmailLogin
+                        ? `Paste text dari seller di sini...
+
+Contoh (email):
+akun :
+budi01@gmail.com
+siti02@gmail.com
+
+Pin : 080808
+Berlaku sampai : 20 maret 2026
+
+Contoh PIN per akun:
+budi01@gmail.com|227224
+siti02@gmail.com|662387`
+                        : `Paste text dari seller di sini...\n\nContoh format lama:\nakun :\n+6285607637577\n+6283821585437\n085839073898\n\nPin : 080808\nBerlaku sampai : 20 maret 2026\n\nContoh format baru (PIN per akun):\n85600756930|227224\n85600756214|662387`}
                     value={bulkText}
                     onChange={(e) => setBulkText(e.target.value)}
                     rows={8}
@@ -618,7 +641,7 @@ export function AddAccountDialog({
                     )}
                     <div className="pt-1.5 border-t border-violet-200 mt-1.5">
                         <p className="text-[11px] text-violet-600">
-                            Nomor: {parseResult.accounts.map(a => a.phone).join(', ')}
+                            {isBulkEmailLogin ? 'Email' : 'Nomor'}: {parseResult.accounts.map(a => a.phone).join(', ')}
                         </p>
                     </div>
                 </div>
@@ -627,7 +650,9 @@ export function AddAccountDialog({
             {bulkText.trim() && (!parseResult || parseResult.detectedCount === 0) && (
                 <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
                     <p className="text-sm text-amber-700">
-                        Tidak ada nomor HP terdeteksi. Pastikan format nomor benar (contoh: +6281234567890, 081234567890).
+                        {isBulkEmailLogin
+                            ? 'Tidak ada email terdeteksi. Pastikan formatnya benar (contoh: nama@gmail.com).'
+                            : 'Tidak ada nomor HP terdeteksi. Pastikan format nomor benar (contoh: +6281234567890, 081234567890).'}
                     </p>
                 </div>
             )}

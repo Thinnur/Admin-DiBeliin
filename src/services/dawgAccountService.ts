@@ -55,6 +55,14 @@ export async function requestDawgAccountScan(): Promise<void> {
     if (error) throw new Error(`Gagal minta scan: ${error.message}`);
 }
 
+// Worker bisa mati di tengah scan tanpa sempat nulis status akhir, dan `running`
+// yang nyangkut bikin admin nge-poll seluruh dawg_accounts tiap 5 detik selamanya
+// (kejadian 2026-09-09: 444 request x 446 kB dalam sejam, ~200 MB egress).
+// Jadi `running` yang lebih tua dari ambang ini dianggap mati, bukan jalan.
+// ponytail: ambang waktu, bukan heartbeat. Kalau scan normal pernah > 10 menit,
+// naikin angkanya -- atau suruh worker nulis ulang `running` tiap menit.
+const SCAN_STALE_MS = 10 * 60 * 1000;
+
 /** Baca status scan terakhir yang ditulis worker. Format: "<state>|<ISO>|<pesan>". */
 export async function fetchDawgScanStatus(): Promise<DawgScanStatus> {
     const { data, error } = await supabase
@@ -68,13 +76,20 @@ export async function fetchDawgScanStatus(): Promise<DawgScanStatus> {
     const [state, at, ...rest] = (data?.value ?? '').split('|');
     if (!state) return { state: 'idle', at: null, message: '' };
 
-    return {
-        state: (['running', 'done', 'error'] as const).includes(state as never)
-            ? (state as DawgScanState)
-            : 'idle',
-        at: at || null,
-        message: rest.join('|'),
-    };
+    let resolved: DawgScanState = (['running', 'done', 'error'] as const).includes(state as never)
+        ? (state as DawgScanState)
+        : 'idle';
+    let message = rest.join('|');
+
+    if (resolved === 'running') {
+        const startedAt = at ? Date.parse(at) : NaN;
+        if (!Number.isFinite(startedAt) || Date.now() - startedAt > SCAN_STALE_MS) {
+            resolved = 'error';
+            message = 'worker gak ngasih kabar > 10 menit, dianggap mati';
+        }
+    }
+
+    return { state: resolved, at: at || null, message };
 }
 
 // -----------------------------------------------------------------------------
