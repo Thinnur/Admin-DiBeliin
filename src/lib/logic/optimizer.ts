@@ -12,8 +12,9 @@
 //
 // KOPI KENANGAN: cari pembagian dengan NET terbaik (total diskon - biaya admin),
 // lewat pencarian atas jumlah keranjang x pilihan tier tiap keranjang
-// (nomin / min50k / min70k). Aturan biayanya ada di kopKenSlots: 1 biaya admin =
-// 1 slot = maks 2 kupon, maks 1 di antaranya nomin, dan min70k cuma 1/2 kupon.
+// (nomin / min50k / min70k). Aturan biayanya ada di kopKenAdminCost: 1 biaya admin =
+// 1 slot = maks 2 kupon, maks 1 di antaranya nomin; min70k mengisi kursi kosong gratis,
+// sisanya biaya sendiri per voucher.
 
 // --- Types ---
 
@@ -165,24 +166,44 @@ const KOPKEN_MIN70K_FLOOR = 70000;
 // Diskon per tier. min50k & min70k capnya SAMA (30rb), bedanya cuma ambang belanja.
 // Dua konsekuensinya dipakai di bawah: (a) min70k selalu tepat 30rb, karena subtotal
 // >=70rb bikin 50%-nya >=35rb sehingga pasti kena cap; (b) min50k tidak pernah masuk
-// akal buat keranjang >=70rb -- diskonnya sama persis tapi makan kupon 2x lebih banyak.
+// akal buat keranjang >=70rb -- diskonnya sama, dan min70k bisa mengisi kursi mana pun
+// yang bisa diisi min50k, jadi biayanya tak pernah lebih mahal.
 const KOPKEN_DISCOUNT: Record<KopKenTier, (basketTotal: number) => number> = {
     nomin: t => Math.min(t * 0.5, 35000),
     min50k: t => (t >= KOPKEN_MIN50K_FLOOR ? Math.min(t * 0.5, 30000) : 0),
     min70k: t => (t >= KOPKEN_MIN70K_FLOOR ? Math.min(t * 0.5, 30000) : 0),
 };
 
-// Satu biaya admin (accountCost) = 1 "slot" yang menampung maks 2 kupon, maks 1 di
-// antaranya boleh nomin. Bobot kupon: nomin & min50k = 1, min70k = 1/2. Jadi 1 slot =
-// 1x nomin | 2x min50k | 1x nomin + 1x min50k | 4x min70k -- dan kelipatannya.
-function kopKenSlots(nomin: number, min50k: number, min70k: number): number {
-    return Math.max(nomin, Math.ceil((nomin + min50k + min70k / 2) / 2));
+// Satu biaya admin (accountCost) = 1 "slot" yang menampung maks 2 kupon nomin/min50k,
+// maks 1 di antaranya boleh nomin: 1x nomin | 2x min50k | 1x nomin + 1x min50k.
+// min70k mengisi kursi kosong di slot itu tanpa biaya tambahan (1 nomin + 1 min70k = 1 slot,
+// sama seperti 1 nomin + 1 min50k); min70k sisanya kena min70kCost per voucher (default 3rb).
+// Sengaja murah (2026-09-13) -- tiap ambil akun dapat nomin/min50k/min70k sama banyak, jadi
+// min70k numpuk; di 3rb, keranjang >=70rb memilih min70k (seri dengan nomin) dan nomin awet.
+// Harus identik dengan kenanganSlots/kenanganAdminCost di DIBeliin/src/utils/pricingUtils.ts.
+function kopKenSlots(nomin: number, min50k: number): number {
+    return Math.max(nomin, Math.ceil((nomin + min50k) / 2));
 }
 
-function kopKenAccountsAndAdminCost(groups: OptimizedGroup[], accountCost: number): { accountsNeeded: number; adminCost: number } {
+/** min70k yang tidak kebagian kursi kosong di slot nomin/min50k. */
+function kopKenExtraMin70k(nomin: number, min50k: number, min70k: number): number {
+    return Math.max(0, min70k - (2 * kopKenSlots(nomin, min50k) - nomin - min50k));
+}
+
+function kopKenAdminCost(nomin: number, min50k: number, min70k: number, accountCost: number, min70kCost: number): number {
+    const extra = kopKenExtraMin70k(nomin, min50k, min70k);
+    // Sepasang min70k sisa boleh buka slot baru kalau itu lebih murah (min70kCost > setengah slot).
+    return kopKenSlots(nomin, min50k) * accountCost
+        + Math.floor(extra / 2) * Math.min(2 * min70kCost, accountCost)
+        + (extra % 2) * Math.min(min70kCost, accountCost);
+}
+
+function kopKenAccountsAndAdminCost(groups: OptimizedGroup[], accountCost: number, min70kCost: number): { accountsNeeded: number; adminCost: number } {
     const count = (v: KopKenTier) => groups.filter(g => g.recommendedVoucher === v).length;
-    const accountsNeeded = kopKenSlots(count('nomin'), count('min50k'), count('min70k'));
-    return { accountsNeeded, adminCost: accountsNeeded * accountCost };
+    return {
+        accountsNeeded: kopKenSlots(count('nomin'), count('min50k')) + kopKenExtraMin70k(count('nomin'), count('min50k'), count('min70k')),
+        adminCost: kopKenAdminCost(count('nomin'), count('min50k'), count('min70k'), accountCost, min70kCost),
+    };
 }
 
 /**
@@ -198,7 +219,7 @@ function kopKenAccountsAndAdminCost(groups: OptimizedGroup[], accountCost: numbe
  *
  * `totals` harus sudah bebas keranjang kosong; `tiers` yang dikembalikan sejajar dengannya.
  */
-function kopKenScore(totals: number[], accountCost: number): { net: number; tiers: KopKenTier[] } {
+function kopKenScore(totals: number[], accountCost: number, min70kCost: number): { net: number; tiers: KopKenTier[] } {
     if (totals.length === 0) return { net: -Infinity, tiers: [] };
 
     const forced: number[] = [];
@@ -232,8 +253,9 @@ function kopKenScore(totals: number[], accountCost: number): { net: number; tier
     for (let a = 0; a <= midRange.length; a++) {
         for (let b = 0; b <= highRange.length; b++) {
             const nomin = forced.length + a + b;
+            // Strict `>` di bawah: kalau seri, tetap di tier murah (lebih banyak min70k).
             const net = base + midPrefix[a] + highPrefix[b]
-                - kopKenSlots(nomin, midRange.length - a, highRange.length - b) * accountCost;
+                - kopKenAdminCost(nomin, midRange.length - a, highRange.length - b, accountCost, min70kCost);
             if (net > bestNet) {
                 bestNet = net;
                 bestMid = a;
@@ -301,7 +323,7 @@ function kopKenSeeds(units: KopKenUnit[], k: number): number[][] {
 // lama kebetulan menghasilkan bentuk timpang itu; LPT murni tidak akan pernah bisa.
 // Karena itu: 3 titik awal berbentuk beda (kopKenSeeds) + hill climbing pindah/tukar unit.
 // Diuji lawan brute force SEMUA partisi (scripts/verify-kenangan-pricing.mjs): 0 kalah.
-function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number): OptimizedGroup[] {
+function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number, min70kCost: number): OptimizedGroup[] {
     // unit.price is discountable-only (see expandKopKenItems) -- full() restores the real
     // amount for display (subtotal / line items) without letting non-discountable addons
     // (Syrup/Topping/Espresso Shot) leak into the 50% discount or the 50k/70k thresholds.
@@ -322,7 +344,7 @@ function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number): Optim
     const scoreAssign = (assign: number[], k: number): number => {
         const totals = new Array<number>(k).fill(0);
         for (let i = 0; i < assign.length; i++) totals[assign[i]] += units[i].price;
-        return kopKenScore(totals.filter(t => t > 0), accountCost).net;
+        return kopKenScore(totals.filter(t => t > 0), accountCost, min70kCost).net;
     };
 
     let bestNet = -Infinity;
@@ -387,7 +409,7 @@ function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number): Optim
     for (let i = 0; i < bestAssign.length; i++) buckets[bestAssign[i]].push(units[i]);
     const filled = buckets.filter(b => b.length > 0);
     const totals = filled.map(b => b.reduce((s, u) => s + u.price, 0));
-    const { tiers } = kopKenScore(totals, accountCost);
+    const { tiers } = kopKenScore(totals, accountCost, min70kCost);
 
     return filled.map((basket, i) => ({
         id: generateId(),
@@ -636,7 +658,9 @@ function optimizeJanjiJiwa(
 export function optimizeOrder(
     items: CartItem[],
     brand: 'fore' | 'kopken' | 'tomoro' | 'janjijiwa' | 'chatime',
-    accountCost: number
+    accountCost: number,
+    /** Kopken saja: biaya admin per voucher min70k (app_settings.fee_jasdor_kopken_min70k). */
+    min70kCost: number = 3000
 ): OptimizationResult {
     if (!items || !Array.isArray(items) || items.length === 0) {
         return {
@@ -662,7 +686,7 @@ export function optimizeOrder(
             // kopItems[].price is discountable-only (non-discountable addons split out) --
             // totalBill must reflect the FULL bill, so add nonDiscountablePrice back here.
             totalBill = kopItems.reduce((s, i) => s + i.price + i.nonDiscountablePrice, 0);
-            groups = optimizeKopKen(kopItems, accountCost);
+            groups = optimizeKopKen(kopItems, accountCost, min70kCost);
         } else if (brand === 'tomoro') {
             const tomoroItems = expandTomoroItems(items);
             totalBill = tomoroItems.reduce((s, i) => s + i.price, 0);
@@ -679,7 +703,7 @@ export function optimizeOrder(
         let totalAdminCost: number;
 
         if (brand === 'kopken') {
-            ({ accountsNeeded, adminCost: totalAdminCost } = kopKenAccountsAndAdminCost(groups, accountCost));
+            ({ accountsNeeded, adminCost: totalAdminCost } = kopKenAccountsAndAdminCost(groups, accountCost, min70kCost));
         } else if (brand === 'fore') {
             // accountCost is "fee per cup" for Fore — every basket always carries a positive
             // discount now (no BOGO leftover group), so accountsNeeded is simply group count.

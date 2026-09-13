@@ -331,6 +331,8 @@ export async function getAntrianPesanan(): Promise<AntrianPesanan[]> {
 export interface AdminFees {
     fee_jasdor_fore: number;
     fee_jasdor_kopken: number;
+    /** Biaya admin per voucher min70k Kopken — terpisah dari slot fee_jasdor_kopken. */
+    fee_jasdor_kopken_min70k: number;
     fee_jasdor_tomoro: number;
     fee_jasdor_janjijiwa: number;
     fee_jasdor_chatime: number;
@@ -338,7 +340,7 @@ export interface AdminFees {
     fee_cinema: number;
 }
 
-const ADMIN_FEE_DEFAULTS: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000, fee_jasdor_chatime: 2000, fee_special_item: 5000, fee_cinema: 5000 };
+const ADMIN_FEE_DEFAULTS: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_kopken_min70k: 3000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000, fee_jasdor_chatime: 2000, fee_special_item: 5000, fee_cinema: 5000 };
 
 /**
  * Fetch dynamic admin fees from app_settings
@@ -348,7 +350,7 @@ export async function getAdminFees(): Promise<AdminFees> {
         const { data, error } = await supabase
             .from('app_settings')
             .select('key, value')
-            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken', 'fee_jasdor_tomoro', 'fee_jasdor_janjijiwa', 'fee_jasdor_chatime', 'fee_special_item', 'fee_cinema']);
+            .in('key', ['fee_jasdor_fore', 'fee_jasdor_kopken', 'fee_jasdor_kopken_min70k', 'fee_jasdor_tomoro', 'fee_jasdor_janjijiwa', 'fee_jasdor_chatime', 'fee_special_item', 'fee_cinema']);
 
         if (error) {
             console.error('Error fetching admin fees:', error);
@@ -361,6 +363,8 @@ export async function getAdminFees(): Promise<AdminFees> {
                 fees.fee_jasdor_fore = Number(row.value) || 5000;
             } else if (row.key === 'fee_jasdor_kopken') {
                 fees.fee_jasdor_kopken = Number(row.value) || 5000;
+            } else if (row.key === 'fee_jasdor_kopken_min70k') {
+                fees.fee_jasdor_kopken_min70k = Number(row.value) || 3000;
             } else if (row.key === 'fee_jasdor_tomoro') {
                 fees.fee_jasdor_tomoro = Number(row.value) || 2000;
             } else if (row.key === 'fee_jasdor_janjijiwa') {
@@ -384,7 +388,7 @@ export async function getAdminFees(): Promise<AdminFees> {
  * Update a specific admin fee in app_settings
  */
 export async function updateAdminFee(
-    key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_jasdor_chatime' | 'fee_special_item' | 'fee_cinema',
+    key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_kopken_min70k' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_jasdor_chatime' | 'fee_special_item' | 'fee_cinema',
     value: string
 ): Promise<void> {
     const { error } = await supabase

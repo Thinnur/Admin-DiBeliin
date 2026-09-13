@@ -538,6 +538,7 @@ function AdminFeeSection() {
 
     const [foreInput, setForeInput] = useState('');
     const [kenanganInput, setKenanganInput] = useState('');
+    const [kenanganMin70kInput, setKenanganMin70kInput] = useState('');
     const [tomoroInput, setTomoroInput] = useState('');
     const [janjijiwaInput, setJanjijiwaInput] = useState('');
     const [chatimeInput, setChatimeInput] = useState('');
@@ -549,6 +550,7 @@ function AdminFeeSection() {
         if (adminFees) {
             setForeInput(adminFees.fee_jasdor_fore.toString());
             setKenanganInput(adminFees.fee_jasdor_kopken.toString());
+            setKenanganMin70kInput((adminFees.fee_jasdor_kopken_min70k ?? 3000).toString());
             setTomoroInput((adminFees.fee_jasdor_tomoro ?? 2000).toString());
             setJanjijiwaInput((adminFees.fee_jasdor_janjijiwa ?? 2000).toString());
             setChatimeInput((adminFees.fee_jasdor_chatime ?? 2000).toString());
@@ -559,7 +561,7 @@ function AdminFeeSection() {
 
     // 2. Mutation to update a specific admin fee key
     const updateFeeMutation = useMutation({
-        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_jasdor_chatime' | 'fee_special_item' | 'fee_cinema'; value: string }) => {
+        mutationFn: async (variables: { key: 'fee_jasdor_fore' | 'fee_jasdor_kopken' | 'fee_jasdor_kopken_min70k' | 'fee_jasdor_tomoro' | 'fee_jasdor_janjijiwa' | 'fee_jasdor_chatime' | 'fee_special_item' | 'fee_cinema'; value: string }) => {
             await updateAdminFee(variables.key, variables.value);
         },
         onSuccess: () => {
@@ -577,12 +579,13 @@ function AdminFeeSection() {
         e.preventDefault();
         const fVal = Number(foreInput);
         const kVal = Number(kenanganInput);
+        const k70Val = Number(kenanganMin70kInput);
         const tVal = Number(tomoroInput);
         const jVal = Number(janjijiwaInput);
         const chVal = Number(chatimeInput);
         const sVal = Number(specialItemInput);
         const cVal = Number(cinemaInput);
-        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0 || isNaN(chVal) || chVal < 0 || isNaN(sVal) || sVal < 0 || isNaN(cVal) || cVal < 0) {
+        if (isNaN(fVal) || fVal < 0 || isNaN(kVal) || kVal < 0 || isNaN(k70Val) || k70Val < 0 || isNaN(tVal) || tVal < 0 || isNaN(jVal) || jVal < 0 || isNaN(chVal) || chVal < 0 || isNaN(sVal) || sVal < 0 || isNaN(cVal) || cVal < 0) {
             toast.error('Biaya Jasdor harus berupa angka positif');
             return;
         }
@@ -596,6 +599,10 @@ function AdminFeeSection() {
                 }
                 if (kVal !== adminFees.fee_jasdor_kopken) {
                     await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_kopken', value: kenanganInput });
+                    hasChanges = true;
+                }
+                if (k70Val !== (adminFees.fee_jasdor_kopken_min70k ?? 3000)) {
+                    await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_kopken_min70k', value: kenanganMin70kInput });
                     hasChanges = true;
                 }
                 if (tVal !== (adminFees.fee_jasdor_tomoro ?? 2000)) {
@@ -670,6 +677,18 @@ function AdminFeeSection() {
                                     onChange={(e) => setKenanganInput(e.target.value)}
                                     disabled={updateFeeMutation.isPending}
                                 />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="fee_jasdor_kopken_min70k">Biaya Jasdor Kenangan per Voucher Min 70rb (Rp)</Label>
+                                <Input
+                                    id="fee_jasdor_kopken_min70k"
+                                    type="number"
+                                    placeholder="3000"
+                                    value={kenanganMin70kInput}
+                                    onChange={(e) => setKenanganMin70kInput(e.target.value)}
+                                    disabled={updateFeeMutation.isPending}
+                                />
+                                <p className="text-xs text-slate-500">Maks (biaya Kenangan − 5.000) supaya min70k dipilih ketimbang nomin.</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="fee_jasdor_tomoro">Biaya Jasdor Tomoro Coffee (Rp)</Label>

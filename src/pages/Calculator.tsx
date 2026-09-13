@@ -1057,7 +1057,7 @@ export default function CalculatorPage() {
             } : {}),
         }));
 
-        const optimizationResult = optimizeOrder(cartItems, brand, adminCost);
+        const optimizationResult = optimizeOrder(cartItems, brand, adminCost, dbAdminFees?.fee_jasdor_kopken_min70k ?? 3000);
         setResult(optimizationResult);
         setHasOptimized(true);
 
