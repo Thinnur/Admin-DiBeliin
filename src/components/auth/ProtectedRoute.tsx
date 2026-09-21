@@ -34,7 +34,20 @@ export default function ProtectedRoute() {
             setShowLoading(true);
         }, 200);
 
-        supabase.auth.getSession().then(({ data: { session } }) => {
+        // ponytail: getSession() bisa menggantung SELAMANYA kalau token di
+        // localStorage basi dan refresh-nya tak pernah dibalas (mis. origin ini
+        // masih nyimpan sesi dari URL Supabase lama). Tanpa batas waktu, gerbang
+        // auth muter di "Loading..." terus. Habis waktu -> anggap tak ada sesi,
+        // lempar ke /login; login ulang menimpa token basinya.
+        let bailTimer: ReturnType<typeof setTimeout> | null = null;
+
+        Promise.race([
+            supabase.auth.getSession().then(({ data }) => data.session),
+            new Promise<Session | null>((resolve) => {
+                bailTimer = setTimeout(() => resolve(null), 8000);
+            }),
+        ]).then((session) => {
+            if (bailTimer) clearTimeout(bailTimer);
             setSession(session);
             setIsLoading(false);
             if (timerRef.current) {
