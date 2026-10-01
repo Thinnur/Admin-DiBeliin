@@ -30,6 +30,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { completeQrisOrder, deleteQrisOrder, listNewQrisOrders, type QrisOrder } from '@/services/qrisOrderService';
+import { fetchForeAkunStatus, type ForeAkunStatusSnapshot } from '@/services/checkoutJobService';
 
 const AUTO_REFRESH_MS = 20_000;
 
@@ -45,6 +46,68 @@ type BrandTab = (typeof BRAND_TABS)[number];
 function dayKey(order: QrisOrder): string {
     const raw = order.paid_at ?? order.created_at;
     return format(new Date(raw), 'yyyy-MM-dd');
+}
+
+const STATUS_ORDER_FORE: Record<string, string> = {
+    waiting_for_payment: 'menunggu bayar',
+    paid: 'sudah dibayar',
+    in_process: 'sedang dibuat',
+};
+// Worker menulis ulang minimal tiap 60 detik; lebih tua dari ini berarti
+// fore_status_worker kemungkinan mati, jadi chip-nya jangan dipercaya.
+const FORE_STATUS_STALE_MS = 3 * 60 * 1000;
+const FORE_STATUS_POLL_MS = 15_000;
+
+/** Nama yang sedang terpasang di akun Fore + boleh diganti atau tidak. */
+function ForeAkunChips() {
+    const [status, setStatus] = useState<ForeAkunStatusSnapshot | null>(null);
+    // Dihitung saat memuat (tiap 15 detik), bukan saat render -- render harus murni.
+    const [basi, setBasi] = useState(false);
+
+    useEffect(() => {
+        let aktif = true;
+        const muat = () => fetchForeAkunStatus()
+            .then((s) => {
+                if (!aktif) return;
+                setStatus(s);
+                setBasi(!!s && Date.now() - new Date(s.at).getTime() > FORE_STATUS_STALE_MS);
+            })
+            .catch(() => { /* chip cuma info -- jangan ganggu admin dengan toast tiap 15 detik */ });
+        void muat();
+        const id = setInterval(muat, FORE_STATUS_POLL_MS);
+        return () => { aktif = false; clearInterval(id); };
+    }, []);
+
+    if (!status?.akun?.length) return null;
+
+    return (
+        <div className="flex flex-wrap gap-2">
+            {status.akun.map((a) => {
+                const warna = basi || a.galat
+                    ? 'border-slate-200 bg-slate-50 text-slate-500'
+                    : a.bisaGanti
+                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                        : 'border-amber-200 bg-amber-50 text-amber-800';
+                const keterangan = basi
+                    ? 'status tidak diperbarui'
+                    : a.galat
+                        ? 'gagal dicek'
+                        : a.bisaGanti
+                            ? 'nama bisa diganti'
+                            : `belum bisa diganti · ${a.kode ?? 'order'} ${STATUS_ORDER_FORE[a.status ?? ''] ?? a.status ?? ''}`;
+                return (
+                    <span
+                        key={a.hp}
+                        title={a.galat ?? `Akun Fore …${a.hp}`}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs ${warna}`}
+                    >
+                        <span className="font-semibold">Fore: {a.nama || '—'}</span>
+                        <span>· {keterangan}</span>
+                    </span>
+                );
+            })}
+        </div>
+    );
 }
 
 export default function OrderListPage() {
@@ -132,8 +195,11 @@ export default function OrderListPage() {
 
     return (
         <div className="space-y-4">
-            <div className="flex items-center justify-between">
-                <h1 className="text-2xl font-semibold">Pesanan Baru</h1>
+            <div className="flex items-center justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
+                    <h1 className="text-2xl font-semibold">Pesanan Baru</h1>
+                    <ForeAkunChips />
+                </div>
                 <div className="flex gap-2">
                     <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
                         <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />

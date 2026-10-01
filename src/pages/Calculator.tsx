@@ -442,12 +442,14 @@ function buildKopkenOrderPayload(
  *  - `qty` dipakai, bukan mengulang item, karena Fore punya cartpd_qty;
  *  - voucher dicocokkan ke NAMA voucher yang hidup di akun (kode voucher
  *    langganan Fore berganti tiap periode, jadi tidak boleh di-hardcode);
- *  - tanpa pickupTime/needPackaging: penjadwalan Fore belum diimplementasi.
+ *  - tanpa pickupTime: penjadwalan Fore belum diimplementasi;
+ *  - needPackaging -> cart_data.paper_bag di runCheckoutFore.js (Fore menagih Rp3.000).
  */
 function buildForeOrderPayload(
     group: OptimizationResult['groups'][0],
     outlet: string,
     customerName: string,
+    needPackaging: boolean,
     orderNumber?: string,
     groupIndex?: number,
     groupTotal?: number
@@ -466,6 +468,8 @@ function buildForeOrderPayload(
             if (size) options.push(size);
             return { name: cleanName, options, qty: 1, ...(note ? { notes: note } : {}) };
         }),
+        // Cuma dikirim kalau dipakai — payload tanpa tas tetap sama persis seperti sebelumnya.
+        ...(needPackaging ? { needPackaging: true } : {}),
         ...(orderNumber ? { orderNumber } : {}),
         ...(groupIndex != null ? { groupIndex } : {}),
         ...(groupTotal != null ? { groupTotal } : {}),
@@ -583,7 +587,7 @@ function CheckoutPanel({
         }
         const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
         const payload = isFore
-            ? buildForeOrderPayload(group, outlet, customerName, orderNumber, index + 1, groupTotal)
+            ? buildForeOrderPayload(group, outlet, customerName, needPackaging, orderNumber, index + 1, groupTotal)
             : {
                 ...buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal),
                 // Hanya dikirim kalau blu — payload QRIS tetap sama persis
@@ -624,9 +628,16 @@ function CheckoutPanel({
 
     return (
         <div className="mt-2">
-            {/* Jadwal & plastik cuma ada di alur Kopken — penjadwalan Fore
+            {/* Jadwal & metode bayar cuma ada di alur Kopken — penjadwalan Fore
                 (schedule_date/schedule_time_slot) belum diimplementasi, jadi
-                jangan tampilkan kontrol yang hasilnya bakal diabaikan. */}
+                jangan tampilkan kontrol yang hasilnya bakal diabaikan. Fore cuma
+                dapat switch plastik (cart_data.paper_bag). */}
+            {isFore && (
+                <div className="flex items-center gap-2 mb-1.5">
+                    <Switch id={`need-packaging-${index}`} checked={needPackaging} onCheckedChange={setNeedPackaging} />
+                    <Label htmlFor={`need-packaging-${index}`} className="text-xs font-normal">Pakai Plastik (+Rp 3.000)</Label>
+                </div>
+            )}
             {!isFore && (
             <>
             <button
@@ -670,8 +681,8 @@ function CheckoutPanel({
                 )}
             </div>
             <div className="flex items-center gap-2 mb-1.5">
-                <Switch id="need-packaging" checked={needPackaging} onCheckedChange={setNeedPackaging} />
-                <Label htmlFor="need-packaging" className="text-xs font-normal">Pakai Plastik</Label>
+                <Switch id={`need-packaging-${index}`} checked={needPackaging} onCheckedChange={setNeedPackaging} />
+                <Label htmlFor={`need-packaging-${index}`} className="text-xs font-normal">Pakai Plastik</Label>
             </div>
             {/* Nomornya sengaja tidak ditampilkan — cukup nama akunnya.
                 Daftarnya dikelola di Operational > Akun blu by BCA Digital. */}

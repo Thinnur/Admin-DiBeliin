@@ -49,6 +49,13 @@ export interface Account {
 export interface DawgAccount {
   account_id: string;
   vouchers: string[];
+  /**
+   * Masa berlaku per voucher: { "<Label>|<tier_key>": "<ISO timestamp>" }.
+   * Kuncinya elemen `vouchers` apa adanya. Voucher TANPA entri di sini dianggap
+   * masih berlaku — baris lama belum punya datanya sampai scan menyentuhnya,
+   * dan `claim_dawg_voucher` memakai aturan yang sama.
+   */
+  voucher_expiry: Record<string, string>;
   registered_at: string; // ISO timestamp
   last_used: string | null; // ISO timestamp
   updated_at: string; // ISO timestamp

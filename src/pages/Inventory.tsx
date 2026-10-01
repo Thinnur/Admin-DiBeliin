@@ -110,18 +110,36 @@ function formatScanStatus(status?: DawgScanStatus): string {
 /** Vouchers are stored as raw "Label|tier_key" strings. Panel ini cuma peduli voucher "Pengguna Baru - Diskon 50%". */
 const DAWG_VOUCHER_LABEL_FILTER = 'Pengguna Baru - Diskon 50%';
 
+/**
+ * Voucher Kopken punya masa berlaku (~30 hari sejak akun didaftarkan, jatuh
+ * temponya beda-beda per akun). Voucher tanpa entri masa berlaku dianggap masih
+ * berlaku — aturan yang sama dipakai `claim_dawg_voucher` di database, supaya
+ * angka di panel ini tidak pernah menjanjikan stok yang justru ditolak saat klaim.
+ */
+function dawgVoucherMasihBerlaku(account: DawgAccount, voucher: string): boolean {
+    const sampai = account.voucher_expiry?.[voucher];
+    return !sampai || new Date(sampai).getTime() > Date.now();
+}
+
 /** Jumlah akun panel yang masih punya voucher "Pengguna Baru - Diskon 50%" di tier tertentu. */
 function countDawgTier(accounts: DawgAccount[], tier: string): number {
     const needle = `${DAWG_VOUCHER_LABEL_FILTER}|${tier}`;
-    return accounts.filter((a) => a.vouchers?.includes(needle)).length;
+    return accounts.filter((a) => a.vouchers?.includes(needle) && dawgVoucherMasihBerlaku(a, needle)).length;
 }
 
-function DawgVoucherBadge({ raw }: { raw: string }) {
+function DawgVoucherBadge({ raw, sampai }: { raw: string; sampai?: string }) {
     const [label, tier] = raw.split('|');
+    const hangus = !!sampai && new Date(sampai).getTime() <= Date.now();
+    const warna = hangus
+        ? 'bg-slate-100 border-slate-200 text-slate-400 line-through'
+        : 'bg-emerald-50 border-emerald-200 text-emerald-700';
     return (
-        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 border border-emerald-200 px-2 py-0.5 text-[11px] text-emerald-700 whitespace-nowrap">
+        <span
+            title={sampai ? `Berlaku hingga ${formatDawgDate(sampai)}` : 'Masa berlaku belum terdata'}
+            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] whitespace-nowrap ${warna}`}
+        >
             {label}
-            {tier && <span className="text-emerald-500">· {tier.replace(/_/g, ' ')}</span>}
+            {tier && <span className={hangus ? 'text-slate-400' : 'text-emerald-500'}>· {tier.replace(/_/g, ' ')}</span>}
         </span>
     );
 }
@@ -1006,7 +1024,9 @@ export default function InventoryPage() {
                                                             return vouchers.length === 0 ? (
                                                                 <span className="text-xs text-slate-400">Tidak ada voucher</span>
                                                             ) : (
-                                                                vouchers.map((v, i) => <DawgVoucherBadge key={i} raw={v} />)
+                                                                vouchers.map((v, i) => (
+                                                                    <DawgVoucherBadge key={i} raw={v} sampai={account.voucher_expiry?.[v]} />
+                                                                ))
                                                             );
                                                         })()}
                                                     </div>

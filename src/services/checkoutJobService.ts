@@ -46,7 +46,8 @@ export interface CheckoutJobOrderPayload {
     /** Jadwal pengambilan: "HH:MM" (24 jam, hari ini) buat "Jadwalkan", atau
      * kosongkan buat "Pickup Sekarang". Diteruskan apa adanya ke runCheckout.js. */
     pickupTime?: string;
-    /** Sertakan kantong plastik? Default false. Diteruskan ke needPackaging di runCheckout.js. */
+    /** Sertakan kantong plastik? Default false. Kopken: needPackaging di runCheckout.js.
+     * Fore: cart_data.paper_bag di runCheckoutFore.js (+Rp3.000). */
     needPackaging?: boolean;
     /** Nomor pesanan (qris_orders.order_number) yang menjadi asal job ini —
      * cuma metadata tampilan, tidak dipakai runCheckout.js. */
@@ -181,4 +182,46 @@ export async function deleteCheckoutJobs(ids: string[]): Promise<void> {
 
     const { error: deleteError } = await supabase.from('checkout_jobs').delete().in('id', ids);
     if (deleteError) throw new Error(`Gagal hapus riwayat: ${deleteError.message}`);
+}
+
+// -----------------------------------------------------------------------------
+// Status akun Fore (chip di halaman Pesanan Baru)
+// -----------------------------------------------------------------------------
+// Ditulis fore_status_worker.js di HP ke app_settings tiap ~15 detik (minimal
+// sekali semenit walau tidak berubah). Admin tidak bisa bertanya langsung ke
+// Fore: tokennya cuma ada di server dan tidak boleh sampai ke browser.
+
+export interface ForeAkunStatus {
+    /** 4 digit terakhir nomor akun — app_settings bisa dibaca publik. */
+    hp: string;
+    /** Nama yang sedang terpasang di profil akun Fore. */
+    nama: string;
+    /** false selama akun masih punya order waiting_for_payment/paid/in_process —
+     * aturan yang sama dengan applyCustomerName di runCheckoutFore.js. */
+    bisaGanti: boolean;
+    /** Order yang memblokir ganti nama. */
+    kode?: string;
+    status?: string;
+    /** Diisi kalau worker gagal mengecek akun ini. */
+    galat?: string;
+}
+
+export interface ForeAkunStatusSnapshot {
+    at: string;
+    akun: ForeAkunStatus[];
+}
+
+export async function fetchForeAkunStatus(): Promise<ForeAkunStatusSnapshot | null> {
+    const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'fore_akun_status')
+        .maybeSingle();
+    if (error) throw new Error(`Gagal memuat status akun Fore: ${error.message}`);
+    if (!data?.value) return null;
+    try {
+        return JSON.parse(data.value) as ForeAkunStatusSnapshot;
+    } catch {
+        return null;
+    }
 }
