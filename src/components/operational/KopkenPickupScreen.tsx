@@ -123,7 +123,14 @@ export function proxyGambar(url?: string | null): string | null {
     // membalas 403 dan gambarnya jatuh ke placeholder. Ini dipakai untuk produk
     // yang fotonya cuma tersedia di balik sesi kopsu — lihat
     // scripts/backfill_menu_images.js.
-    if (url.startsWith(base)) return url;
+    //
+    // Storage self-host hanya mengirim ACAO kalau permintaannya membawa Origin
+    // (cloud dulu selalu `*`). <img> biasa memuatnya tanpa Origin dan browser
+    // menyimpan salinan tanpa ACAO setahun; fetch CORS html-to-image lalu
+    // memakai salinan itu dan gagal -> "Gagal mengunduh Struk" (2026-10-02).
+    // Karena itu <img>-nya wajib crossOrigin, dan `?cors=1` memisahkan kunci
+    // cache dari salinan lama yang sudah terlanjur tersimpan tanpa ACAO.
+    if (url.startsWith(base)) return `${url}${url.includes('?') ? '&' : '?'}cors=1`;
     return `${base}/functions/v1/kopken-image?url=${encodeURIComponent(url)}`;
 }
 
@@ -568,6 +575,7 @@ export function KopkenPickupScreen({ data }: { data: KopkenReceiptData }) {
                                         <img
                                             src={proxyGambar(it.image) ?? FALLBACK_MENU}
                                             alt={it.title}
+                                            crossOrigin="anonymous"
                                             className="h-16 w-16 rounded-xl object-contain mix-blend-multiply"
                                             onError={(e) => {
                                                 const el = e.currentTarget;
@@ -627,6 +635,7 @@ export function KopkenPickupScreen({ data }: { data: KopkenReceiptData }) {
                                         <img
                                             src={proxyGambar(data.paymentLogoUrl)!}
                                             alt={data.paymentMethod}
+                                            crossOrigin="anonymous"
                                             className="h-6 w-auto object-contain"
                                         />
                                     )}
