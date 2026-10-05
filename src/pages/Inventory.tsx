@@ -60,7 +60,6 @@ import {
     useDeleteAccount,
     useUpdateAccountStatus,
     useUpdateAccount,
-    useStaffAccounts,
     useFixStaleAccounts,
 } from '@/hooks/useInventory';
 import { useAuth } from '@/contexts/AuthContext';
@@ -199,64 +198,15 @@ export default function InventoryPage() {
     const [isInUseDialogOpen, setIsInUseDialogOpen] = useState(false);
     const [inUseByName, setInUseByName] = useState('');
 
-    // Fetch data: Staff pakai hook terbatas (limit 6, status=ready only)
-    // Super Admin pakai hook penuh (semua data)
+    // Staff ikut ambil data penuh: kartu stok butuh semua akun, tabelnya cuma tampil buat admin.
     // Guard: !isAuthLoading memastikan query TIDAK jalan sebelum sesi auth selesai dipulihkan
     const {
         data: allAccountsAdmin,
         isLoading: isLoadingAdmin,
-        isError: isErrorAdmin,
-    } = useAccounts(undefined, { enabled: !isAuthLoading && !isStaff });
-
-    const {
-        data: staffAccountsKopken,
-        isLoading: isLoadingStaffKopken,
-        isError: isErrorStaffKopken,
-    } = useStaffAccounts('kopken', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'kopken' });
-
-    const {
-        data: staffAccountsFore,
-        isLoading: isLoadingStaffFore,
-        isError: isErrorStaffFore,
-    } = useStaffAccounts('fore', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'fore' });
-
-    const {
-        data: staffAccountsTomoro,
-        isLoading: isLoadingStaffTomoro,
-        isError: isErrorStaffTomoro,
-    } = useStaffAccounts('tomoro', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'tomoro' });
-
-    const {
-        data: staffAccountsJanjijiwa,
-        isLoading: isLoadingStaffJanjijiwa,
-        isError: isErrorStaffJanjijiwa,
-    } = useStaffAccounts('janjijiwa', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'janjijiwa' });
-
-    const {
-        data: staffAccountsChatime,
-        isLoading: isLoadingStaffChatime,
-        isError: isErrorStaffChatime,
-    } = useStaffAccounts('chatime', deviceFilter, { enabled: !isAuthLoading && isStaff && activeTab === 'chatime' });
-
-    // Gabungkan berdasarkan role
-    const allAccounts = useMemo(() => (
-        isStaff
-            ? [
-                ...(staffAccountsKopken || []),
-                ...(staffAccountsFore || []),
-                ...(staffAccountsTomoro || []),
-                ...(staffAccountsJanjijiwa || []),
-                ...(staffAccountsChatime || [])
-              ]
-            : (allAccountsAdmin || [])
-    ), [isStaff, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, staffAccountsChatime, allAccountsAdmin]);
+        isError,
+    } = useAccounts(undefined, { enabled: !isAuthLoading });
     // isLoading harus true juga selama sesi auth belum selesai dipulihkan
-    const isLoading = isAuthLoading || (isStaff
-        ? (isLoadingStaffKopken || isLoadingStaffFore || isLoadingStaffTomoro || isLoadingStaffJanjijiwa || isLoadingStaffChatime)
-        : isLoadingAdmin);
-    const isError = isStaff
-        ? (isErrorStaffKopken || isErrorStaffFore || isErrorStaffTomoro || isErrorStaffJanjijiwa || isErrorStaffChatime)
-        : isErrorAdmin;
+    const isLoading = isAuthLoading || isLoadingAdmin;
 
     // KopKen Panel data (kopsu.app automation account pool)
     const scanStatus = useDawgScanStatus(activeTab === 'kopken_panel');
@@ -267,8 +217,8 @@ export default function InventoryPage() {
         data: dawgAccounts,
         isLoading: isLoadingDawg,
     } = useDawgAccounts({
-        // Admin selalu butuh datanya buat kartu stok KopKen, bukan cuma pas tab panel dibuka.
-        enabled: !isAuthLoading && (activeTab === 'kopken_panel' || !isStaff),
+        // Selalu butuh datanya buat kartu stok KopKen, bukan cuma pas tab panel dibuka.
+        enabled: !isAuthLoading,
         // Selagi worker scan jalan, daftar akunnya ikut nge-refresh sendiri
         // supaya akun baru langsung kelihatan tanpa reload halaman.
         refetchInterval: isScanning ? 5_000 : false,
@@ -288,8 +238,8 @@ export default function InventoryPage() {
 
     // Calculate voucher stats from all accounts (memoized)
     const voucherStats = useMemo(
-        () => calculateVoucherStats(allAccounts || []),
-        [allAccounts]
+        () => calculateVoucherStats(allAccountsAdmin || []),
+        [allAccountsAdmin]
     );
 
     // Stok KopKen diambil dari pool KopKen Panel (dawg_accounts), bukan tabel accounts.
@@ -310,12 +260,6 @@ export default function InventoryPage() {
         searchQuery.trim() !== '';
 
     const getEmptyMessage = (brandName: string) => {
-        if (isStaff) {
-            return isDeviceFilterActive
-                ? `Tidak ada akun tersedia untuk ${brandName} pada filter perangkat ini.`
-                : `Tidak ada akun tersedia untuk ${brandName} saat ini.`;
-        }
-
         return hasActiveFilters
             ? 'No accounts match your filters.'
             : `No ready accounts found for ${brandName}.`;
@@ -360,29 +304,6 @@ export default function InventoryPage() {
 
     // Smart Filtered & Sorted Accounts Logic
     const filteredAccounts = useMemo(() => {
-        // Untuk Staff: data sudah di-filter server-side (ready, limit 6), tinggal filter per brand
-        if (isStaff) {
-            let staffData: Account[] = [];
-            if (activeTab === 'kopken') staffData = staffAccountsKopken || [];
-            else if (activeTab === 'fore') staffData = staffAccountsFore || [];
-            else if (activeTab === 'tomoro') staffData = staffAccountsTomoro || [];
-            else if (activeTab === 'janjijiwa') staffData = staffAccountsJanjijiwa || [];
-            else if (activeTab === 'chatime') staffData = staffAccountsChatime || [];
-
-            let result = staffData;
-            if (deviceFilter === DEVICE_UNSET_VALUE) {
-                result = result.filter((account) => isUnsetDevice(account.device_name));
-            } else if (deviceFilter !== DEVICE_ALL_VALUE) {
-                result = result.filter(
-                    (account) => account.device_name?.trim() === deviceFilter
-                );
-            }
-
-            return [...result].sort((a, b) =>
-                new Date(a.expiry_date).getTime() - new Date(b.expiry_date).getTime()
-            );
-        }
-
         // Untuk Super Admin: logika filter & sort penuh
         if (!allAccountsAdmin) return [];
 
@@ -430,7 +351,7 @@ export default function InventoryPage() {
         });
 
         return result;
-    }, [allAccountsAdmin, staffAccountsKopken, staffAccountsFore, staffAccountsTomoro, staffAccountsJanjijiwa, staffAccountsChatime, activeTab, searchQuery, statusFilter, deviceFilter, isStaff]);
+    }, [allAccountsAdmin, activeTab, searchQuery, statusFilter, deviceFilter]);
 
     // Action handlers
     const handleEdit = (account: Account) => {
@@ -606,8 +527,7 @@ export default function InventoryPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Summary Stats Cards - disembunyikan untuk Staff */}
-            {!isStaff && (
+            {/* Summary Stats Cards - satu-satunya yang dilihat Staff */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
                 {/* KopKen No Min */}
                 <Card className="shadow-sm bg-gradient-to-br from-emerald-50 to-white border-emerald-100">
@@ -735,9 +655,9 @@ export default function InventoryPage() {
                     </CardContent>
                 </Card>
                 </div>
-            )}
 
-            {/* Brand Tabs with Table */}
+            {/* Brand Tabs with Table - khusus admin, Staff cukup lihat jumlah stok di atas */}
+            {!isStaff && (
             <Card className="shadow-sm">
                 <CardHeader className="border-b border-slate-100 pb-4">
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -749,11 +669,6 @@ export default function InventoryPage() {
                                     <span className="ml-2 inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                                         Total: {kopkenStats.nomin + kopkenStats.min50k + kopkenStats.min70k + voucherStats.tomoroBogo + voucherStats.tomoroDisc50 + voucherStats.janjijiwaDisc50} siap
                                     </span>
-                                </CardDescription>
-                            )}
-                            {isStaff && (
-                                <CardDescription>
-                                    Menampilkan maks. 6 akun tersedia per brand
                                 </CardDescription>
                             )}
                         </div>
@@ -1046,6 +961,7 @@ export default function InventoryPage() {
                     </Tabs>
                 </CardContent>
             </Card>
+            )}
 
             {isSuperAdmin && <AccountLogViewer />}
         </div>

@@ -472,3 +472,60 @@ export async function updateKopkenBluAccounts(accounts: BluAccount[]): Promise<v
         throw new Error(`Failed to update kopken blu accounts: ${error.message}`);
     }
 }
+
+// -----------------------------------------------------------------------------
+// Default metode bayar Kopken per user admin/staf
+// -----------------------------------------------------------------------------
+
+const KOPKEN_DEFAULT_PAYMENT_KEY = 'kopken_default_payment';
+
+/** Email user (huruf kecil) -> 'qris' atau label akun blu (lihat BluAccount). */
+export type KopkenDefaultPayments = Record<string, string>;
+
+/**
+ * Pilihan bayar awal di panel checkout Calculator, per user yang login. Satu
+ * baris JSON di app_settings, pola yang sama dengan daftar akun blu. Diatur
+ * super_admin di Operational. User yang tidak ada di sini jatuh ke akun blu
+ * pertama; isi rusak = objek kosong, jadi semua user ikut jatuh ke situ.
+ */
+export async function getKopkenDefaultPayments(): Promise<KopkenDefaultPayments> {
+    const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', KOPKEN_DEFAULT_PAYMENT_KEY)
+        .maybeSingle();
+
+    if (error) {
+        console.error('Error fetching kopken default payments:', error);
+        return {};
+    }
+    if (typeof data?.value !== 'string' || !data.value.trim()) return {};
+
+    try {
+        const parsed: unknown = JSON.parse(data.value);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        return Object.fromEntries(
+            Object.entries(parsed)
+                .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+                .map(([email, pilihan]) => [email.trim().toLowerCase(), pilihan.trim()])
+                .filter(([email, pilihan]) => email && pilihan)
+        );
+    } catch (parseError) {
+        console.error('Error parsing kopken default payments:', parseError);
+        return {};
+    }
+}
+
+export async function updateKopkenDefaultPayments(defaults: KopkenDefaultPayments): Promise<void> {
+    const { error } = await supabase
+        .from('app_settings')
+        .upsert(
+            { key: KOPKEN_DEFAULT_PAYMENT_KEY, value: JSON.stringify(defaults) },
+            { onConflict: 'key' }
+        );
+
+    if (error) {
+        console.error('Error updating kopken default payments:', error);
+        throw new Error(`Failed to update kopken default payments: ${error.message}`);
+    }
+}

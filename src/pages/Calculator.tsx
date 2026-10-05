@@ -57,6 +57,7 @@ import { getMenuItems, type MenuItem } from '@/services/menuService';
 import {
     getAdminFees,
     getKopkenBluAccounts,
+    getKopkenDefaultPayments,
     type AdminFees,
     type BluAccount,
 } from '@/services/operationalService';
@@ -534,9 +535,15 @@ function CheckoutPanel({
     // yang dipilih namanya saja (blu1, blu2, ...), nomornya sengaja tidak
     // ditampilkan. useQuery biar N panel (satu per grup akun) berbagi satu
     // fetch dan ikut ter-refresh bareng kalau daftarnya diubah.
-    const { data: bluAccounts = [] } = useQuery<BluAccount[]>({
+    const { data: bluAccounts = [], isFetched: bluSiap } = useQuery<BluAccount[]>({
         queryKey: ['kopkenBluAccounts'],
         queryFn: getKopkenBluAccounts,
+        enabled: !isFore,
+    });
+    // Default bayar per user, diatur super_admin di Operational.
+    const { data: defaultBayar, isFetched: defaultBayarSiap } = useQuery({
+        queryKey: ['kopkenDefaultPayments'],
+        queryFn: getKopkenDefaultPayments,
         enabled: !isFore,
     });
     // 'qris' atau label akun blu. Worker tetap default 10461 kalau payload tidak
@@ -544,14 +551,18 @@ function CheckoutPanel({
     const [paymentChoice, setPaymentChoice] = useState('qris');
     const akunBluTerpilih = bluAccounts.find((akun) => akun.label === paymentChoice) ?? null;
 
-    // Sekali saja begitu daftarnya sampai: default ke akun blu pertama, karena
-    // pembayaran sehari-hari lewat blu dan QRIS cuma cadangan. Ref-nya supaya
-    // refetch berikutnya tidak menimpa pilihan admin yang sudah dipindah ke QRIS.
+    // Sekali saja begitu kedua daftar sampai: default bayar milik user yang login
+    // kalau ada dan masih valid, selain itu akun blu pertama, karena pembayaran
+    // sehari-hari lewat blu dan QRIS cuma cadangan. Ref-nya supaya refetch
+    // berikutnya tidak menimpa pilihan admin yang sudah dipindah manual.
     const sudahSetDefaultBayar = useRef(false);
     useEffect(() => {
-        if (!sudahSetDefaultBayar.current && bluAccounts.length > 0) {
+        if (!sudahSetDefaultBayar.current) {
+            if (!bluSiap || !defaultBayarSiap) return;
             sudahSetDefaultBayar.current = true;
-            setPaymentChoice(bluAccounts[0].label);
+            const pilihanUser = defaultBayar?.[user?.email?.toLowerCase() ?? ''];
+            const pilihanValid = pilihanUser === 'qris' || bluAccounts.some((akun) => akun.label === pilihanUser);
+            setPaymentChoice(pilihanValid && pilihanUser ? pilihanUser : bluAccounts[0]?.label ?? 'qris');
             return;
         }
         // Akun yang sedang dipilih hilang dari daftar (dihapus/diganti nama di
@@ -562,7 +573,7 @@ function CheckoutPanel({
                 ? bluAccounts[0]?.label ?? 'qris'
                 : prev
         ));
-    }, [bluAccounts]);
+    }, [bluAccounts, bluSiap, defaultBayar, defaultBayarSiap, user?.email]);
 
     // Panel setelan per grup (jadwal/plastik/metode bayar) ditutup secara default:
     // nilainya hampir selalu sudah benar dari hasil parse + app_settings, jadi

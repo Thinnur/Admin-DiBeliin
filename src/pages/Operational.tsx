@@ -47,6 +47,8 @@ import {
     updateAdminFee,
     getKopkenBluAccounts,
     updateKopkenBluAccounts,
+    getKopkenDefaultPayments,
+    updateKopkenDefaultPayments,
     type Voucher,
     type AdminFees,
     type BluAccount,
@@ -899,6 +901,164 @@ function BluAccountSection() {
 }
 
 // -----------------------------------------------------------------------------
+// Default metode bayar Kopken per user
+// -----------------------------------------------------------------------------
+
+// Pilihan bayar yang langsung terpilih di panel checkout Calculator, per email
+// user admin/staf. Daftar user tidak bisa diambil dari browser (auth.users butuh
+// service key), jadi emailnya diketik manual. Lihat getKopkenDefaultPayments().
+function KopkenDefaultPaymentSection() {
+    const queryClient = useQueryClient();
+    const { data: saved, isLoading } = useQuery({
+        queryKey: ['kopkenDefaultPayments'],
+        queryFn: getKopkenDefaultPayments,
+    });
+    const { data: bluAccounts = [] } = useQuery<BluAccount[]>({
+        queryKey: ['kopkenBluAccounts'],
+        queryFn: getKopkenBluAccounts,
+    });
+
+    const [rows, setRows] = useState<{ email: string; pilihan: string }[]>([]);
+
+    useEffect(() => {
+        if (saved) setRows(Object.entries(saved).map(([email, pilihan]) => ({ email, pilihan })));
+    }, [saved]);
+
+    const saveMutation = useMutation({
+        mutationFn: updateKopkenDefaultPayments,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['kopkenDefaultPayments'] });
+            toast.success('Default pembayaran tersimpan');
+        },
+        onError: (error) => {
+            console.error('Failed to update kopken default payments:', error);
+            toast.error('Gagal menyimpan default pembayaran');
+        },
+    });
+
+    const setRow = (index: number, patch: Partial<{ email: string; pilihan: string }>) => {
+        setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+    };
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        const bersih = rows.map((row) => ({ email: row.email.trim().toLowerCase(), pilihan: row.pilihan }));
+
+        if (bersih.some((row) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email))) {
+            toast.error('Email tidak valid');
+            return;
+        }
+        const emails = bersih.map((row) => row.email);
+        if (new Set(emails).size !== emails.length) {
+            toast.error('Satu email cuma boleh satu baris');
+            return;
+        }
+        saveMutation.mutate(Object.fromEntries(bersih.map((row) => [row.email, row.pilihan])));
+    };
+
+    const labelBlu = bluAccounts.map((akun) => akun.label);
+
+    return (
+        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
+            <CardHeader className="pb-4">
+                <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-600 rounded-xl shadow-lg shadow-indigo-500/20">
+                        <Wallet className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                        <CardTitle className="text-lg">Default Pembayaran Kopken</CardTitle>
+                        <CardDescription>
+                            Metode bayar yang langsung terpilih saat user ini checkout Kopken. User yang tidak ada di daftar pakai akun blu pertama.
+                        </CardDescription>
+                    </div>
+                </div>
+            </CardHeader>
+            <CardContent>
+                {isLoading ? (
+                    <div className="text-center py-6 text-slate-500">
+                        <div className="animate-pulse">Memuat default pembayaran...</div>
+                    </div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {rows.length === 0 && (
+                            <p className="text-sm text-slate-500">
+                                Belum ada pengaturan. Semua user default ke akun blu pertama.
+                            </p>
+                        )}
+                        {rows.map((row, index) => (
+                            <div key={index} className="flex items-end gap-2">
+                                <div className="space-y-2 flex-1 min-w-0">
+                                    <Label htmlFor={`default-bayar-email-${index}`}>Email user</Label>
+                                    <Input
+                                        id={`default-bayar-email-${index}`}
+                                        type="email"
+                                        placeholder="nama@akzara.id"
+                                        value={row.email}
+                                        onChange={(e) => setRow(index, { email: e.target.value })}
+                                        disabled={saveMutation.isPending}
+                                    />
+                                </div>
+                                <div className="space-y-2 w-36 shrink-0">
+                                    <Label>Metode bayar</Label>
+                                    <Select
+                                        value={row.pilihan}
+                                        onValueChange={(pilihan) => setRow(index, { pilihan })}
+                                        disabled={saveMutation.isPending}
+                                    >
+                                        <SelectTrigger aria-label={`Metode bayar untuk ${row.email || `baris ${index + 1}`}`}>
+                                            <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            <SelectItem value="qris">QRIS</SelectItem>
+                                            {labelBlu.map((label) => (
+                                                <SelectItem key={label} value={label}>{label}</SelectItem>
+                                            ))}
+                                            {/* Akun blu-nya sudah dihapus: tetap tampil biar admin sadar,
+                                                checkout akan jatuh ke blu pertama. */}
+                                            {row.pilihan !== 'qris' && !labelBlu.includes(row.pilihan) && (
+                                                <SelectItem value={row.pilihan} disabled>
+                                                    {row.pilihan} (sudah dihapus)
+                                                </SelectItem>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                </div>
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Hapus default bayar ${row.email || index + 1}`}
+                                    className="text-slate-400 hover:text-red-500 hover:bg-red-50"
+                                    disabled={saveMutation.isPending}
+                                    onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </Button>
+                            </div>
+                        ))}
+                        <div className="flex gap-2">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={saveMutation.isPending}
+                                onClick={() => setRows((prev) => [...prev, { email: '', pilihan: labelBlu[0] ?? 'qris' }])}
+                            >
+                                <Plus className="h-4 w-4 mr-2" />
+                                Tambah User
+                            </Button>
+                            <Button type="submit" disabled={saveMutation.isPending}>
+                                <Save className="h-4 w-4 mr-2" />
+                                {saveMutation.isPending ? 'Menyimpan...' : 'Simpan'}
+                            </Button>
+                        </div>
+                    </form>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
+// -----------------------------------------------------------------------------
 // Voucher Form
 // -----------------------------------------------------------------------------
 
@@ -1699,22 +1859,6 @@ export default function Operational() {
                     activeTemplateIds={activeTemplateIds}
                     onChangeTemplate={handleChangeTemplate}
                 />
-
-                <CinemaStatusSection
-                    isCinemaOpen={isCinemaOpen}
-                    isCgvOpen={isCgvOpen}
-                    isCinepolisOpen={isCinepolisOpen}
-                    isXxiOpen={isXxiOpen}
-                    isLoading={isServiceLoading}
-                    onToggleCinema={handleToggleCinema}
-                    onToggleCgv={handleToggleCgv}
-                    onToggleCinepolis={handleToggleCinepolis}
-                    onToggleXxi={handleToggleXxi}
-                    orderWindows={cinemaOrderWindows}
-                    onChangeOrderWindow={handleChangeOrderWindow}
-                />
-
-                <AdminFeeSection />
             </div>
         );
     }
@@ -1786,6 +1930,8 @@ export default function Operational() {
                 {/* Sengaja cuma di tampilan super_admin — ini kredensial bayar,
                     bukan pengaturan operasional biasa. */}
                 <BluAccountSection />
+
+                <KopkenDefaultPaymentSection />
 
                 {/* Voucher Management */}
                 <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
