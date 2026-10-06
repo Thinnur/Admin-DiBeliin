@@ -80,6 +80,28 @@ export async function getMenuItems(): Promise<MenuItem[]> {
     return data || [];
 }
 
+/** Kolom yang dipakai Calculator buat mencocokkan harga. */
+export type MenuPriceItem = Pick<MenuItem, 'brand' | 'name' | 'regular_price'>;
+
+/**
+ * Versi ramping getMenuItems() buat Calculator: tanpa addons/deskripsi/gambar.
+ * select('*') di sini dulu ~2,3 MB per buka Calculator, berat di HP staf.
+ */
+export async function getMenuPrices(): Promise<MenuPriceItem[]> {
+    const { data, error } = await supabase
+        .from('menu_items')
+        .select('brand, name, regular_price')
+        .order('brand', { ascending: true })
+        .order('name', { ascending: true });
+
+    if (error) {
+        console.error('Error fetching menu prices:', error);
+        throw new Error(`Failed to fetch menu prices: ${error.message}`);
+    }
+
+    return data || [];
+}
+
 /**
  * Create a new menu item
  * @param item - New menu item data (without id and created_at)

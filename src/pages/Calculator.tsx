@@ -53,7 +53,7 @@ import {
     getSampleOrderText,
     type ParsedItem,
 } from '@/lib/logic/orderParser';
-import { getMenuItems, type MenuItem } from '@/services/menuService';
+import { getMenuPrices, type MenuPriceItem } from '@/services/menuService';
 import {
     getAdminFees,
     getKopkenBluAccounts,
@@ -847,10 +847,10 @@ export default function CalculatorPage() {
     const [hasOptimized, setHasOptimized] = useState(false);
 
     // Menu DB cache for auto-price matching
-    const [dbMenuItems, setDbMenuItems] = useState<MenuItem[]>([]);
+    const [dbMenuItems, setDbMenuItems] = useState<MenuPriceItem[]>([]);
 
     useEffect(() => {
-        getMenuItems()
+        getMenuPrices()
             .then(setDbMenuItems)
             .catch(() => toast.error('Gagal memuat database harga menu'));
     }, []);

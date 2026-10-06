@@ -658,21 +658,14 @@ export default function AdminLayout() {
             return false;
         }
     });
-    const [user, setUser] = useState<SupabaseUser | null>(null);
     const navigate = useNavigate();
     const location = useLocation();
-    const { isStaff } = useAuth();
+    const { isStaff, user } = useAuth();
 
     const pageInfo = pageTitles[location.pathname] || {
         title: 'Dashboard',
         description: 'Welcome to DiBeliin Admin',
     };
-
-    useEffect(() => {
-        supabase.auth.getUser().then(({ data: { user } }) => {
-            setUser(user);
-        });
-    }, []);
 
     const handleSignOut = async () => {
         try {

@@ -47,24 +47,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         let mounted = true;
 
-        // Langkah 1: getUser() sebagai resolver UTAMA.
+        // Langkah 1: getSession() sebagai resolver UTAMA.
         // Ini menjamin isLoading=false + user ter-set, dengan atau tanpa
         // onAuthStateChange berhasil fire — aman dari React StrictMode double-invoke.
-        supabase.auth.getUser().then(({ data: { user } }) => {
+        // Sengaja bukan getUser(): itu request jaringan per tab, dan kalau gagal
+        // (sinyal HP jelek) user jadi null padahal sesinya masih ada.
+        supabase.auth.getSession().then(({ data: { session } }) => {
             if (!mounted) return;
-            setUser(user ?? null);
+            if (session) setUser(session.user);
             setIsLoading(false);
         });
 
         // Langkah 2: onAuthStateChange sebagai listener perubahan SELANJUTNYA.
         // Untuk SIGNED_IN baru & TOKEN_REFRESHED: gunakan user dari event
         // (lebih efisien, tidak perlu network call tambahan).
-        // INITIAL_SESSION ditangani oleh getUser() di atas, jadi diabaikan di sini.
+        // INITIAL_SESSION juga ditangani getSession() di atas.
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            (_event, session) => {
+            (event, session) => {
                 if (!mounted) return;
-                // Update user state saat login/logout/token refresh terjadi
-                setUser(session?.user ?? null);
+                // Update user state saat login/logout/token refresh terjadi.
+                // Sesi null selain SIGNED_OUT = refresh gagal karena jaringan, bukan logout.
+                if (session || event === 'SIGNED_OUT') setUser(session?.user ?? null);
                 // Pastikan isLoading juga off jika onAuthStateChange datang lebih dulu
                 setIsLoading(false);
             }
@@ -78,9 +81,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
     // Deteksi role dari user_metadata
-    // Jika metadata tidak ada atau bukan 'staff', default = 'super_admin'
+    // Jika metadata tidak ada atau bukan 'staff', default = 'super_admin'.
+    // Belum ada user (sesi belum terbaca) -> 'staff', hak paling kecil, supaya
+    // staf tidak sempat melihat tampilan super_admin.
     const role: UserRole =
-        user?.user_metadata?.role === 'staff' ? 'staff' : 'super_admin';
+        !user || user.user_metadata?.role === 'staff' ? 'staff' : 'super_admin';
 
     const value: AuthContextValue = {
         user,

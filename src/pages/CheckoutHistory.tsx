@@ -5,7 +5,7 @@
 // cek order yang masih menunggu discan QRIS, download struk, atau lihat kenapa gagal.
 // Klik baris/"Detail" membuka halaman tersendiri (/checkout-process/:jobId).
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { RefreshCw, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -96,16 +96,22 @@ export default function CheckoutHistoryPage() {
     // menampilkan checkbox-nya.
     const [selectMode, setSelectMode] = useState(false);
 
+    // Data diambil per hari yang dipilih (server yang menyaring), bukan 2000
+    // baris sekaligus. Ref-nya supaya jawaban hari lama yang telat datang
+    // tidak menimpa hari yang baru dipilih.
+    const permintaanTerakhir = useRef(0);
     const loadJobs = useCallback(async (opts?: { silent?: boolean }) => {
+        const ke = ++permintaanTerakhir.current;
         if (!opts?.silent) setLoading(true);
         try {
-            setJobs(await listCheckoutJobs(2000));
+            const data = await listCheckoutJobs({ day: selectedDay });
+            if (ke === permintaanTerakhir.current) setJobs(data);
         } catch (e) {
             if (!opts?.silent) toast.error(e instanceof Error ? e.message : 'Gagal memuat riwayat checkout');
         } finally {
-            if (!opts?.silent) setLoading(false);
+            if (!opts?.silent && ke === permintaanTerakhir.current) setLoading(false);
         }
-    }, []);
+    }, [selectedDay]);
 
     useEffect(() => {
         loadJobs();
@@ -204,7 +210,7 @@ export default function CheckoutHistoryPage() {
                         Semua order Kopken yang diproses lewat Calculator — cek status, QRIS, atau struk
                     </p>
                 </div>
-                <Button variant="outline" size="sm" onClick={loadJobs} disabled={loading}>
+                <Button variant="outline" size="sm" onClick={() => loadJobs()} disabled={loading}>
                     <RefreshCw className={`w-4 h-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
                     Refresh
                 </Button>
@@ -215,6 +221,9 @@ export default function CheckoutHistoryPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2">
                         <CardTitle className="text-base">
                             Order ({filteredJobs.length})
+                            {selectedDay === null && (
+                                <span className="ml-2 text-xs font-normal text-slate-400">300 terbaru — pilih tanggal untuk yang lebih lama</span>
+                            )}
                         </CardTitle>
                         <div className="flex items-center gap-2">
                             <Button

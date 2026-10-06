@@ -112,19 +112,38 @@ export async function requestReceiptRefresh(id: string): Promise<void> {
     if (error) throw new Error(`Gagal minta refresh struk: ${error.message}`);
 }
 
-/** Riwayat checkout terbaru (buat halaman CheckoutHistory). Sengaja exclude
- * kolom `log` (array progres checkout_worker.js, bisa gede) -- list view cuma
- * butuh ringkasan, dan ini di-refetch tiap 10 detik x sampai 2000 baris, jadi
- * ngirit egress banyak. Buka detail per-job (CheckoutProcess) tetap select('*'). */
-export async function listCheckoutJobs(limit = 100): Promise<CheckoutJob[]> {
-    const { data, error } = await supabase
+/** Riwayat checkout (buat halaman CheckoutHistory), cuma ringkasan:
+ * - tanpa kolom `log` (array progres checkout_worker.js, bisa gede);
+ * - dari `result` cuma amount/paymentStatus/phase -- struk (`receipt`) itu
+ *   separuh ukuran baris dan tidak dipakai di daftar;
+ * - `day` (yyyy-MM-dd, jam lokal) -> order hari itu saja; null -> `limit`
+ *   order terbaru. Dulu selalu 2000 baris (~6,4 MB) tiap buka halaman.
+ * Buka detail per-job (CheckoutProcess) tetap select('*'). */
+export async function listCheckoutJobs(
+    { day = null, limit = 300 }: { day?: string | null; limit?: number } = {}
+): Promise<CheckoutJob[]> {
+    let query = supabase
         .from('checkout_jobs')
-        .select('id, order_payload, status, result, created_by, created_at, updated_at, receipt_refresh_requested_at, cancel_requested_at')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+        .select('id, order_payload, status, amount:result->amount, paymentStatus:result->>paymentStatus, phase:result->>phase, created_by, created_at, updated_at, receipt_refresh_requested_at, cancel_requested_at')
+        .order('created_at', { ascending: false });
 
+    if (day) {
+        const mulai = new Date(`${day}T00:00:00`);
+        const besok = new Date(mulai);
+        besok.setDate(besok.getDate() + 1);
+        // ponytail: batas 1000 per hari cuma jaring pengaman, rekor harian jauh di bawahnya
+        query = query.gte('created_at', mulai.toISOString()).lt('created_at', besok.toISOString()).limit(1000);
+    } else {
+        query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
     if (error) throw new Error(`Gagal memuat riwayat checkout: ${error.message}`);
-    return (data ?? []).map((j) => ({ ...j, log: [] })) as CheckoutJob[];
+    return (data ?? []).map(({ amount, paymentStatus, phase, ...j }) => ({
+        ...j,
+        result: { amount, paymentStatus, phase },
+        log: [],
+    })) as unknown as CheckoutJob[];
 }
 
 /** Batalkan job yang belum sampai Bayar. Dua kondisi:
