@@ -96,6 +96,7 @@ export type TransactionUpdate = Partial<TransactionInsert>;
 export interface AccountFilters {
   brand?: AccountBrand;
   status?: AccountStatus;
+  statuses?: AccountStatus[]; // beberapa status sekaligus (mis. ready + in_use)
   expiry_before?: string; // Filter accounts expiring before this date
   expiry_after?: string;  // Filter accounts expiring after this date
 }

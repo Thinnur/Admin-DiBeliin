@@ -35,6 +35,9 @@ export async function fetchAccounts(filters?: AccountFilters): Promise<Account[]
     if (filters?.status) {
         query = query.eq('status', filters.status);
     }
+    if (filters?.statuses) {
+        query = query.in('status', filters.statuses);
+    }
     if (filters?.expiry_before) {
         query = query.lte('expiry_date', filters.expiry_before);
     }

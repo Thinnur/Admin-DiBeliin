@@ -94,9 +94,15 @@ export async function fetchTransactionsSignature(): Promise<string> {
 }
 
 export async function fetchTransactionCategories(): Promise<TransactionCategoryGroups> {
-    const { data, error } = await supabase
-        .from('transactions')
-        .select('category, transaction_type');
+    // Kategori unik dihitung di DB (migrasi 20261006_get_transaction_categories).
+    // Fungsi belum terpasang -> cara lama: tarik kolom category semua transaksi
+    // (~268 KB, dan server memotong di 5000 baris jadi sebagian kategori hilang).
+    let { data, error } = await supabase.rpc('get_transaction_categories');
+    if (error) {
+        ({ data, error } = await supabase
+            .from('transactions')
+            .select('category, transaction_type'));
+    }
 
     if (error) {
         throw new Error(`Failed to fetch transaction categories: ${error.message}`);

@@ -75,7 +75,7 @@ import {
     isUnsetDevice,
     type DeviceFilterValue,
 } from '@/lib/deviceOptions';
-import type { Account, AccountBrand, AccountStatus, DawgAccount } from '@/types/database';
+import type { Account, AccountBrand, AccountFilters, AccountStatus, DawgAccount } from '@/types/database';
 import type { DawgScanStatus } from '@/services/dawgAccountService';
 
 // -----------------------------------------------------------------------------
@@ -202,22 +202,34 @@ export default function InventoryPage() {
     const [isInUseDialogOpen, setIsInUseDialogOpen] = useState(false);
     const [inUseByName, setInUseByName] = useState('');
 
-    // Admin: data akun penuh buat tabel. Staff cuma lihat angka stok, jadi
-    // ambil kolom secukupnya -- JANGAN ikut narik nomor HP & password ke HP staf.
+    // Tabel admin: tampilan default cuma butuh akun ready/in_use (~365 KB).
+    // Akun 'sold' (~78% baris, total ~1,7 MB) baru diambil kalau admin memfilter
+    // status, mencari, atau memfilter perangkat -- sama dengan aturan tampil
+    // di filteredAccounts (isDefaultState).
+    const filterAkun = useMemo<AccountFilters | undefined>(() => {
+        if (statusFilter !== 'all') return { status: statusFilter };
+        if (searchQuery.trim() === '' && deviceFilter === DEVICE_ALL_VALUE) {
+            return { statuses: ['ready', 'in_use'] };
+        }
+        return undefined;
+    }, [statusFilter, searchQuery, deviceFilter]);
     // Guard: !isAuthLoading memastikan query TIDAK jalan sebelum sesi auth selesai dipulihkan
     const {
         data: allAccountsAdmin,
         isLoading: isLoadingAdmin,
         isError: isErrorAdmin,
-    } = useAccounts(undefined, { enabled: !isAuthLoading && !isStaff });
+    } = useAccounts(filterAkun, { enabled: !isAuthLoading && !isStaff });
+    // Kartu stok (admin & staff): kolom secukupnya, semua status -- JANGAN ikut
+    // narik nomor HP & password ke HP staf. Terpisah dari tabel supaya angka
+    // total tidak ikut berubah waktu tabel difilter.
     const {
-        data: stokStaff,
+        data: stokVoucher,
         isLoading: isLoadingStokStaff,
         isError: isErrorStokStaff,
     } = useQuery({
         queryKey: [...queryKeys.accounts.all, 'voucherStock'],
         queryFn: fetchVoucherStockRows,
-        enabled: !isAuthLoading && isStaff,
+        enabled: !isAuthLoading,
     });
     const { data: dawgCountsStaff } = useQuery({
         queryKey: ['dawgTierCounts'],
@@ -259,8 +271,8 @@ export default function InventoryPage() {
 
     // Calculate voucher stats from all accounts (memoized)
     const voucherStats = useMemo(
-        () => calculateVoucherStats((isStaff ? stokStaff : allAccountsAdmin) || []),
-        [isStaff, stokStaff, allAccountsAdmin]
+        () => calculateVoucherStats(stokVoucher || []),
+        [stokVoucher]
     );
 
     // Stok KopKen diambil dari pool KopKen Panel (dawg_accounts), bukan tabel accounts.
