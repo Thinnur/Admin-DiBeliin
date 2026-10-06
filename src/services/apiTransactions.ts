@@ -78,6 +78,21 @@ export async function fetchTransactions(
 // Fetch Transaction Categories
 // -----------------------------------------------------------------------------
 
+/** Sidik jari tabel transactions (jumlah baris + id terbaru), ~ratusan byte.
+ * Finance mengeceknya berkala dan baru memuat ulang daftar kalau berubah --
+ * jauh lebih hemat daripada polling daftar transaksinya. Edit di tempat
+ * (nominal diubah) tidak terdeteksi; itu lewat Finance sendiri & sudah
+ * meng-invalidate query-nya. */
+export async function fetchTransactionsSignature(): Promise<string> {
+    const [jumlah, terbaru] = await Promise.all([
+        supabase.from('transactions').select('id', { count: 'exact', head: true }),
+        supabase.from('transactions').select('id').order('created_at', { ascending: false }).limit(1),
+    ]);
+    if (jumlah.error) throw new Error(`Failed to check transactions: ${jumlah.error.message}`);
+    if (terbaru.error) throw new Error(`Failed to check transactions: ${terbaru.error.message}`);
+    return `${jumlah.count ?? 0}|${terbaru.data?.[0]?.id ?? ''}`;
+}
+
 export async function fetchTransactionCategories(): Promise<TransactionCategoryGroups> {
     const { data, error } = await supabase
         .from('transactions')

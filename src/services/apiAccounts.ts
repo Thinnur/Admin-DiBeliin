@@ -429,6 +429,20 @@ export function shouldMarkAsSold(account: Account): boolean {
     return false;
 }
 
+/** Kolom secukupnya buat kartu stok Tomoro/Jiwa -- tanpa nomor HP & password. */
+export type VoucherStockRow = Pick<Account, 'brand' | 'status' | 'is_bogo_ready' | 'is_discount35_ready'>;
+
+/** Dipakai tampilan staff di Inventory, yang cuma menampilkan angka stok. */
+export async function fetchVoucherStockRows(): Promise<VoucherStockRow[]> {
+    const { data, error } = await supabase
+        .from('accounts')
+        .select('brand, status, is_bogo_ready, is_discount35_ready')
+        .in('brand', ['tomoro', 'janjijiwa']);
+
+    if (error) throw new Error(`Failed to fetch voucher stock: ${error.message}`);
+    return (data ?? []) as VoucherStockRow[];
+}
+
 /**
  * Fix stale 'ready' accounts that have all vouchers exhausted
  * (handles legacy data before auto-sold logic was added)

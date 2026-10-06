@@ -18,6 +18,24 @@ export async function fetchDawgAccounts(): Promise<DawgAccount[]> {
     return (data ?? []) as DawgAccount[];
 }
 
+/** Stok voucher "Pengguna Baru - Diskon 50%" per tier, dihitung di server
+ * (HEAD + count) -- buat kartu stok staff yang tidak butuh tabel panelnya.
+ * fetchDawgAccounts() penuh itu ~800 KB. */
+export async function fetchDawgTierCounts(): Promise<{ nomin: number; min50k: number; min70k: number; total: number }> {
+    const hitung = async (tier?: string) => {
+        let query = supabase.from('dawg_accounts').select('account_id', { count: 'exact', head: true });
+        // vouchers itu jsonb -> nilai cs harus JSON, bukan literal array Postgres
+        if (tier) query = query.contains('vouchers', JSON.stringify([`Pengguna Baru - Diskon 50%|${tier}`]));
+        const { count, error } = await query;
+        if (error) throw new Error(`Gagal menghitung stok KopKen: ${error.message}`);
+        return count ?? 0;
+    };
+    const [nomin, min50k, min70k, total] = await Promise.all([
+        hitung('tanpa_minimal'), hitung('min_50k'), hitung('min_70k'), hitung(),
+    ]);
+    return { nomin, min50k, min70k, total };
+}
+
 // -----------------------------------------------------------------------------
 // Scan Akun Manual
 // -----------------------------------------------------------------------------

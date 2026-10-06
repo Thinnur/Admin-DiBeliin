@@ -39,9 +39,11 @@ import {
     CalendarRange,
     Landmark,
     Search,
+    RefreshCw,
 } from 'lucide-react';
 import type { ColumnDef } from '@tanstack/react-table';
 import { toast } from 'sonner';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { DataTable } from '@/components/ui/data-table';
 import { AddTransactionDialog } from '@/components/finance/AddTransactionDialog';
@@ -76,6 +78,8 @@ import {
     useDeleteTransaction,
     useProfitComparison,
 } from '@/hooks/useFinance';
+import { queryKeys } from '@/lib/queryClient';
+import { fetchTransactionsSignature } from '@/services/apiTransactions';
 import {
     formatCategoryLabel,
     getAllCategorySuggestions,
@@ -856,7 +860,7 @@ export default function FinancePage() {
         endDate: currentRange.endDate,
     }), [currentRange]);
 
-    const { data: transactions = [], isLoading: transactionsLoading } =
+    const { data: transactions = [], isLoading: transactionsLoading, dataUpdatedAt } =
         useTransactions(transactionFilters);
     const { data: categoryGroups } = useTransactionCategories();
     const { data: summary, isLoading: summaryLoading } = useFinancialSummary(currentRange);
@@ -865,6 +869,36 @@ export default function FinancePage() {
         previousRange,
     );
     const deleteTransaction = useDeleteTransaction();
+
+    // Refresh manual: semua data Finance, termasuk daftar kategori.
+    const queryClient = useQueryClient();
+    const [refreshing, setRefreshing] = useState(false);
+    const handleRefresh = async () => {
+        setRefreshing(true);
+        try {
+            await queryClient.invalidateQueries({ queryKey: queryKeys.transactions.all });
+        } finally {
+            setRefreshing(false);
+        }
+    };
+
+    // Auto update: tiap 30 detik (cuma selama tab kelihatan) cek sidik jari
+    // tabel -- ratusan byte. Daftar + ringkasan baru dimuat ulang kalau ada
+    // transaksi masuk/terhapus, mis. dari sinkron QRIS/checkout atau perangkat lain.
+    const { data: sidikJari } = useQuery({
+        queryKey: ['transactionsSignature'],
+        queryFn: fetchTransactionsSignature,
+        refetchInterval: 30_000,
+    });
+    const sidikJariTerakhir = useRef<string | undefined>(undefined);
+    useEffect(() => {
+        if (!sidikJari) return;
+        if (sidikJariTerakhir.current && sidikJariTerakhir.current !== sidikJari) {
+            queryClient.invalidateQueries({ queryKey: ['transactions', 'list'] });
+            queryClient.invalidateQueries({ queryKey: ['transactions', 'summary'] });
+        }
+        sidikJariTerakhir.current = sidikJari;
+    }, [sidikJari, queryClient]);
 
     // -------------------------------------------------------------------------
     // Handlers
@@ -1051,17 +1085,38 @@ export default function FinancePage() {
                 onChange={handleFileSelect}
             />
 
-            {/* Period Selector */}
-            <PeriodSelector
-                mode={periodMode}
-                selectedDate={selectedDate}
-                rangeStart={rangeStart}
-                rangeEnd={rangeEnd}
-                onModeChange={setPeriodMode}
-                onDateChange={setSelectedDate}
-                onRangeStartChange={setRangeStart}
-                onRangeEndChange={setRangeEnd}
-            />
+            {/* Period Selector + Refresh */}
+            <div className="flex items-start gap-2">
+                <div className="flex-1 min-w-0">
+                    <PeriodSelector
+                        mode={periodMode}
+                        selectedDate={selectedDate}
+                        rangeStart={rangeStart}
+                        rangeEnd={rangeEnd}
+                        onModeChange={setPeriodMode}
+                        onDateChange={setSelectedDate}
+                        onRangeStartChange={setRangeStart}
+                        onRangeEndChange={setRangeEnd}
+                    />
+                </div>
+                <div className="flex flex-col items-end gap-1 shrink-0">
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRefresh}
+                        disabled={refreshing}
+                        aria-label="Refresh data keuangan"
+                    >
+                        <RefreshCw className={`h-4 w-4 sm:mr-2 ${refreshing ? 'animate-spin' : ''}`} />
+                        <span className="hidden sm:inline">Refresh</span>
+                    </Button>
+                    {dataUpdatedAt > 0 && (
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap" title="Diperbarui otomatis saat ada transaksi baru">
+                            Auto · {format(dataUpdatedAt, 'HH:mm')}
+                        </span>
+                    )}
+                </div>
+            </div>
 
             {/* KPI Cards */}
             <div className="grid grid-cols-2 md:grid-cols-3 gap-2 md:gap-4">

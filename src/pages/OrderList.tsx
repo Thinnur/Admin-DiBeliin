@@ -166,9 +166,21 @@ export default function OrderListPage() {
     // tabel tidak berkedip tiap 20 detik saat admin lagi baca daftar.
     const loadRef = useRef(load);
     loadRef.current = load;
+    // Tab tersembunyi dilewati (satu checkout = satu tab baru, jadi tab Pesanan
+    // sering tertinggal di belakang dan tetap narik ±150 KB tiap 20 detik);
+    // begitu tab dibuka lagi, langsung dimuat ulang sekali.
     useEffect(() => {
-        const interval = setInterval(() => void loadRef.current(true), AUTO_REFRESH_MS);
-        return () => clearInterval(interval);
+        const interval = setInterval(() => {
+            if (!document.hidden) void loadRef.current(true);
+        }, AUTO_REFRESH_MS);
+        const onVisible = () => {
+            if (!document.hidden) void loadRef.current(true);
+        };
+        document.addEventListener('visibilitychange', onVisible);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', onVisible);
+        };
     }, []);
 
     const ordersOnSelectedDay = useMemo(

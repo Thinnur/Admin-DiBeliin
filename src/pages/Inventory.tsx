@@ -4,6 +4,7 @@
 // Premium inventory page for managing coffee shop accounts
 
 import { useState, useMemo } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Package, Coffee, Ticket, Plus, Search, LayoutGrid, RefreshCw } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
@@ -63,6 +64,9 @@ import {
     useFixStaleAccounts,
 } from '@/hooks/useInventory';
 import { useAuth } from '@/contexts/AuthContext';
+import { queryKeys } from '@/lib/queryClient';
+import { fetchVoucherStockRows, type VoucherStockRow } from '@/services/apiAccounts';
+import { fetchDawgTierCounts } from '@/services/dawgAccountService';
 import { useDawgAccounts, useDawgScanStatus, useRequestDawgScan } from '@/hooks/useDawgAccounts';
 import {
     DEVICE_ALL_VALUE,
@@ -155,11 +159,11 @@ interface VoucherStats {
     janjijiwaTotal: number;
 }
 
-function calculateVoucherStats(accounts: Account[]): VoucherStats {
+function calculateVoucherStats(accounts: VoucherStockRow[]): VoucherStats {
     const tomoroAccounts = accounts.filter((a) => a.brand === 'tomoro');
     const janjijiwaAccounts = accounts.filter((a) => a.brand === 'janjijiwa');
     // Akun berstatus 'issue' tetap menyimpan vouchernya tapi tidak dihitung sebagai tersedia
-    const notIssue = (a: Account) => a.status !== 'issue';
+    const notIssue = (a: VoucherStockRow) => a.status !== 'issue';
     return {
         tomoroBogo: tomoroAccounts.filter((a) => notIssue(a) && a.is_bogo_ready === true).length,
         tomoroDisc50: tomoroAccounts.filter((a) => notIssue(a) && a.is_discount35_ready === true).length,
@@ -198,15 +202,31 @@ export default function InventoryPage() {
     const [isInUseDialogOpen, setIsInUseDialogOpen] = useState(false);
     const [inUseByName, setInUseByName] = useState('');
 
-    // Staff ikut ambil data penuh: kartu stok butuh semua akun, tabelnya cuma tampil buat admin.
+    // Admin: data akun penuh buat tabel. Staff cuma lihat angka stok, jadi
+    // ambil kolom secukupnya -- JANGAN ikut narik nomor HP & password ke HP staf.
     // Guard: !isAuthLoading memastikan query TIDAK jalan sebelum sesi auth selesai dipulihkan
     const {
         data: allAccountsAdmin,
         isLoading: isLoadingAdmin,
-        isError,
-    } = useAccounts(undefined, { enabled: !isAuthLoading });
+        isError: isErrorAdmin,
+    } = useAccounts(undefined, { enabled: !isAuthLoading && !isStaff });
+    const {
+        data: stokStaff,
+        isLoading: isLoadingStokStaff,
+        isError: isErrorStokStaff,
+    } = useQuery({
+        queryKey: [...queryKeys.accounts.all, 'voucherStock'],
+        queryFn: fetchVoucherStockRows,
+        enabled: !isAuthLoading && isStaff,
+    });
+    const { data: dawgCountsStaff } = useQuery({
+        queryKey: ['dawgTierCounts'],
+        queryFn: fetchDawgTierCounts,
+        enabled: !isAuthLoading && isStaff,
+    });
     // isLoading harus true juga selama sesi auth belum selesai dipulihkan
-    const isLoading = isAuthLoading || isLoadingAdmin;
+    const isLoading = isAuthLoading || (isStaff ? isLoadingStokStaff : isLoadingAdmin);
+    const isError = isStaff ? isErrorStokStaff : isErrorAdmin;
 
     // KopKen Panel data (kopsu.app automation account pool)
     const scanStatus = useDawgScanStatus(activeTab === 'kopken_panel');
@@ -217,8 +237,9 @@ export default function InventoryPage() {
         data: dawgAccounts,
         isLoading: isLoadingDawg,
     } = useDawgAccounts({
-        // Selalu butuh datanya buat kartu stok KopKen, bukan cuma pas tab panel dibuka.
-        enabled: !isAuthLoading,
+        // Admin selalu butuh datanya buat kartu stok KopKen + tabel panel.
+        // Staff pakai fetchDawgTierCounts (dihitung di server, ~0 KB).
+        enabled: !isAuthLoading && !isStaff,
         // Selagi worker scan jalan, daftar akunnya ikut nge-refresh sendiri
         // supaya akun baru langsung kelihatan tanpa reload halaman.
         refetchInterval: isScanning ? 5_000 : false,
@@ -238,12 +259,13 @@ export default function InventoryPage() {
 
     // Calculate voucher stats from all accounts (memoized)
     const voucherStats = useMemo(
-        () => calculateVoucherStats(allAccountsAdmin || []),
-        [allAccountsAdmin]
+        () => calculateVoucherStats((isStaff ? stokStaff : allAccountsAdmin) || []),
+        [isStaff, stokStaff, allAccountsAdmin]
     );
 
     // Stok KopKen diambil dari pool KopKen Panel (dawg_accounts), bukan tabel accounts.
     const kopkenStats = useMemo(() => {
+        if (isStaff) return dawgCountsStaff ?? { nomin: 0, min50k: 0, min70k: 0, total: 0 };
         const list = dawgAccounts ?? [];
         return {
             nomin: countDawgTier(list, 'tanpa_minimal'),
@@ -251,7 +273,7 @@ export default function InventoryPage() {
             min70k: countDawgTier(list, 'min_70k'),
             total: list.length,
         };
-    }, [dawgAccounts]);
+    }, [isStaff, dawgCountsStaff, dawgAccounts]);
 
     const isDeviceFilterActive = deviceFilter !== DEVICE_ALL_VALUE;
     const hasActiveFilters =
