@@ -92,6 +92,7 @@ export default function CheckoutProcessPage() {
 
     const r = job.result as KopkenCheckoutResult | null;
     const canCancel = job.status === 'pending' || job.status === 'running';
+    const hargaKalkulator = job.order_payload.subtotal - (job.order_payload.discount ?? 0);
     const konfirmasi = job.status === 'running' && !job.cancel_requested_at ? r?.konfirmasiKeranjang : null;
 
     const handleContinue = async () => {
@@ -147,6 +148,21 @@ export default function CheckoutProcessPage() {
                 <p className="text-sm text-slate-500">
                     {job.order_payload.items.map((i) => i.name).join(', ')}
                 </p>
+                <p className="text-sm text-slate-700">
+                    Harga kalkulator:{' '}
+                    <span className="font-semibold tabular-nums">{formatPrice(hargaKalkulator)}</span>
+                    {job.order_payload.discount == null && ' (subtotal, sebelum diskon)'}
+                    {job.order_payload.discount != null && job.order_payload.discount > 0 &&
+                        ` (${formatPrice(job.order_payload.subtotal)} − diskon ${formatPrice(job.order_payload.discount)})`}
+                    {job.order_payload.needPackaging && ' + plastik'}
+                </p>
+                {/* plastik ditagih Kopken tapi tak dihitung kalkulator, jadi selisihnya tak bermakna */}
+                {r?.amount != null && job.order_payload.discount != null && !job.order_payload.needPackaging && r.amount !== hargaKalkulator && (
+                    <p className="text-sm font-medium text-red-600">
+                        Ditagih Kopken {formatPrice(r.amount)} — selisih {r.amount > hargaKalkulator ? '+' : '−'}
+                        {formatPrice(Math.abs(r.amount - hargaKalkulator))} dari kalkulator
+                    </p>
+                )}
             </div>
 
             <Card className="shadow-sm">
@@ -207,7 +223,7 @@ export default function CheckoutProcessPage() {
                             </p>
                             <p className="text-xs text-amber-800">
                                 Pesanan {konfirmasi.pesanan} item, keranjang Kopken {konfirmasi.keranjang} item
-                                ({formatPrice(konfirmasi.total)}). Biasanya add-to-cart dobel karena koneksi lag.
+                                ({formatPrice(konfirmasi.total)}; subtotal kalkulator {formatPrice(job.order_payload.subtotal)}). Biasanya add-to-cart dobel karena koneksi lag.
                                 Belum dibayar.
                             </p>
                             {konfirmasi.items.length > 0 && (

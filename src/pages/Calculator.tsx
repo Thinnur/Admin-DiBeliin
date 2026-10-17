@@ -419,6 +419,7 @@ function buildKopkenOrderPayload(
         name: customerName || 'DiBeliin',
         voucher: mapVoucherToTier(group.recommendedVoucher),
         subtotal: group.totalPrice,
+        discount: group.estimatedDiscount,
         items: group.items.map((item) => {
             const { cleanName, size } = extractSize(item.name);
             const { cleanAddons, note } = extractNote(item.addons ?? []);
@@ -462,6 +463,7 @@ function buildForeOrderPayload(
         payment: 'QRIS',
         voucher: group.recommendedVoucher === 'fore_25pct' ? 'Diskon 25%' : undefined,
         subtotal: group.totalPrice,
+        discount: group.estimatedDiscount,
         items: group.items.map((item) => {
             const { cleanName, size } = extractSize(item.name);
             const { cleanAddons, note } = extractNote(item.addons ?? []);

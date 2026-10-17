@@ -42,6 +42,9 @@ export interface CheckoutJobOrderPayload {
     voucher?: string;
     accountId?: string;
     subtotal: number;
+    /** Diskon voucher hasil hitungan Calculator — metadata tampilan: subtotal - discount
+     * = yang seharusnya dibayar, dibandingkan dengan tagihan asli Kopken. Job lama tidak punya. */
+    discount?: number;
     items: CheckoutJobOrderItem[];
     /** Jadwal pengambilan: "HH:MM" (24 jam, hari ini) buat "Jadwalkan", atau
      * kosongkan buat "Pickup Sekarang". Diteruskan apa adanya ke runCheckout.js. */
