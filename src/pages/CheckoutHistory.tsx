@@ -359,7 +359,7 @@ export default function CheckoutHistoryPage() {
                                             </span>
                                         </div>
                                         <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                                            <CheckoutStatusBadge status={job.status} />
+                                            <CheckoutStatusBadge status={job.status} perluKonfirmasi={!!r?.konfirmasiKeranjang && !job.cancel_requested_at} />
                                             {job.status === 'success' && (
                                                 <>
                                                     <PaymentStatusBadge paymentStatus={r?.paymentStatus} />
@@ -442,7 +442,7 @@ export default function CheckoutHistoryPage() {
                                                         {job.order_payload.items.map((i) => i.name).join(', ')}
                                                     </div>
                                                 </TableCell>
-                                                <TableCell><CheckoutStatusBadge status={job.status} /></TableCell>
+                                                <TableCell><CheckoutStatusBadge status={job.status} perluKonfirmasi={!!r?.konfirmasiKeranjang && !job.cancel_requested_at} /></TableCell>
                                                 <TableCell>
                                                     {job.status === 'success' && (
                                                         <PaymentStatusBadge paymentStatus={r?.paymentStatus} />

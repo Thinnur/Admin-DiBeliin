@@ -34,6 +34,17 @@ export interface KopkenCheckoutResult {
     receiptRefreshedAt?: string;
     amount?: number;
     error?: string;
+    /** Diisi runCheckout.js saat isi keranjang Kopken tidak cocok dengan pesanan
+     * (biasanya add-to-cart dobel karena lag). Worker berhenti sebelum Bayar dan
+     * menunggu admin: Lanjutkan (keputusan='lanjut') atau Gagalkan (tombol Batal). */
+    konfirmasiKeranjang?: {
+        pesanan: number;
+        keranjang: number;
+        total: number;
+        items: string[];
+        sejak: string;
+        keputusan?: 'lanjut';
+    } | null;
     /** Diisi belakangan oleh payment_status_worker.js (polling d5rk) — null = belum sempat dicek. */
     paymentStatus?: string | null;
     queueNumber?: string | null;
@@ -411,7 +422,10 @@ export function QrisImage({ qrisString }: { qrisString: string }) {
     );
 }
 
-export function CheckoutStatusBadge({ status }: { status: CheckoutJob['status'] }) {
+export function CheckoutStatusBadge({ status, perluKonfirmasi = false }: { status: CheckoutJob['status']; perluKonfirmasi?: boolean }) {
+    if (status === 'running' && perluKonfirmasi) {
+        return <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">Perlu Konfirmasi</Badge>;
+    }
     const meta: Record<CheckoutJob['status'], { label: string; className: string }> = {
         pending: { label: 'Menunggu', className: 'bg-slate-100 text-slate-600 border-slate-200' },
         running: { label: 'Diproses...', className: 'bg-blue-50 text-blue-700 border-blue-200' },

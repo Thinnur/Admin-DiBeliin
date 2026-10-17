@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { formatPrice } from '@/lib/logic/orderParser';
 import { supabase } from '@/lib/supabase';
-import { getCheckoutJob, cancelCheckoutJob, type CheckoutJob } from '@/services/checkoutJobService';
+import { getCheckoutJob, cancelCheckoutJob, continueCartMismatch, type CheckoutJob } from '@/services/checkoutJobService';
 import {
     QrisImage,
     PaymentCountdown,
@@ -92,6 +92,20 @@ export default function CheckoutProcessPage() {
 
     const r = job.result as KopkenCheckoutResult | null;
     const canCancel = job.status === 'pending' || job.status === 'running';
+    const konfirmasi = job.status === 'running' && !job.cancel_requested_at ? r?.konfirmasiKeranjang : null;
+
+    const handleContinue = async () => {
+        setCancelling(true);
+        try {
+            await continueCartMismatch(job);
+            setJob(await getCheckoutJob(job.id));
+            toast.success('Dilanjutkan — worker meneruskan ke pembayaran.');
+        } catch (e) {
+            toast.error(e instanceof Error ? e.message : 'Gagal mengirim keputusan');
+        } finally {
+            setCancelling(false);
+        }
+    };
 
     const handleCancel = async () => {
         setCancelling(true);
@@ -178,7 +192,7 @@ export default function CheckoutProcessPage() {
                                     </AlertDialogContent>
                                 </AlertDialog>
                             )}
-                            <CheckoutStatusBadge status={job.status} />
+                            <CheckoutStatusBadge status={job.status} perluKonfirmasi={!!konfirmasi && konfirmasi.keputusan !== 'lanjut'} />
                         </div>
                     </div>
                     <CardDescription>
@@ -186,6 +200,53 @@ export default function CheckoutProcessPage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {konfirmasi && (
+                        <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 p-3 space-y-2">
+                            <p className="text-sm font-medium text-amber-900">
+                                Isi keranjang tidak cocok dengan pesanan
+                            </p>
+                            <p className="text-xs text-amber-800">
+                                Pesanan {konfirmasi.pesanan} item, keranjang Kopken {konfirmasi.keranjang} item
+                                ({formatPrice(konfirmasi.total)}). Biasanya add-to-cart dobel karena koneksi lag.
+                                Belum dibayar.
+                            </p>
+                            {konfirmasi.items.length > 0 && (
+                                <ul className="text-xs text-amber-900 list-disc pl-4">
+                                    {konfirmasi.items.map((it, i) => <li key={i}>{it}</li>)}
+                                </ul>
+                            )}
+                            {konfirmasi.keputusan === 'lanjut' ? (
+                                <p className="text-xs text-amber-800">Dilanjutkan — menunggu worker...</p>
+                            ) : (
+                                <>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button
+                                            size="sm"
+                                            disabled={cancelling}
+                                            onClick={handleContinue}
+                                            className="bg-amber-600 hover:bg-amber-700 text-white"
+                                        >
+                                            Lanjutkan Bayar
+                                        </Button>
+                                        <Button
+                                            size="sm"
+                                            variant="outline"
+                                            disabled={cancelling}
+                                            onClick={handleCancel}
+                                            className="text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+                                        >
+                                            Gagalkan
+                                        </Button>
+                                    </div>
+                                    <p className="text-[11px] text-amber-700">
+                                        Tanpa jawaban sampai{' '}
+                                        {new Date(new Date(konfirmasi.sejak).getTime() + 10 * 60 * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+                                        , checkout otomatis digagalkan dan voucher dikembalikan.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    )}
                     {/* Desktop: log di kiri (lebih lebar), QRIS/struk di kanan (kolom sempit tetap,
                         sesuai bentuk aslinya) — bukan numpuk vertikal di satu kolom sempit. */}
                     <div className="grid md:grid-cols-[1fr_380px] gap-6">

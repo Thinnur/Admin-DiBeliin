@@ -124,7 +124,7 @@ export async function listCheckoutJobs(
 ): Promise<CheckoutJob[]> {
     let query = supabase
         .from('checkout_jobs')
-        .select('id, order_payload, status, amount:result->amount, paymentStatus:result->>paymentStatus, phase:result->>phase, created_by, created_at, updated_at, receipt_refresh_requested_at, cancel_requested_at')
+        .select('id, order_payload, status, amount:result->amount, paymentStatus:result->>paymentStatus, phase:result->>phase, konfirmasiKeranjang:result->konfirmasiKeranjang, created_by, created_at, updated_at, receipt_refresh_requested_at, cancel_requested_at')
         .order('created_at', { ascending: false });
 
     if (day) {
@@ -139,9 +139,9 @@ export async function listCheckoutJobs(
 
     const { data, error } = await query;
     if (error) throw new Error(`Gagal memuat riwayat checkout: ${error.message}`);
-    return (data ?? []).map(({ amount, paymentStatus, phase, ...j }) => ({
+    return (data ?? []).map(({ amount, paymentStatus, phase, konfirmasiKeranjang, ...j }) => ({
         ...j,
-        result: { amount, paymentStatus, phase },
+        result: { amount, paymentStatus, phase, konfirmasiKeranjang },
         log: [],
     })) as unknown as CheckoutJob[];
 }
@@ -174,6 +174,19 @@ export async function cancelCheckoutJob(id: string): Promise<'cancelled' | 'canc
         .eq('status', 'running');
     if (reqError) throw new Error(`Gagal minta pembatalan: ${reqError.message}`);
     return 'cancel_requested';
+}
+
+/** Admin memilih tetap bayar walau isi keranjang Kopken tidak cocok dengan
+ * pesanan. runCheckout.js menunggu `result.konfirmasiKeranjang.keputusan`
+ * (polling 3 detik); pilihan "Gagalkan" cukup pakai cancelCheckoutJob(). */
+export async function continueCartMismatch(job: CheckoutJob): Promise<void> {
+    const konfirmasi = (job.result?.konfirmasiKeranjang ?? {}) as Record<string, unknown>;
+    const { error } = await supabase
+        .from('checkout_jobs')
+        .update({ result: { ...job.result, konfirmasiKeranjang: { ...konfirmasi, keputusan: 'lanjut' } } })
+        .eq('id', job.id)
+        .eq('status', 'running');
+    if (error) throw new Error(`Gagal mengirim keputusan: ${error.message}`);
 }
 
 /** Hapus permanen: baris checkout_jobs + foto struk terkait di storage bucket
