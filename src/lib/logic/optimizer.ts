@@ -219,8 +219,9 @@ function kopKenAccountsAndAdminCost(groups: OptimizedGroup[], accountCost: numbe
  *
  * `totals` harus sudah bebas keranjang kosong; `tiers` yang dikembalikan sejajar dengannya.
  */
-function kopKenScore(totals: number[], accountCost: number, min70kCost: number): { net: number; tiers: KopKenTier[] } {
+function kopKenScore(totals: number[], accountCost: number, min70kCost: number, noNomin = false): { net: number; tiers: KopKenTier[] } {
     if (totals.length === 0) return { net: -Infinity, tiers: [] };
+    if (noNomin) return kopKenScoreNoNomin(totals, accountCost, min70kCost);
 
     const forced: number[] = [];
     const midRange: number[] = [];
@@ -268,6 +269,23 @@ function kopKenScore(totals: number[], accountCost: number, min70kCost: number):
     midRange.forEach((i, j) => { if (j >= bestMid) tiers[i] = 'min50k'; });
     highRange.forEach((i, j) => { if (j >= bestHigh) tiers[i] = 'min70k'; });
     return { net: bestNet, tiers };
+}
+
+/**
+ * Mode voucher min 50/70 (app_settings.kopken_mode_min50_70): nomin habis, jadi tiap keranjang
+ * langsung ke tier ambangnya. Keranjang < 50rb tidak bisa dibayar voucher apa pun -- dicatat min50k
+ * (diskon 0) dengan penalti besar + selisihnya, supaya hill climbing tetap punya arah menjauhinya
+ * dan pembagian yang punya keranjang begitu selalu kalah dari 1 keranjang utuh (kalau total >= 50rb).
+ * Harus identik dengan kenanganScoreNoNomin di DIBeliin/src/utils/pricingUtils.ts.
+ */
+function kopKenScoreNoNomin(totals: number[], accountCost: number, min70kCost: number): { net: number; tiers: KopKenTier[] } {
+    const tiers: KopKenTier[] = totals.map(t => (t >= KOPKEN_MIN70K_FLOOR ? 'min70k' : 'min50k'));
+    const min70k = tiers.filter(t => t === 'min70k').length;
+    let net = -kopKenAdminCost(0, totals.length - min70k, min70k, accountCost, min70kCost);
+    totals.forEach((t, i) => {
+        net += t >= KOPKEN_MIN50K_FLOOR ? KOPKEN_DISCOUNT[tiers[i]](t) : -(1e6 + KOPKEN_MIN50K_FLOOR - t);
+    });
+    return { net, tiers };
 }
 
 /**
@@ -323,7 +341,7 @@ function kopKenSeeds(units: KopKenUnit[], k: number): number[][] {
 // lama kebetulan menghasilkan bentuk timpang itu; LPT murni tidak akan pernah bisa.
 // Karena itu: 3 titik awal berbentuk beda (kopKenSeeds) + hill climbing pindah/tukar unit.
 // Diuji lawan brute force SEMUA partisi (scripts/verify-kenangan-pricing.mjs): 0 kalah.
-function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number, min70kCost: number): OptimizedGroup[] {
+function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number, min70kCost: number, noNomin = false): OptimizedGroup[] {
     // unit.price is discountable-only (see expandKopKenItems) -- full() restores the real
     // amount for display (subtotal / line items) without letting non-discountable addons
     // (Syrup/Topping/Espresso Shot) leak into the 50% discount or the 50k/70k thresholds.
@@ -344,7 +362,7 @@ function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number, min70k
     const scoreAssign = (assign: number[], k: number): number => {
         const totals = new Array<number>(k).fill(0);
         for (let i = 0; i < assign.length; i++) totals[assign[i]] += units[i].price;
-        return kopKenScore(totals.filter(t => t > 0), accountCost, min70kCost).net;
+        return kopKenScore(totals.filter(t => t > 0), accountCost, min70kCost, noNomin).net;
     };
 
     let bestNet = -Infinity;
@@ -409,7 +427,7 @@ function optimizeKopKen(expandedItems: KopKenUnit[], accountCost: number, min70k
     for (let i = 0; i < bestAssign.length; i++) buckets[bestAssign[i]].push(units[i]);
     const filled = buckets.filter(b => b.length > 0);
     const totals = filled.map(b => b.reduce((s, u) => s + u.price, 0));
-    const { tiers } = kopKenScore(totals, accountCost, min70kCost);
+    const { tiers } = kopKenScore(totals, accountCost, min70kCost, noNomin);
 
     return filled.map((basket, i) => ({
         id: generateId(),
@@ -660,7 +678,9 @@ export function optimizeOrder(
     brand: 'fore' | 'kopken' | 'tomoro' | 'janjijiwa' | 'chatime',
     accountCost: number,
     /** Kopken saja: biaya admin per voucher min70k (app_settings.fee_jasdor_kopken_min70k). */
-    min70kCost: number = 3000
+    min70kCost: number = 3000,
+    /** Kopken saja: mode voucher min 50/70 (app_settings.kopken_mode_min50_70). */
+    noNomin: boolean = false
 ): OptimizationResult {
     if (!items || !Array.isArray(items) || items.length === 0) {
         return {
@@ -686,7 +706,7 @@ export function optimizeOrder(
             // kopItems[].price is discountable-only (non-discountable addons split out) --
             // totalBill must reflect the FULL bill, so add nonDiscountablePrice back here.
             totalBill = kopItems.reduce((s, i) => s + i.price + i.nonDiscountablePrice, 0);
-            groups = optimizeKopKen(kopItems, accountCost, min70kCost);
+            groups = optimizeKopKen(kopItems, accountCost, min70kCost, noNomin);
         } else if (brand === 'tomoro') {
             const tomoroItems = expandTomoroItems(items);
             totalBill = tomoroItems.reduce((s, i) => s + i.price, 0);

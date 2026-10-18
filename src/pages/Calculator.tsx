@@ -56,6 +56,7 @@ import {
 import { getMenuPrices, type MenuPriceItem } from '@/services/menuService';
 import {
     getAdminFees,
+    getKopkenModeMin50,
     getKopkenBluAccounts,
     getKopkenDefaultPayments,
     type AdminFees,
@@ -843,6 +844,12 @@ export default function CalculatorPage() {
     const [brand, setBrand] = useState<AccountBrand>('kopken');
     const [adminCost, setAdminCost] = useState(5000);
     const [dbAdminFees, setDbAdminFees] = useState<AdminFees | null>(null);
+    const { data: modeMin50 = false } = useQuery({
+        queryKey: ['kopkenModeMin50'],
+        queryFn: getKopkenModeMin50,
+        refetchInterval: 30000,
+    });
+    const noNomin = brand === 'kopken' && modeMin50;
 
     // Result state
     const [result, setResult] = useState<OptimizationResult | null>(null);
@@ -1081,7 +1088,7 @@ export default function CalculatorPage() {
             } : {}),
         }));
 
-        const optimizationResult = optimizeOrder(cartItems, brand, adminCost, dbAdminFees?.fee_jasdor_kopken_min70k ?? 3000);
+        const optimizationResult = optimizeOrder(cartItems, brand, adminCost, dbAdminFees?.fee_jasdor_kopken_min70k ?? 3000, noNomin);
         setResult(optimizationResult);
         setHasOptimized(true);
 
@@ -1363,6 +1370,17 @@ Example:
 
                 {/* Right Column - Results */}
                 <div className="space-y-4 min-w-0">
+                    {noNomin && (
+                        <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 text-sm">
+                            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                            <span>
+                                <strong>Mode min 50/70 aktif</strong> — voucher tanpa minimal habis, hitungan hanya memakai min50k/min70k.
+                                {hasOptimized && result?.groups.some(g => g.estimatedDiscount === 0) && (
+                                    <> Total &lt; Rp50.000 — tidak ada voucher yang cocok.</>
+                                )}
+                            </span>
+                        </div>
+                    )}
                     {!hasOptimized && items.length === 0 && (
                         <div className="hidden lg:flex h-96 flex-col items-center justify-center text-center p-6 border-2 border-dashed border-slate-200 rounded-xl">
                             <Calculator className="w-12 h-12 text-slate-300 mb-4" />

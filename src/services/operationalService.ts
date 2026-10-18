@@ -68,6 +68,20 @@ export async function getStoreStatus(): Promise<boolean> {
 }
 
 /**
+ * Mode voucher min 50/70 Kopken: ditulis account-pool-worker saat voucher tanpa minimal habis
+ * dan ambil akun gagal (app_settings.kopken_mode_min50_70). Baris tidak ada / error = mati.
+ */
+export async function getKopkenModeMin50(): Promise<boolean> {
+    const { data, error } = await supabase
+        .from('app_settings')
+        .select('value')
+        .eq('key', 'kopken_mode_min50_70')
+        .maybeSingle();
+    if (error) console.error('Error fetching kopken_mode_min50_70:', error);
+    return data?.value === 'true' || data?.value === true;
+}
+
+/**
  * Update the store open/closed status
  * @param isOpen - true to open store, false to close
  */
