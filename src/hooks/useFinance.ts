@@ -3,20 +3,22 @@
 // =============================================================================
 // React Query v5 hooks for transaction management
 
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 import type { TransactionCategoryGroups } from '@/lib/financeCategories';
 import {
-    fetchTransactions,
+    fetchTransactionsPage,
+    fetchFilteredSummary,
+    fetchDailyTrend,
     fetchTransactionCategories,
     fetchFinancialSummary,
     createTransaction,
     updateTransaction,
     deleteTransaction,
 } from '@/services/apiTransactions';
-import type { TransactionFilters, SummaryDateRange } from '@/services/apiTransactions';
+import type { TransactionFilters, SummaryDateRange, TransactionPage } from '@/services/apiTransactions';
 import type { Transaction, TransactionInsert, TransactionUpdate } from '@/types/database';
 import { queryKeys } from '@/lib/queryClient';
 
@@ -31,14 +33,29 @@ interface FinancialSummary {
 // Query: Fetch Transactions
 // -----------------------------------------------------------------------------
 
-export function useTransactions(
-    filters?: TransactionFilters,
-    options?: Omit<UseQueryOptions<Transaction[], Error>, 'queryKey' | 'queryFn'>
-) {
+export function useTransactionsPage(filters: TransactionFilters, page: number, pageSize: number) {
+    return useQuery<TransactionPage, Error>({
+        queryKey: queryKeys.transactions.list({ ...filters, page, pageSize }),
+        queryFn: () => fetchTransactionsPage(filters, page, pageSize),
+        // Ganti halaman/filter: tabel lama tetap tampil sampai data baru tiba.
+        placeholderData: keepPreviousData,
+    });
+}
+
+export function useFilteredSummary(filters: TransactionFilters, enabled: boolean) {
     return useQuery({
-        queryKey: queryKeys.transactions.list(filters as Record<string, unknown> | undefined),
-        queryFn: () => fetchTransactions(filters),
-        ...options,
+        queryKey: queryKeys.transactions.summary({ ...filters, filtered: true }),
+        queryFn: () => fetchFilteredSummary(filters),
+        enabled,
+        placeholderData: keepPreviousData,
+    });
+}
+
+export function useDailyTrend(dateRange: SummaryDateRange, enabled: boolean) {
+    return useQuery({
+        queryKey: queryKeys.transactions.summary({ ...dateRange, trend: true }),
+        queryFn: () => fetchDailyTrend(dateRange),
+        enabled,
     });
 }
 

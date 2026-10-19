@@ -72,7 +72,9 @@ import {
 } from '@/components/ui/alert-dialog';
 
 import {
-    useTransactions,
+    useTransactionsPage,
+    useFilteredSummary,
+    useDailyTrend,
     useTransactionCategories,
     useFinancialSummary,
     useDeleteTransaction,
@@ -776,6 +778,15 @@ export default function FinancePage() {
     const [typeFilter, setTypeFilter] = useState<TransactionType | 'all'>('all');
     const [categoryFilter, setCategoryFilter] = useState('all');
     const [searchQuery, setSearchQuery] = useState('');
+    // Pencarian jalan di server: tunggu jeda ketik biar tidak 1 request per huruf.
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    useEffect(() => {
+        const timer = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
+    // Tabel & daftar HP diambil per halaman dari server.
+    const PAGE_SIZE = 20;
+    const [page, setPage] = useState(0);
 
     // AI Scanning State
     const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -855,14 +866,38 @@ export default function FinancePage() {
     // Queries
     // -------------------------------------------------------------------------
 
-    const transactionFilters = useMemo(() => ({
-        startDate: currentRange.startDate,
-        endDate: currentRange.endDate,
-    }), [currentRange]);
-
-    const { data: transactions = [], isLoading: transactionsLoading, dataUpdatedAt } =
-        useTransactions(transactionFilters);
     const { data: categoryGroups } = useTransactionCategories();
+
+    const isFiltered = typeFilter !== 'all' || categoryFilter !== 'all' || debouncedSearch !== '';
+    const transactionFilters = useMemo(() => {
+        const q = debouncedSearch.toLowerCase();
+        return {
+            startDate: currentRange.startDate,
+            endDate: currentRange.endDate,
+            type: typeFilter === 'all' ? undefined : typeFilter,
+            category: categoryFilter === 'all' ? undefined : categoryFilter,
+            search: debouncedSearch || undefined,
+            labelCategories: q
+                ? (categoryGroups?.all ?? []).filter((c) => formatCategoryLabel(c).toLowerCase().includes(q))
+                : undefined,
+        };
+    }, [currentRange, typeFilter, categoryFilter, debouncedSearch, categoryGroups]);
+
+    useEffect(() => {
+        setPage(0);
+    }, [transactionFilters]);
+
+    const { data: pageData, isLoading: transactionsLoading, isFetching: pageFetching, dataUpdatedAt } =
+        useTransactionsPage(transactionFilters, page, PAGE_SIZE);
+    const transactions = pageData?.rows ?? [];
+    const totalTransactions = pageData?.total ?? 0;
+    const pageCount = Math.max(1, Math.ceil(totalTransactions / PAGE_SIZE));
+    // Baris terakhir di halaman terakhir dihapus -> mundur, jangan tampil kosong.
+    useEffect(() => {
+        if (pageData && page >= pageCount) setPage(pageCount - 1);
+    }, [pageData, page, pageCount]);
+    const { data: filteredSummary } = useFilteredSummary(transactionFilters, isFiltered);
+    const { data: trendRows = [], isLoading: trendLoading } = useDailyTrend(currentRange, periodMode !== 'daily');
     const { data: summary, isLoading: summaryLoading } = useFinancialSummary(currentRange);
     const { data: comparison, isLoading: comparisonLoading } = useProfitComparison(
         currentRange,
@@ -950,55 +985,6 @@ export default function FinancePage() {
         [categoryGroups]
     );
 
-    const filteredTransactions = useMemo(() => {
-        const normalizedSearch = searchQuery.trim().toLowerCase();
-        const searchDigits = searchQuery.replace(/\D/g, '');
-
-        return transactions.filter((transaction) => {
-            if (typeFilter !== 'all' && transaction.transaction_type !== typeFilter) {
-                return false;
-            }
-
-            if (categoryFilter !== 'all' && transaction.category !== categoryFilter) {
-                return false;
-            }
-
-            if (!normalizedSearch) {
-                return true;
-            }
-
-            const description = (transaction.description ?? '').toLowerCase();
-            const categoryLabel = formatCategoryLabel(transaction.category).toLowerCase();
-            const rawCategory = (transaction.category ?? '').toLowerCase();
-            const amountText = String(transaction.amount);
-            const amountDigits = amountText.replace(/\D/g, '');
-
-            return (
-                description.includes(normalizedSearch) ||
-                categoryLabel.includes(normalizedSearch) ||
-                rawCategory.includes(normalizedSearch) ||
-                (!!searchDigits && amountDigits.includes(searchDigits))
-            );
-        });
-    }, [transactions, typeFilter, categoryFilter, searchQuery]);
-
-    const isFiltered = useMemo(
-        () => typeFilter !== 'all' || categoryFilter !== 'all' || searchQuery.trim() !== '',
-        [typeFilter, categoryFilter, searchQuery]
-    );
-
-    const filteredSummary = useMemo(() => {
-        if (!isFiltered) return null;
-        return filteredTransactions.reduce(
-            (acc, t) => {
-                if (t.transaction_type === 'income') acc.income += t.amount;
-                else acc.expense += t.amount;
-                return acc;
-            },
-            { income: 0, expense: 0 }
-        );
-    }, [isFiltered, filteredTransactions]);
-
     const normalizedRange = useMemo(() => {
         const [start, end] = rangeStart <= rangeEnd ? [rangeStart, rangeEnd] : [rangeEnd, rangeStart];
         return { start, end };
@@ -1009,14 +995,9 @@ export default function FinancePage() {
             return [];
         }
 
-        let earliestDateMs: number | null = null;
-        let latestDateMs: number | null = null;
-        for (const transaction of transactions) {
-            const timestamp = new Date(transaction.created_at).getTime();
-            if (Number.isNaN(timestamp)) continue;
-            if (earliestDateMs === null || timestamp < earliestDateMs) earliestDateMs = timestamp;
-            if (latestDateMs === null || timestamp > latestDateMs) latestDateMs = timestamp;
-        }
+        // trendRows urut per hari (yyyy-MM-dd); Semua Waktu = hari pertama s/d terakhir.
+        const earliestDateMs = trendRows.length ? new Date(`${trendRows[0].day}T00:00:00`).getTime() : null;
+        const latestDateMs = trendRows.length ? new Date(`${trendRows[trendRows.length - 1].day}T00:00:00`).getTime() : null;
 
         const periodStart =
             periodMode === 'monthly'
@@ -1056,23 +1037,20 @@ export default function FinancePage() {
             });
         }
 
-        for (const transaction of transactions) {
-            const key = format(new Date(transaction.created_at), 'yyyy-MM-dd');
-            const point = pointsByDay.get(key);
+        for (const row of trendRows) {
+            const point = pointsByDay.get(row.day);
             if (!point) continue;
-
-            if (transaction.transaction_type === 'income') {
-                point.income += transaction.amount;
-            } else {
-                point.expense += transaction.amount;
-            }
-            point.profit = point.income - point.expense;
+            point.income = row.income;
+            point.expense = row.expense;
+            point.profit = row.income - row.expense;
         }
 
         return periodDays.map((day) => pointsByDay.get(format(day, 'yyyy-MM-dd'))!);
-    }, [transactions, periodMode, selectedDate, normalizedRange]);
+    }, [trendRows, periodMode, selectedDate, normalizedRange]);
 
-    const columns = getTransactionColumns(handleDelete);
+    // Kolom baru tiap render = react-table menghitung ulang semua baris.
+    const deleteMutate = deleteTransaction.mutate;
+    const columns = useMemo(() => getTransactionColumns((id) => deleteMutate(id)), [deleteMutate]);
 
     return (
         <div className="space-y-4 md:space-y-6">
@@ -1149,7 +1127,7 @@ export default function FinancePage() {
             {periodMode !== 'daily' && (
                 <FinancialTrendChart
                     data={trendData}
-                    isLoading={transactionsLoading}
+                    isLoading={trendLoading}
                 />
             )}
 
@@ -1260,11 +1238,13 @@ export default function FinancePage() {
                     </div>
 
                     <p className="mt-3 text-xs text-slate-500">
-                        Menampilkan {filteredTransactions.length} dari {transactions.length} transaksi
+                        {totalTransactions === 0
+                            ? 'Tidak ada transaksi'
+                            : `Menampilkan ${page * PAGE_SIZE + 1}–${page * PAGE_SIZE + transactions.length} dari ${totalTransactions} transaksi`}
                     </p>
                 </CardHeader>
                 <CardContent className="pt-4">
-                    {filteredSummary && (
+                    {isFiltered && filteredSummary && (
                         <div className="mb-4 flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
                             <span className="font-medium text-slate-500">Ringkasan Filter:</span>
                             <span>
@@ -1286,7 +1266,7 @@ export default function FinancePage() {
                                 </span>
                             </span>
                             <span className="ml-auto text-slate-400">
-                                {filteredTransactions.length} transaksi
+                                {totalTransactions} transaksi
                             </span>
                         </div>
                     )}
@@ -1295,8 +1275,9 @@ export default function FinancePage() {
                     <div className="hidden md:block overflow-x-auto">
                         <DataTable
                             columns={columns}
-                            data={filteredTransactions}
+                            data={transactions}
                             isLoading={transactionsLoading}
+                            disablePagination
                             emptyMessage="Tidak ada transaksi yang cocok dengan filter."
                         />
                     </div>
@@ -1313,10 +1294,10 @@ export default function FinancePage() {
                                     <Skeleton className="h-3 w-32" />
                                 </div>
                             ))
-                        ) : filteredTransactions.length === 0 ? (
+                        ) : transactions.length === 0 ? (
                             <p className="text-sm text-slate-400 text-center py-8">Tidak ada transaksi yang cocok.</p>
                         ) : (
-                            filteredTransactions.map((tx) => (
+                            transactions.map((tx) => (
                                 <div
                                     key={tx.id}
                                     className="p-3 rounded-xl border border-slate-100 bg-white hover:bg-slate-50 transition-colors"
@@ -1406,6 +1387,34 @@ export default function FinancePage() {
                             ))
                         )}
                     </div>
+
+                    {/* Pager bersama desktop & HP: halaman diambil dari server */}
+                    {pageCount > 1 && (
+                        <div className="mt-4 flex items-center justify-between gap-2">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPage((p) => p - 1)}
+                                disabled={page === 0 || pageFetching}
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                                Sebelumnya
+                            </Button>
+                            <span className="text-sm text-muted-foreground tabular-nums">
+                                {pageFetching && <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" />}
+                                Hal {page + 1} / {pageCount}
+                            </span>
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setPage((p) => p + 1)}
+                                disabled={page + 1 >= pageCount || pageFetching}
+                            >
+                                Berikutnya
+                                <ChevronRight className="h-4 w-4" />
+                            </Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 

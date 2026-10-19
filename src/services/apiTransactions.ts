@@ -21,57 +21,137 @@ export interface TransactionFilters {
     startDate?: string;
     endDate?: string;
     category?: string;
-    limit?: number;
+    search?: string;
+    /** Kategori yang label tampilannya cocok dengan `search` (label cuma ada di web). */
+    labelCategories?: string[];
+}
+
+export interface TransactionPage {
+    rows: Transaction[];
+    total: number;
+}
+
+export interface DailyTrendRow {
+    day: string; // yyyy-MM-dd, zona waktu browser
+    income: number;
+    expense: number;
+}
+
+// Fungsi migrasi 20261019_finance_server_side belum terpasang -> cara lama.
+let serverSideReady = true;
+const isMissingFunction = (error: { code?: string } | null) =>
+    error?.code === 'PGRST202' || error?.code === '42883';
+
+function buildTransactionsQuery(filters: TransactionFilters, count?: 'exact') {
+    const search = filters.search?.trim() || null;
+    let query = serverSideReady
+        ? supabase.rpc('finance_search_transactions', {
+            start_date: filters.startDate ?? null,
+            end_date: filters.endDate ?? null,
+            q: search,
+            label_categories: filters.labelCategories?.length ? filters.labelCategories : null,
+        }, { count })
+        : supabase.from('transactions').select('*', { count });
+
+    if (!serverSideReady) {
+        if (filters.startDate) query = query.gte('created_at', filters.startDate);
+        if (filters.endDate) query = query.lte('created_at', filters.endDate);
+        // shortcut: fallback tidak mencari nominal/label kategori; hilang setelah migrasi dipasang.
+        const safe = search?.replace(/[,()"\\%]/g, ' ');
+        if (safe) query = query.or(`description.ilike.%${safe}%,category.ilike.%${safe}%`);
+    }
+    if (filters.type) query = query.eq('transaction_type', filters.type);
+    if (filters.category) query = query.eq('category', filters.category);
+    return query.order('created_at', { ascending: false });
 }
 
 // -----------------------------------------------------------------------------
-// Fetch Transactions
+// Fetch Transactions (satu halaman, difilter di server)
 // -----------------------------------------------------------------------------
 
-export async function fetchTransactions(
-    filters?: TransactionFilters
-): Promise<Transaction[]> {
-    let query = supabase
-        .from('transactions')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (filters?.type) {
-        query = query.eq('transaction_type', filters.type);
+export async function fetchTransactionsPage(
+    filters: TransactionFilters,
+    page: number,
+    pageSize: number
+): Promise<TransactionPage> {
+    const from = page * pageSize;
+    let { data, error, count } = await buildTransactionsQuery(filters, 'exact')
+        .range(from, from + pageSize - 1);
+    if (isMissingFunction(error) && serverSideReady) {
+        serverSideReady = false;
+        ({ data, error, count } = await buildTransactionsQuery(filters, 'exact')
+            .range(from, from + pageSize - 1));
     }
+    if (error) throw new Error(`Failed to fetch transactions: ${error.message}`);
+    return { rows: (data as Transaction[]) ?? [], total: count ?? 0 };
+}
 
-    if (filters?.startDate) {
-        query = query.gte('created_at', filters.startDate);
-    }
-
-    if (filters?.endDate) {
-        query = query.lte('created_at', filters.endDate);
-    }
-
-    if (filters?.category) {
-        query = query.eq('category', filters.category);
-    }
-
-    if (filters?.limit) {
-        const { data, error } = await query.limit(filters.limit);
-        if (error) throw new Error(`Failed to fetch transactions: ${error.message}`);
-        return (data as Transaction[]) || [];
-    }
-
+/** Cara lama (sebelum migrasi): semua baris yang cocok, per 1000. */
+async function fetchAllMatching(filters: TransactionFilters): Promise<Transaction[]> {
     const PAGE_SIZE = 1000;
-    let from = 0;
     let all: Transaction[] = [];
-
-    while (true) {
-        const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
+    for (let from = 0; ; from += PAGE_SIZE) {
+        const { data, error } = await buildTransactionsQuery(filters).range(from, from + PAGE_SIZE - 1);
         if (error) throw new Error(`Failed to fetch transactions: ${error.message}`);
-        if (!data || data.length === 0) break;
-        all = all.concat(data as Transaction[]);
-        if (data.length < PAGE_SIZE) break;
-        from += PAGE_SIZE;
+        all = all.concat((data as Transaction[]) ?? []);
+        if (!data || data.length < PAGE_SIZE) return all;
     }
+}
 
-    return all;
+export async function fetchFilteredSummary(
+    filters: TransactionFilters
+): Promise<{ income: number; expense: number }> {
+    if (serverSideReady) {
+        const { data, error } = await supabase.rpc('get_finance_filtered_summary', {
+            start_date: filters.startDate ?? null,
+            end_date: filters.endDate ?? null,
+            q: filters.search?.trim() || null,
+            label_categories: filters.labelCategories?.length ? filters.labelCategories : null,
+            p_type: filters.type ?? null,
+            p_category: filters.category ?? null,
+        });
+        if (!error) return { income: Number(data?.income ?? 0), expense: Number(data?.expense ?? 0) };
+        if (!isMissingFunction(error)) throw new Error(`Failed to fetch summary: ${error.message}`);
+        serverSideReady = false;
+    }
+    return (await fetchAllMatching(filters)).reduce(
+        (acc, t) => {
+            if (t.transaction_type === 'income') acc.income += t.amount;
+            else acc.expense += t.amount;
+            return acc;
+        },
+        { income: 0, expense: 0 }
+    );
+}
+
+export async function fetchDailyTrend(
+    dateRange: SummaryDateRange
+): Promise<DailyTrendRow[]> {
+    if (serverSideReady) {
+        const { data, error } = await supabase.rpc('get_daily_finance_trend', {
+            start_date: dateRange.startDate ?? null,
+            end_date: dateRange.endDate ?? null,
+            tz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Jakarta',
+        });
+        if (!error) {
+            return ((data ?? []) as DailyTrendRow[]).map((r) => ({
+                day: r.day,
+                income: Number(r.income),
+                expense: Number(r.expense),
+            }));
+        }
+        if (!isMissingFunction(error)) throw new Error(`Failed to fetch trend: ${error.message}`);
+        serverSideReady = false;
+    }
+    const byDay = new Map<string, DailyTrendRow>();
+    for (const t of await fetchAllMatching(dateRange)) {
+        const day = new Date(t.created_at).toLocaleDateString('sv-SE'); // yyyy-MM-dd lokal
+        const row = byDay.get(day) ?? { day, income: 0, expense: 0 };
+        if (t.transaction_type === 'income') row.income += t.amount;
+        else row.expense += t.amount;
+        byDay.set(day, row);
+    }
+    return [...byDay.values()].sort((a, b) => a.day.localeCompare(b.day));
 }
 
 // -----------------------------------------------------------------------------
