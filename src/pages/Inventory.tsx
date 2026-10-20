@@ -253,6 +253,7 @@ export default function InventoryPage() {
         data: dawgPageData,
         isLoading: isLoadingDawg,
         isFetching: isFetchingDawg,
+        error: errorDawg,
     } = useDawgAccountsPage(debouncedSearch, dawgPage, DAWG_PAGE_SIZE, {
         enabled: !isAuthLoading && !isStaff && activeTab === 'kopken_panel',
         // Selagi worker scan jalan, daftar akunnya ikut nge-refresh sendiri
@@ -943,7 +944,14 @@ export default function InventoryPage() {
                                                 </TableCell>
                                             </TableRow>
                                         )}
-                                        {!isLoadingDawg && filteredDawgAccounts.length === 0 && (
+                                        {errorDawg && (
+                                            <TableRow>
+                                                <TableCell colSpan={4} className="text-center text-sm text-red-500 py-8">
+                                                    {errorDawg.message}
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                        {!isLoadingDawg && !errorDawg && filteredDawgAccounts.length === 0 && (
                                             <TableRow>
                                                 <TableCell colSpan={4} className="text-center text-sm text-slate-400 py-8">
                                                     Tidak ada akun KopKen Panel.

@@ -17,7 +17,8 @@ export async function fetchDawgAccountsPage(
 ): Promise<{ rows: DawgAccount[]; total: number }> {
     let query = supabase
         .from('dawg_accounts')
-        .select('account_id, vouchers, voucher_expiry, registered_at, last_used, updated_at', { count: 'exact' })
+        // '*': kolom eksplisit (voucher_expiry dkk.) bikin query gagal bila kolomnya tak ada di DB.
+        .select('*', { count: 'exact' })
         .order('registered_at', { ascending: false });
     const q = search.trim().replace(/[%_]/g, '');
     if (q) query = query.ilike('account_id', `%${q}%`);
