@@ -1,5 +1,5 @@
 // Alat ukur refactor performa admin: ukuran JS/CSS yang dimuat awal + median Lighthouse mobile SETELAH login.
-//   node scripts/ukur-perf.mjs [baseURL] [jumlahRun]
+//   [PAGES=/outlets,/menus] node scripts/ukur-perf.mjs [baseURL] [jumlahRun]
 //   baseURL default http://127.0.0.1:4174 (jalankan dulu: npx vite build --outDir node_modules/.cache/e2e-dist
 //     && npx vite preview --outDir node_modules/.cache/e2e-dist --port 4174). Produksi: https://fp.akzara.id
 // Sesi login diambil dari e2e/.auth/admin.json (hasil `npm run test:smoke`); localStorage-nya disalin ke origin
@@ -15,7 +15,7 @@ import { chromium } from '@playwright/test';
 
 const BASE = process.argv[2] ?? 'http://127.0.0.1:4174';
 const RUNS = Number(process.argv[3] ?? 3);
-const PAGES = ['/inventory', '/calculator', '/checkout-history', '/finance'];
+const PAGES = process.env.PAGES?.split(',') ?? ['/inventory', '/calculator', '/checkout-history', '/finance'];
 const OUT = 'node_modules/.cache/e2e-dist';
 const PORT = 9333;
 const VPS_CHROMIUM = `${homedir()}/.cache/ms-playwright/chromium-1247/chrome-linux64/chrome`;

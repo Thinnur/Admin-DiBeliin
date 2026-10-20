@@ -60,11 +60,22 @@ for (const path of PAGES) {
     await settle(page);
     await expect(page).toHaveURL(new RegExp(`${path}$`)); // tidak dilempar ke /login atau /inventory
     await expect(page.locator('[data-sonner-toast][data-type="error"]')).toHaveCount(0);
-    // shortcut: /outlets merender ±86.000 elemen sekaligus; screenshot-nya menghabiskan RAM VPS. Pasang lagi
-    // setelah halaman itu dipaginasi/divirtualisasi.
-    if (path !== '/outlets') await snap(page);
+    await snap(page);
   });
 }
+
+test('outlets: paginasi', async ({ page }) => {
+  await page.goto('/outlets');
+  const pager = page.getByText(/^Hal \d+ \/ \d+$/);
+  const firstOutlet = page.getByText('Bandar Agung').filter({ visible: true });
+  await expect(pager).toHaveText(/^Hal 1 \//);
+  await expect(firstOutlet).toBeVisible();
+  await page.getByRole('button', { name: 'Berikutnya' }).click();
+  await expect(pager).toHaveText(/^Hal 2 \//);
+  await expect(firstOutlet).toHaveCount(0);
+  await page.getByPlaceholder('Search outlets by name...').fill('a'); // filter berubah -> kembali ke halaman 1
+  await expect(pager).toHaveText(/^Hal 1 \//);
+});
 
 test.describe('tanpa login', () => {
   test.use({ storageState: { cookies: [], origins: [] } });

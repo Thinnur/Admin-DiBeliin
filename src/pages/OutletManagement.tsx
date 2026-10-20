@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Pager } from '@/components/ui/pager';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -369,6 +370,8 @@ function OutletTable({ outlets, onEdit, onDelete, isDeleting }: OutletTableProps
 // Main Outlet Management Page
 // -----------------------------------------------------------------------------
 
+const OUTLETS_PER_PAGE = 50;
+
 export default function OutletManagement() {
     // State
     const [outlets, setOutlets] = useState<Outlet[]>([]);
@@ -382,6 +385,7 @@ export default function OutletManagement() {
     const [searchQuery, setSearchQuery] = useState('');
     const [brandFilter, setBrandFilter] = useState<'all' | 'fore' | 'kenangan' | 'tomoro' | 'janjijiwa' | 'chatime'>('all');
     const [cityFilter, setCityFilter] = useState<string>('all');
+    const [page, setPage] = useState(0);
 
     // Initial data fetch
     useEffect(() => {
@@ -422,6 +426,12 @@ export default function OutletManagement() {
             return matchesSearch && matchesBrand && matchesCity;
         });
     }, [outlets, searchQuery, brandFilter, cityFilter]);
+
+    // Tampilkan per halaman: dulu semua outlet dirender sekaligus (2x, tabel + kartu HP) = ±86.000 elemen DOM.
+    // Statistik, daftar kota, dan filter tetap memakai seluruh data.
+    const pageCount = Math.max(1, Math.ceil(filteredOutlets.length / OUTLETS_PER_PAGE));
+    const currentPage = Math.min(page, pageCount - 1); // daftar menyusut (filter/hapus): jangan tertinggal di halaman kosong
+    const pagedOutlets = filteredOutlets.slice(currentPage * OUTLETS_PER_PAGE, (currentPage + 1) * OUTLETS_PER_PAGE);
 
     // Open dialog for adding
     const handleOpenAddDialog = () => {
@@ -564,7 +574,7 @@ export default function OutletManagement() {
 
                 <CardContent className="space-y-4">
                     {/* Brand Tabs */}
-                    <Tabs value={brandFilter} onValueChange={(v) => setBrandFilter(v as typeof brandFilter)}>
+                    <Tabs value={brandFilter} onValueChange={(v) => { setBrandFilter(v as typeof brandFilter); setPage(0); }}>
                         <TabsList className="w-full sm:grid sm:grid-cols-6">
                             <TabsTrigger value="all">Semua</TabsTrigger>
                             <TabsTrigger value="fore">Fore Coffee</TabsTrigger>
@@ -582,11 +592,11 @@ export default function OutletManagement() {
                             <Input
                                 placeholder="Search outlets by name..."
                                 value={searchQuery}
-                                onChange={(e) => setSearchQuery(e.target.value)}
+                                onChange={(e) => { setSearchQuery(e.target.value); setPage(0); }}
                                 className="pl-10"
                             />
                         </div>
-                        <Select value={cityFilter} onValueChange={setCityFilter}>
+                        <Select value={cityFilter} onValueChange={(v) => { setCityFilter(v); setPage(0); }}>
                             <SelectTrigger className="w-full sm:w-48">
                                 <SelectValue placeholder="Pilih Kota" />
                             </SelectTrigger>
@@ -607,12 +617,15 @@ export default function OutletManagement() {
                             <div className="animate-pulse">Loading outlets...</div>
                         </div>
                     ) : (
-                        <OutletTable
-                            outlets={filteredOutlets}
-                            onEdit={handleEditOutlet}
-                            onDelete={handleDeleteOutlet}
-                            isDeleting={isDeletingId}
-                        />
+                        <>
+                            <OutletTable
+                                outlets={pagedOutlets}
+                                onEdit={handleEditOutlet}
+                                onDelete={handleDeleteOutlet}
+                                isDeleting={isDeletingId}
+                            />
+                            <Pager page={currentPage} pageCount={pageCount} onPageChange={setPage} />
+                        </>
                     )}
 
                     {/* Results count */}
