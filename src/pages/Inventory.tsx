@@ -5,7 +5,7 @@
 
 import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Package, Coffee, Ticket, Plus, Search, LayoutGrid, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Package, Coffee, Ticket, Plus, Search, LayoutGrid, RefreshCw, ChevronLeft, ChevronRight, Check, X } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -113,22 +113,12 @@ function formatScanStatus(status?: DawgScanStatus): string {
 /** Vouchers are stored as raw "Label|tier_key" strings. Panel ini cuma peduli voucher "Pengguna Baru - Diskon 50%". */
 const DAWG_VOUCHER_LABEL_FILTER = 'Pengguna Baru - Diskon 50%';
 
-function DawgVoucherBadge({ raw, sampai, now }: { raw: string; sampai?: string; now: number }) {
-    const [label, tier] = raw.split('|');
-    const hangus = !!sampai && new Date(sampai).getTime() <= now;
-    const warna = hangus
-        ? 'bg-slate-100 border-slate-200 text-slate-400 line-through'
-        : 'bg-emerald-50 border-emerald-200 text-emerald-700';
-    return (
-        <span
-            title={sampai ? `Berlaku hingga ${formatDawgDate(sampai)}` : 'Masa berlaku belum terdata'}
-            className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] whitespace-nowrap ${warna}`}
-        >
-            {label}
-            {tier && <span className={hangus ? 'text-slate-400' : 'text-emerald-500'}>· {tier.replace(/_/g, ' ')}</span>}
-        </span>
-    );
-}
+/** Tier voucher yang ditampilkan per kolom di tabel KopKen Panel. */
+const DAWG_TIERS = [
+    { key: 'tanpa_minimal', label: 'Tanpa Minimal' },
+    { key: 'min_50k', label: 'Min 50k' },
+    { key: 'min_70k', label: 'Min 70k' },
+] as const;
 
 // -----------------------------------------------------------------------------
 // Stats Calculation (for summary cards)
@@ -175,9 +165,6 @@ export default function InventoryPage() {
 
     // Search query state (will be managed via DataTable internally, but we track it manually for smart filtering)
     const [searchQuery, setSearchQuery] = useState('');
-    // Patokan "voucher hangus": Date.now() saat render itu tidak murni (react-hooks/purity),
-    // jadi diambil sekali saat halaman dibuka.
-    const [now] = useState(Date.now);
     // Tabel KopKen Panel diambil per halaman dari server.
     const DAWG_PAGE_SIZE = 50;
     const [dawgPage, setDawgPage] = useState(0);
@@ -931,7 +918,9 @@ export default function InventoryPage() {
                                     <TableHeader>
                                         <TableRow>
                                             <TableHead>Account ID</TableHead>
-                                            <TableHead>Vouchers</TableHead>
+                                            {DAWG_TIERS.map((t) => (
+                                                <TableHead key={t.key} className="text-center">{t.label}</TableHead>
+                                            ))}
                                             <TableHead>Terdaftar</TableHead>
                                             <TableHead>Terakhir Dipakai</TableHead>
                                         </TableRow>
@@ -939,21 +928,21 @@ export default function InventoryPage() {
                                     <TableBody>
                                         {isLoadingDawg && (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="text-center text-sm text-slate-400 py-8">
+                                                <TableCell colSpan={6} className="text-center text-sm text-slate-400 py-8">
                                                     Memuat KopKen Panel...
                                                 </TableCell>
                                             </TableRow>
                                         )}
                                         {errorDawg && (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="text-center text-sm text-red-500 py-8">
+                                                <TableCell colSpan={6} className="text-center text-sm text-red-500 py-8">
                                                     {errorDawg.message}
                                                 </TableCell>
                                             </TableRow>
                                         )}
                                         {!isLoadingDawg && !errorDawg && filteredDawgAccounts.length === 0 && (
                                             <TableRow>
-                                                <TableCell colSpan={4} className="text-center text-sm text-slate-400 py-8">
+                                                <TableCell colSpan={6} className="text-center text-sm text-slate-400 py-8">
                                                     Tidak ada akun KopKen Panel.
                                                 </TableCell>
                                             </TableRow>
@@ -963,22 +952,18 @@ export default function InventoryPage() {
                                                 <TableCell className="font-mono text-sm whitespace-nowrap">
                                                     {account.account_id}
                                                 </TableCell>
-                                                <TableCell>
-                                                    <div className="flex flex-wrap gap-1 max-w-lg">
-                                                        {(() => {
-                                                            const vouchers = account.vouchers.filter(
-                                                                (v) => v.split('|')[0] === DAWG_VOUCHER_LABEL_FILTER
-                                                            );
-                                                            return vouchers.length === 0 ? (
-                                                                <span className="text-xs text-slate-400">Tidak ada voucher</span>
+                                                {DAWG_TIERS.map((t) => {
+                                                    const ada = account.vouchers.includes(`${DAWG_VOUCHER_LABEL_FILTER}|${t.key}`);
+                                                    return (
+                                                        <TableCell key={t.key} className="text-center">
+                                                            {ada ? (
+                                                                <Check className="inline h-5 w-5 text-emerald-600" aria-label="Ada" />
                                                             ) : (
-                                                                vouchers.map((v, i) => (
-                                                                    <DawgVoucherBadge key={i} raw={v} sampai={account.voucher_expiry?.[v]} now={now} />
-                                                                ))
-                                                            );
-                                                        })()}
-                                                    </div>
-                                                </TableCell>
+                                                                <X className="inline h-5 w-5 text-red-500" aria-label="Tidak ada" />
+                                                            )}
+                                                        </TableCell>
+                                                    );
+                                                })}
                                                 <TableCell className="text-sm text-slate-500 whitespace-nowrap">
                                                     {formatDawgDate(account.registered_at)}
                                                 </TableCell>
