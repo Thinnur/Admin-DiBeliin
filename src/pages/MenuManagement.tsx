@@ -9,6 +9,7 @@ import { toast } from 'sonner';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Pager } from '@/components/ui/pager';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -1012,6 +1013,8 @@ interface MenuTableProps {
     onEdit: (item: MenuItem) => void;
 }
 
+const MENUS_PER_PAGE = 50;
+
 function MenuTable({ items, onEdit }: MenuTableProps) {
     const formatCurrency = (amount: number | null) => {
         if (amount === null) return '—';
@@ -1055,6 +1058,13 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
         });
     }, [items]);
 
+    // Per halaman setelah diurutkan: dulu semua menu dirender 2x (tabel + kartu HP) = ±31.000 elemen DOM.
+    // Ganti filter = remount lewat `key` di pemanggil, jadi halaman kembali ke 1.
+    const [page, setPage] = useState(0);
+    const pageCount = Math.max(1, Math.ceil(sortedItems.length / MENUS_PER_PAGE));
+    const currentPage = Math.min(page, pageCount - 1); // daftar menyusut: jangan tertinggal di halaman kosong
+    const pagedItems = sortedItems.slice(currentPage * MENUS_PER_PAGE, (currentPage + 1) * MENUS_PER_PAGE);
+
     if (sortedItems.length === 0) {
         return (
             <div className="text-center py-12 text-slate-500">
@@ -1083,7 +1093,7 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
                         </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {sortedItems.map((item) => (
+                        {pagedItems.map((item) => (
                             <TableRow key={item.id} className="cursor-pointer hover:bg-slate-50" onClick={() => onEdit(item)}>
                                 <TableCell className="font-medium">{item.name}</TableCell>
                                 <TableCell>{getBrandBadge(item.brand)}</TableCell>
@@ -1141,7 +1151,7 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
 
             {/* Mobile: Card List */}
             <div className="md:hidden space-y-2">
-                {sortedItems.map((item) => (
+                {pagedItems.map((item) => (
                     <div
                         key={item.id}
                         className="p-3 rounded-xl border border-slate-100 bg-white active:bg-slate-50 transition-colors"
@@ -1190,6 +1200,7 @@ function MenuTable({ items, onEdit }: MenuTableProps) {
                     </div>
                 ))}
             </div>
+            <Pager page={currentPage} pageCount={pageCount} onPageChange={setPage} />
         </>
     );
 }
@@ -2165,7 +2176,7 @@ export default function MenuManagement() {
                                 <div className="animate-pulse">Memuat menu...</div>
                             </div>
                         ) : (
-                            <MenuTable items={filteredItems} onEdit={handleEdit} />
+                            <MenuTable key={`${brandFilter}|${categoryFilter}|${searchQuery}`} items={filteredItems} onEdit={handleEdit} />
                         )}
                     </CardContent>
                 </Card>

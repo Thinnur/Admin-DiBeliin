@@ -77,6 +77,19 @@ test('outlets: paginasi', async ({ page }) => {
   await expect(pager).toHaveText(/^Hal 1 \//);
 });
 
+test('menus: paginasi', async ({ page }) => {
+  await page.goto('/menus');
+  const pager = page.getByText(/^Hal \d+ \/ \d+$/);
+  const firstCard = page.locator('div.md\\:hidden > div').first();
+  await expect(pager).toHaveText(/^Hal 1 \//);
+  const first = await firstCard.innerText();
+  await page.getByRole('button', { name: 'Berikutnya' }).click();
+  await expect(pager).toHaveText(/^Hal 2 \//);
+  await expect(firstCard).not.toHaveText(first);
+  await page.getByPlaceholder('Cari menu...').fill('a'); // filter berubah -> tabel di-remount, kembali ke halaman 1
+  await expect(pager).toHaveText(/^Hal 1 \//);
+});
+
 test.describe('tanpa login', () => {
   test.use({ storageState: { cookies: [], origins: [] } });
 
