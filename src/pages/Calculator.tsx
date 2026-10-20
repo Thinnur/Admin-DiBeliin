@@ -842,7 +842,6 @@ export default function CalculatorPage() {
     // UniversalCart.tsx waktu customer checkout di DIBeliin) -- undefined = Pickup Sekarang.
     const [parsedPickupTime, setParsedPickupTime] = useState<string | undefined>(undefined);
     const [brand, setBrand] = useState<AccountBrand>('kopken');
-    const [adminCost, setAdminCost] = useState(5000);
     const [dbAdminFees, setDbAdminFees] = useState<AdminFees | null>(null);
     const { data: modeMin50 = false } = useQuery({
         queryKey: ['kopkenModeMin50'],
@@ -870,30 +869,22 @@ export default function CalculatorPage() {
             .catch(() => toast.error('Gagal memuat database biaya admin'));
     }, []);
 
-    useEffect(() => {
-        const fallbackFees: Record<AccountBrand, number> = {
-            fore: 5000,
-            kopken: 5000,
-            tomoro: 2000,
-            janjijiwa: 2000,
-            chatime: 2000,
-        };
-
-        if (!dbAdminFees) {
-            setAdminCost(fallbackFees[brand]);
-            return;
-        }
-
-        const feeKeyMap: Record<AccountBrand, keyof AdminFees> = {
-            fore: 'fee_jasdor_fore',
-            kopken: 'fee_jasdor_kopken',
-            tomoro: 'fee_jasdor_tomoro',
-            janjijiwa: 'fee_jasdor_janjijiwa',
-            chatime: 'fee_jasdor_chatime',
-        };
-        const key = feeKeyMap[brand];
-        setAdminCost(dbAdminFees[key] ?? fallbackFees[brand]);
-    }, [brand, dbAdminFees]);
+    // Turunan murni brand + pengaturan DB (input-nya disabled): dihitung saat render, bukan disinkronkan lewat effect.
+    const fallbackFees: Record<AccountBrand, number> = {
+        fore: 5000,
+        kopken: 5000,
+        tomoro: 2000,
+        janjijiwa: 2000,
+        chatime: 2000,
+    };
+    const feeKeyMap: Record<AccountBrand, keyof AdminFees> = {
+        fore: 'fee_jasdor_fore',
+        kopken: 'fee_jasdor_kopken',
+        tomoro: 'fee_jasdor_tomoro',
+        janjijiwa: 'fee_jasdor_janjijiwa',
+        chatime: 'fee_jasdor_chatime',
+    };
+    const adminCost = dbAdminFees?.[feeKeyMap[brand]] ?? fallbackFees[brand];
 
     // Generate unique ID
     const generateId = () => Math.random().toString(36).substring(2, 9);

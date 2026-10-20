@@ -550,6 +550,7 @@ function AdminFeeSection() {
     // Sync input states when query returns data
     useEffect(() => {
         if (adminFees) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect -- isi awal input dari data server; setelah itu diedit user
             setForeInput(adminFees.fee_jasdor_fore.toString());
             setKenanganInput(adminFees.fee_jasdor_kopken.toString());
             setKenanganMin70kInput((adminFees.fee_jasdor_kopken_min70k ?? 3000).toString());
@@ -631,7 +632,7 @@ function AdminFeeSection() {
                 if (!hasChanges) {
                     toast.info('Tidak ada perubahan nominal biaya');
                 }
-            } catch (err) {
+            } catch {
                 // error is already handled in onError of mutation
             }
         }
@@ -778,6 +779,7 @@ function BluAccountSection() {
     const [rows, setRows] = useState<BluAccount[]>([]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- isi awal form dari data server; setelah itu diedit user
         if (saved) setRows(saved);
     }, [saved]);
 
@@ -921,6 +923,7 @@ function KopkenDefaultPaymentSection() {
     const [rows, setRows] = useState<{ email: string; pilihan: string }[]>([]);
 
     useEffect(() => {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- isi awal form dari data server; setelah itu diedit user
         if (saved) setRows(Object.entries(saved).map(([email, pilihan]) => ({ email, pilihan })));
     }, [saved]);
 
@@ -1387,7 +1390,7 @@ function ApiSyncSection() {
                     setClsignature(data.clsignature || '');
                     setDeviceId(data.deviceid || '');
                 }
-            } catch (err: any) {
+            } catch (err) {
                 console.error('Error fetching api config:', err);
                 toast.error('Gagal memuat konfigurasi API Kopi Kenangan');
             } finally {
@@ -1416,9 +1419,9 @@ function ApiSyncSection() {
 
             if (error) throw error;
             toast.success('Konfigurasi API Kopi Kenangan berhasil disimpan!');
-        } catch (err: any) {
+        } catch (err) {
             console.error('Error saving config:', err);
-            toast.error(`Gagal menyimpan: ${err.message || 'Error tidak diketahui'}`);
+            toast.error(`Gagal menyimpan: ${(err as { message?: string } | null)?.message || 'Error tidak diketahui'}`);
         } finally {
             setIsSaving(false);
         }

@@ -74,7 +74,7 @@ function OutletFormDialog({
     useEffect(() => {
         if (editingOutlet) {
             setName(editingOutlet.name);
-            setBrand(editingOutlet.brand as any);
+            setBrand(editingOutlet.brand as typeof brand);
             setCity(editingOutlet.city || 'Jakarta');
             setIsPremium(editingOutlet.is_premium);
         } else {

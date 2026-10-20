@@ -12,6 +12,7 @@ import { Copy, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
+// eslint-disable-next-line react-refresh/only-export-components -- helper/hook, bukan komponen; hanya memengaruhi fast refresh saat dev
 export function useEksporGambar(
     ref: React.RefObject<HTMLDivElement | null>,
     namaFile: string,

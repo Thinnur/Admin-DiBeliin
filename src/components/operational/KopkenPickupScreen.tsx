@@ -112,6 +112,7 @@ function hargaBaris(it: KopkenReceiptItem): number | null {
  * PNG-nya kehilangan semua foto. kopsu memakai proxy sendiri
  * (`/api/kopken/image?url=`) persis karena alasan yang sama.
  */
+// eslint-disable-next-line react-refresh/only-export-components -- helper/hook, bukan komponen; hanya memengaruhi fast refresh saat dev
 export function proxyGambar(url?: string | null): string | null {
     if (!url) return null;
     if (url.startsWith('/') || url.startsWith('data:')) return url;

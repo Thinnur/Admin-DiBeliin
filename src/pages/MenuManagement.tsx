@@ -193,7 +193,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
     useEffect(() => {
         if (item) {
             setName(item.name);
-            setBrand(item.brand as any);
+            setBrand(item.brand as typeof brand);
             setCategories(item.categories || []);
             setDescription(item.description || '');
             setImageUrl(item.image_url || '');
@@ -280,7 +280,7 @@ function EditMenuDialog({ item, isOpen, onClose, onSave, isSaving, categoriesByB
                     {/* Brand */}
                     <div className="space-y-2">
                         <Label htmlFor="edit-brand">Brand *</Label>
-                        <Select value={brand} onValueChange={(v) => handleBrandChange(v as any)}>
+                        <Select value={brand} onValueChange={(v) => handleBrandChange(v as typeof brand)}>
                             <SelectTrigger id="edit-brand">
                                 <SelectValue />
                             </SelectTrigger>
@@ -616,7 +616,7 @@ function AddMenuDialog({ isOpen, onClose, onSave, isSaving, categoriesByBrand }:
                     {/* Brand */}
                     <div className="space-y-2">
                         <Label htmlFor="brand">Brand *</Label>
-                        <Select value={brand} onValueChange={(v) => handleBrandChange(v as any)}>
+                        <Select value={brand} onValueChange={(v) => handleBrandChange(v as typeof brand)}>
                             <SelectTrigger id="brand">
                                 <SelectValue />
                             </SelectTrigger>
@@ -899,7 +899,7 @@ function CategorySortDialog({ isOpen, onClose, menuItems, onSaved }: CategorySor
     const handleSave = async () => {
         setIsSaving(true);
         try {
-            await updateCategorySortOrder(brand as any, orderedCategories);
+            await updateCategorySortOrder(brand, orderedCategories);
             const brandNames = {
                 fore: 'Fore Coffee',
                 kenangan: 'Kopi Kenangan',
@@ -928,7 +928,7 @@ function CategorySortDialog({ isOpen, onClose, menuItems, onSaved }: CategorySor
                     {/* Brand Selector */}
                     <div className="space-y-2">
                         <Label>Brand</Label>
-                        <Select value={brand} onValueChange={(v) => setBrand(v as any)}>
+                        <Select value={brand} onValueChange={(v) => setBrand(v as typeof brand)}>
                             <SelectTrigger>
                                 <SelectValue />
                             </SelectTrigger>

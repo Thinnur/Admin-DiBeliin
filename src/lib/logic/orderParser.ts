@@ -117,7 +117,7 @@ export function parseWhatsAppOrder(text: string): ParseResult {
         if (!cleanLine) continue;
 
         // Skip clear separators
-        if (/^[\-\u2013\u2014\u2500]{3,}$/.test(cleanLine)) {
+        if (/^[-\u2013\u2014\u2500]{3,}$/.test(cleanLine)) {
             continue;
         }
 
