@@ -32,8 +32,9 @@ export async function getOutlets(): Promise<Outlet[]> {
     const { data, error } = await supabase
         .from('outlets')
         .select('*')
-        .order('name', { ascending: true })
-        .limit(2000);
+        // Tanpa .limit: dulu .limit(2000) diam-diam memotong 921 dari 2.921 outlet (statistik & daftar salah).
+        // Tampilan sudah per halaman di OutletManagement, jadi data penuh aman dirender.
+        .order('name', { ascending: true });
 
     if (error) {
         console.error('Error fetching outlets:', error);
