@@ -8,14 +8,24 @@
 import { supabase } from '@/lib/supabase';
 import type { DawgAccount } from '@/types/database';
 
-export async function fetchDawgAccounts(): Promise<DawgAccount[]> {
-    const { data, error } = await supabase
+/** Satu halaman tabel KopKen Panel (cari Account ID di server). Dulu semua
+ * baris (~800 KB) ditarik & dirender sekaligus di tab bawaan Inventory. */
+export async function fetchDawgAccountsPage(
+    search: string,
+    page: number,
+    pageSize: number
+): Promise<{ rows: DawgAccount[]; total: number }> {
+    let query = supabase
         .from('dawg_accounts')
-        .select('*')
+        .select('account_id, vouchers, voucher_expiry, registered_at, last_used, updated_at', { count: 'exact' })
         .order('registered_at', { ascending: false });
+    const q = search.trim().replace(/[%_]/g, '');
+    if (q) query = query.ilike('account_id', `%${q}%`);
 
+    const from = page * pageSize;
+    const { data, error, count } = await query.range(from, from + pageSize - 1);
     if (error) throw new Error(`Gagal memuat KopKen Panel: ${error.message}`);
-    return (data ?? []) as DawgAccount[];
+    return { rows: (data ?? []) as DawgAccount[], total: count ?? 0 };
 }
 
 /** Stok voucher "Pengguna Baru - Diskon 50%" per tier, dihitung di server

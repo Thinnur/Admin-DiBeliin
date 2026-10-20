@@ -42,6 +42,7 @@ interface DataTableProps<TData, TValue> {
     onFilterChange?: (value: string) => void;
     disablePagination?: boolean;
     hideFilterInput?: boolean;
+    pageSize?: number;
 }
 
 type TableColumnMeta = {
@@ -96,6 +97,7 @@ export function DataTable<TData, TValue>({
     onFilterChange,
     disablePagination = false,
     hideFilterInput = false,
+    pageSize = 10,
 }: DataTableProps<TData, TValue>) {
     const [sorting, setSorting] = useState<SortingState>([]);
     const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -115,7 +117,7 @@ export function DataTable<TData, TValue>({
         },
         initialState: {
             pagination: {
-                pageSize: disablePagination ? data.length || 1000 : 10,
+                pageSize: disablePagination ? data.length || 1000 : pageSize,
             },
         },
     });

@@ -97,6 +97,7 @@ export interface AccountFilters {
   brand?: AccountBrand;
   status?: AccountStatus;
   statuses?: AccountStatus[]; // beberapa status sekaligus (mis. ready + in_use)
+  search?: string; // potongan nomor HP / email (ilike)
   expiry_before?: string; // Filter accounts expiring before this date
   expiry_after?: string;  // Filter accounts expiring after this date
 }

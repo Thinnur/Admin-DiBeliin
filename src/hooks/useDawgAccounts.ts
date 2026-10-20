@@ -2,22 +2,25 @@
 // DiBeliin Admin - Dawg (Kopken Panel) Account Hook
 // =============================================================================
 
-import { useQuery, useMutation, useQueryClient, type UseQueryOptions } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, keepPreviousData } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-    fetchDawgAccounts,
+    fetchDawgAccountsPage,
     fetchDawgScanStatus,
     fetchDawgVoucherUsage,
     requestDawgAccountScan,
 } from '@/services/dawgAccountService';
-import type { DawgAccount } from '@/types/database';
 
-export function useDawgAccounts(
-    options?: Omit<UseQueryOptions<DawgAccount[], Error>, 'queryKey' | 'queryFn'>
+export function useDawgAccountsPage(
+    search: string,
+    page: number,
+    pageSize: number,
+    options?: { enabled?: boolean; refetchInterval?: number | false }
 ) {
     return useQuery({
-        queryKey: ['dawg-accounts'],
-        queryFn: fetchDawgAccounts,
+        queryKey: ['dawg-accounts', search, page, pageSize],
+        queryFn: () => fetchDawgAccountsPage(search, page, pageSize),
+        placeholderData: keepPreviousData,
         ...options,
     });
 }

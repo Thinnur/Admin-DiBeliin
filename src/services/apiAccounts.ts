@@ -38,6 +38,10 @@ export async function fetchAccounts(filters?: AccountFilters): Promise<Account[]
     if (filters?.statuses) {
         query = query.in('status', filters.statuses);
     }
+    const search = filters?.search?.trim().replace(/[%_]/g, '');
+    if (search) {
+        query = query.ilike('phone_number', `%${search}%`);
+    }
     if (filters?.expiry_before) {
         query = query.lte('expiry_date', filters.expiry_before);
     }

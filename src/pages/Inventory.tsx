@@ -3,9 +3,9 @@
 // =============================================================================
 // Premium inventory page for managing coffee shop accounts
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Package, Coffee, Ticket, Plus, Search, LayoutGrid, RefreshCw } from 'lucide-react';
+import { Package, Coffee, Ticket, Plus, Search, LayoutGrid, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
 import { DataTable } from '@/components/ui/data-table';
 import { Button } from '@/components/ui/button';
@@ -67,7 +67,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { queryKeys } from '@/lib/queryClient';
 import { fetchVoucherStockRows, type VoucherStockRow } from '@/services/apiAccounts';
 import { fetchDawgTierCounts } from '@/services/dawgAccountService';
-import { useDawgAccounts, useDawgScanStatus, useRequestDawgScan } from '@/hooks/useDawgAccounts';
+import { useDawgAccountsPage, useDawgScanStatus, useRequestDawgScan } from '@/hooks/useDawgAccounts';
 import {
     DEVICE_ALL_VALUE,
     DEVICE_OPTIONS,
@@ -75,7 +75,7 @@ import {
     isUnsetDevice,
     type DeviceFilterValue,
 } from '@/lib/deviceOptions';
-import type { Account, AccountBrand, AccountFilters, AccountStatus, DawgAccount } from '@/types/database';
+import type { Account, AccountBrand, AccountFilters, AccountStatus } from '@/types/database';
 import type { DawgScanStatus } from '@/services/dawgAccountService';
 
 // -----------------------------------------------------------------------------
@@ -112,23 +112,6 @@ function formatScanStatus(status?: DawgScanStatus): string {
 
 /** Vouchers are stored as raw "Label|tier_key" strings. Panel ini cuma peduli voucher "Pengguna Baru - Diskon 50%". */
 const DAWG_VOUCHER_LABEL_FILTER = 'Pengguna Baru - Diskon 50%';
-
-/**
- * Voucher Kopken punya masa berlaku (~30 hari sejak akun didaftarkan, jatuh
- * temponya beda-beda per akun). Voucher tanpa entri masa berlaku dianggap masih
- * berlaku — aturan yang sama dipakai `claim_dawg_voucher` di database, supaya
- * angka di panel ini tidak pernah menjanjikan stok yang justru ditolak saat klaim.
- */
-function dawgVoucherMasihBerlaku(account: DawgAccount, voucher: string): boolean {
-    const sampai = account.voucher_expiry?.[voucher];
-    return !sampai || new Date(sampai).getTime() > Date.now();
-}
-
-/** Jumlah akun panel yang masih punya voucher "Pengguna Baru - Diskon 50%" di tier tertentu. */
-function countDawgTier(accounts: DawgAccount[], tier: string): number {
-    const needle = `${DAWG_VOUCHER_LABEL_FILTER}|${tier}`;
-    return accounts.filter((a) => a.vouchers?.includes(needle) && dawgVoucherMasihBerlaku(a, needle)).length;
-}
 
 function DawgVoucherBadge({ raw, sampai }: { raw: string; sampai?: string }) {
     const [label, tier] = raw.split('|');
@@ -192,6 +175,18 @@ export default function InventoryPage() {
 
     // Search query state (will be managed via DataTable internally, but we track it manually for smart filtering)
     const [searchQuery, setSearchQuery] = useState('');
+    // Tabel KopKen Panel diambil per halaman dari server.
+    const DAWG_PAGE_SIZE = 50;
+    const [dawgPage, setDawgPage] = useState(0);
+    // Pencarian jalan di server: tunggu jeda ketik biar tidak 1 request per huruf.
+    const [debouncedSearch, setDebouncedSearch] = useState('');
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            setDebouncedSearch(searchQuery.trim());
+            setDawgPage(0);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchQuery]);
 
     // Edit dialog state
     const [editingAccount, setEditingAccount] = useState<Account | null>(null);
@@ -206,19 +201,22 @@ export default function InventoryPage() {
     // Akun 'sold' (~78% baris, total ~1,7 MB) baru diambil kalau admin memfilter
     // status, mencari, atau memfilter perangkat -- sama dengan aturan tampil
     // di filteredAccounts (isDefaultState).
-    const filterAkun = useMemo<AccountFilters | undefined>(() => {
-        if (statusFilter !== 'all') return { status: statusFilter };
-        if (searchQuery.trim() === '' && deviceFilter === DEVICE_ALL_VALUE) {
-            return { statuses: ['ready', 'in_use'] };
+    // Sekarang juga cuma brand tab yang dibuka, dan nomor HP dicari di server.
+    const brandTab = activeTab === 'kopken_panel' ? undefined : activeTab;
+    const filterAkun = useMemo<AccountFilters>(() => {
+        const base: AccountFilters = { brand: brandTab, search: debouncedSearch || undefined };
+        if (statusFilter !== 'all') return { ...base, status: statusFilter };
+        if (debouncedSearch === '' && deviceFilter === DEVICE_ALL_VALUE) {
+            return { ...base, statuses: ['ready', 'in_use'] };
         }
-        return undefined;
-    }, [statusFilter, searchQuery, deviceFilter]);
+        return base;
+    }, [brandTab, statusFilter, debouncedSearch, deviceFilter]);
     // Guard: !isAuthLoading memastikan query TIDAK jalan sebelum sesi auth selesai dipulihkan
     const {
         data: allAccountsAdmin,
         isLoading: isLoadingAdmin,
         isError: isErrorAdmin,
-    } = useAccounts(filterAkun, { enabled: !isAuthLoading && !isStaff });
+    } = useAccounts(filterAkun, { enabled: !isAuthLoading && !isStaff && !!brandTab });
     // Kartu stok (admin & staff): kolom secukupnya, semua status -- JANGAN ikut
     // narik nomor HP & password ke HP staf. Terpisah dari tabel supaya angka
     // total tidak ikut berubah waktu tabel difilter.
@@ -231,37 +229,36 @@ export default function InventoryPage() {
         queryFn: fetchVoucherStockRows,
         enabled: !isAuthLoading,
     });
-    const { data: dawgCountsStaff } = useQuery({
-        queryKey: ['dawgTierCounts'],
-        queryFn: fetchDawgTierCounts,
-        enabled: !isAuthLoading && isStaff,
-    });
-    // isLoading harus true juga selama sesi auth belum selesai dipulihkan
-    const isLoading = isAuthLoading || (isStaff ? isLoadingStokStaff : isLoadingAdmin);
-    const isError = isStaff ? isErrorStokStaff : isErrorAdmin;
-
     // KopKen Panel data (kopsu.app automation account pool)
     const scanStatus = useDawgScanStatus(activeTab === 'kopken_panel');
     const requestScan = useRequestDawgScan();
     const isScanning = scanStatus.data?.state === 'running';
 
+    // Stok KopKen (admin & staff) dihitung di server -- dulu admin menarik
+    // seluruh dawg_accounts (~800 KB) cuma buat menghitung ini.
+    const { data: dawgCounts } = useQuery({
+        queryKey: ['dawgTierCounts'],
+        queryFn: fetchDawgTierCounts,
+        enabled: !isAuthLoading,
+        refetchInterval: isScanning ? 5_000 : false,
+    });
+    // isLoading harus true juga selama sesi auth belum selesai dipulihkan
+    const isLoading = isAuthLoading || (isStaff ? isLoadingStokStaff : isLoadingAdmin);
+    const isError = isStaff ? isErrorStokStaff : isErrorAdmin;
+
     const {
-        data: dawgAccounts,
+        data: dawgPageData,
         isLoading: isLoadingDawg,
-    } = useDawgAccounts({
-        // Admin selalu butuh datanya buat kartu stok KopKen + tabel panel.
-        // Staff pakai fetchDawgTierCounts (dihitung di server, ~0 KB).
-        enabled: !isAuthLoading && !isStaff,
+        isFetching: isFetchingDawg,
+    } = useDawgAccountsPage(debouncedSearch, dawgPage, DAWG_PAGE_SIZE, {
+        enabled: !isAuthLoading && !isStaff && activeTab === 'kopken_panel',
         // Selagi worker scan jalan, daftar akunnya ikut nge-refresh sendiri
         // supaya akun baru langsung kelihatan tanpa reload halaman.
         refetchInterval: isScanning ? 5_000 : false,
     });
-
-    const filteredDawgAccounts = useMemo(() => {
-        const query = searchQuery.trim().toLowerCase();
-        if (!query) return dawgAccounts ?? [];
-        return (dawgAccounts ?? []).filter((a) => a.account_id.toLowerCase().includes(query));
-    }, [dawgAccounts, searchQuery]);
+    const filteredDawgAccounts = dawgPageData?.rows ?? [];
+    const dawgTotal = dawgPageData?.total ?? 0;
+    const dawgPageCount = Math.max(1, Math.ceil(dawgTotal / DAWG_PAGE_SIZE));
 
     // Mutations
     const deleteAccount = useDeleteAccount();
@@ -276,16 +273,7 @@ export default function InventoryPage() {
     );
 
     // Stok KopKen diambil dari pool KopKen Panel (dawg_accounts), bukan tabel accounts.
-    const kopkenStats = useMemo(() => {
-        if (isStaff) return dawgCountsStaff ?? { nomin: 0, min50k: 0, min70k: 0, total: 0 };
-        const list = dawgAccounts ?? [];
-        return {
-            nomin: countDawgTier(list, 'tanpa_minimal'),
-            min50k: countDawgTier(list, 'min_50k'),
-            min70k: countDawgTier(list, 'min_70k'),
-            total: list.length,
-        };
-    }, [isStaff, dawgCountsStaff, dawgAccounts]);
+    const kopkenStats = dawgCounts ?? { nomin: 0, min50k: 0, min70k: 0, total: 0 };
 
     const isDeviceFilterActive = deviceFilter !== DEVICE_ALL_VALUE;
     const hasActiveFilters =
@@ -845,7 +833,7 @@ export default function InventoryPage() {
                                     filterColumnName={isStaff ? undefined : 'phone_number'}
                                     filterValue={searchQuery}
                                     hideFilterInput={true}
-                                    disablePagination={true}
+                                    pageSize={50}
                                     emptyMessage={getEmptyMessage('Kopi Kenangan')}
                                 />
                             </div>
@@ -860,7 +848,7 @@ export default function InventoryPage() {
                                     filterColumnName={isStaff ? undefined : 'phone_number'}
                                     filterValue={searchQuery}
                                     hideFilterInput={true}
-                                    disablePagination={true}
+                                    pageSize={50}
                                     emptyMessage={getEmptyMessage('Fore Coffee')}
                                 />
                             </div>
@@ -875,7 +863,7 @@ export default function InventoryPage() {
                                     filterColumnName={isStaff ? undefined : 'phone_number'}
                                     filterValue={searchQuery}
                                     hideFilterInput={true}
-                                    disablePagination={true}
+                                    pageSize={50}
                                     emptyMessage={getEmptyMessage('Chatime')}
                                 />
                             </div>
@@ -890,7 +878,7 @@ export default function InventoryPage() {
                                     filterColumnName={isStaff ? undefined : 'phone_number'}
                                     filterValue={searchQuery}
                                     hideFilterInput={true}
-                                    disablePagination={true}
+                                    pageSize={50}
                                     emptyMessage={getEmptyMessage('Tomoro Coffee')}
                                 />
                             </div>
@@ -905,7 +893,7 @@ export default function InventoryPage() {
                                     filterColumnName={isStaff ? undefined : 'phone_number'}
                                     filterValue={searchQuery}
                                     hideFilterInput={true}
-                                    disablePagination={true}
+                                    pageSize={50}
                                     emptyMessage={getEmptyMessage('Kopi Janji Jiwa')}
                                 />
                             </div>
@@ -990,6 +978,35 @@ export default function InventoryPage() {
                                         ))}
                                     </TableBody>
                                 </Table>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-2 pt-3">
+                                <span className="text-xs text-slate-500 tabular-nums">
+                                    {dawgTotal} akun
+                                </span>
+                                {dawgPageCount > 1 && (
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setDawgPage((p) => p - 1)}
+                                            disabled={dawgPage === 0 || isFetchingDawg}
+                                        >
+                                            <ChevronLeft className="h-4 w-4" />
+                                        </Button>
+                                        <span className="text-sm text-muted-foreground tabular-nums">
+                                            Hal {dawgPage + 1} / {dawgPageCount}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => setDawgPage((p) => p + 1)}
+                                            disabled={dawgPage + 1 >= dawgPageCount || isFetchingDawg}
+                                        >
+                                            <ChevronRight className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                )}
                             </div>
                         </TabsContent>
                     </Tabs>
