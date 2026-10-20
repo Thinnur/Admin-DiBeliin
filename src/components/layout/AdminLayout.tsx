@@ -3,7 +3,7 @@
 // =============================================================================
 // Premium admin shell with polished sidebar and header
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
     Package,
@@ -714,7 +714,10 @@ export default function AdminLayout() {
                 {/* Page Content */}
                 <main className="flex-1 p-3 md:p-6 pb-20 md:pb-6 overflow-auto">
                     <div className="animate-fade-in">
-                        <Outlet />
+                        {/* Halaman dimuat per rute (lazy di App.tsx); header & navigasi tetap tampil selama memuat */}
+                        <Suspense fallback={<div className="py-12 text-center text-sm text-slate-500">Memuat halaman...</div>}>
+                            <Outlet />
+                        </Suspense>
                     </div>
                 </main>
             </div>

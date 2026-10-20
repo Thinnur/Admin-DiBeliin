@@ -3,6 +3,7 @@
 // =============================================================================
 // Router setup dengan Authentication & Role-Based Access Control
 
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
@@ -12,18 +13,19 @@ import { useAuth } from '@/contexts/AuthContext';
 import AdminLayout from '@/components/layout/AdminLayout';
 import ProtectedRoute from '@/components/auth/ProtectedRoute';
 import LoginPage from '@/pages/Login';
-import InventoryPage from '@/pages/Inventory';
-import FinancePage from '@/pages/Finance';
-import CalculatorPage from '@/pages/Calculator';
-import OrderListPage from '@/pages/OrderList';
-import CheckoutHistoryPage from '@/pages/CheckoutHistory';
-import CheckoutProcessPage from '@/pages/CheckoutProcess';
-import OperationalPage from '@/pages/Operational';
-import OutletManagementPage from '@/pages/OutletManagement';
-import MenuManagementPage from '@/pages/MenuManagement';
-import DigitalProductsPage from '@/pages/DigitalProducts';
-import DigitalTrackingPage from '@/pages/DigitalTracking';
-import DigitalProvidersPage from '@/pages/DigitalProviders';
+// Tiap halaman jadi chunk sendiri: dulu seluruh admin (1,19 MB) dimuat di setiap halaman, termasuk login.
+const InventoryPage = lazy(() => import('@/pages/Inventory'));
+const FinancePage = lazy(() => import('@/pages/Finance'));
+const CalculatorPage = lazy(() => import('@/pages/Calculator'));
+const OrderListPage = lazy(() => import('@/pages/OrderList'));
+const CheckoutHistoryPage = lazy(() => import('@/pages/CheckoutHistory'));
+const CheckoutProcessPage = lazy(() => import('@/pages/CheckoutProcess'));
+const OperationalPage = lazy(() => import('@/pages/Operational'));
+const OutletManagementPage = lazy(() => import('@/pages/OutletManagement'));
+const MenuManagementPage = lazy(() => import('@/pages/MenuManagement'));
+const DigitalProductsPage = lazy(() => import('@/pages/DigitalProducts'));
+const DigitalTrackingPage = lazy(() => import('@/pages/DigitalTracking'));
+const DigitalProvidersPage = lazy(() => import('@/pages/DigitalProviders'));
 
 import './App.css';
 
