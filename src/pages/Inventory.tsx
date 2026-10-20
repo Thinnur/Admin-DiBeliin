@@ -113,9 +113,9 @@ function formatScanStatus(status?: DawgScanStatus): string {
 /** Vouchers are stored as raw "Label|tier_key" strings. Panel ini cuma peduli voucher "Pengguna Baru - Diskon 50%". */
 const DAWG_VOUCHER_LABEL_FILTER = 'Pengguna Baru - Diskon 50%';
 
-function DawgVoucherBadge({ raw, sampai }: { raw: string; sampai?: string }) {
+function DawgVoucherBadge({ raw, sampai, now }: { raw: string; sampai?: string; now: number }) {
     const [label, tier] = raw.split('|');
-    const hangus = !!sampai && new Date(sampai).getTime() <= Date.now();
+    const hangus = !!sampai && new Date(sampai).getTime() <= now;
     const warna = hangus
         ? 'bg-slate-100 border-slate-200 text-slate-400 line-through'
         : 'bg-emerald-50 border-emerald-200 text-emerald-700';
@@ -175,6 +175,9 @@ export default function InventoryPage() {
 
     // Search query state (will be managed via DataTable internally, but we track it manually for smart filtering)
     const [searchQuery, setSearchQuery] = useState('');
+    // Patokan "voucher hangus": Date.now() saat render itu tidak murni (react-hooks/purity),
+    // jadi diambil sekali saat halaman dibuka.
+    const [now] = useState(Date.now);
     // Tabel KopKen Panel diambil per halaman dari server.
     const DAWG_PAGE_SIZE = 50;
     const [dawgPage, setDawgPage] = useState(0);
@@ -962,7 +965,7 @@ export default function InventoryPage() {
                                                                 <span className="text-xs text-slate-400">Tidak ada voucher</span>
                                                             ) : (
                                                                 vouchers.map((v, i) => (
-                                                                    <DawgVoucherBadge key={i} raw={v} sampai={account.voucher_expiry?.[v]} />
+                                                                    <DawgVoucherBadge key={i} raw={v} sampai={account.voucher_expiry?.[v]} now={now} />
                                                                 ))
                                                             );
                                                         })()}
