@@ -34,3 +34,10 @@ CLAUDE.md
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 graft/
+
+# Playwright: HAR, screenshot, trace & sesi login berisi data produksi -> hanya di VPS, jangan di-commit
+e2e/.auth/
+e2e/har/
+e2e/*-snapshots/
+test-results/
+playwright-report/
