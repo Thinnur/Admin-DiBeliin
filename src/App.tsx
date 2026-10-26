@@ -26,6 +26,7 @@ const MenuManagementPage = lazy(() => import('@/pages/MenuManagement'));
 const DigitalProductsPage = lazy(() => import('@/pages/DigitalProducts'));
 const DigitalTrackingPage = lazy(() => import('@/pages/DigitalTracking'));
 const DigitalProvidersPage = lazy(() => import('@/pages/DigitalProviders'));
+const WatermarkPage = lazy(() => import('@/pages/Watermark'));
 
 import './App.css';
 
@@ -66,6 +67,7 @@ function App() {
               <Route path="/checkout-history" element={<CheckoutHistoryPage />} />
               <Route path="/checkout-process/:jobId" element={<CheckoutProcessPage />} />
               <Route path="/operational" element={<OperationalPage />} />
+              <Route path="/watermark" element={<WatermarkPage />} />
 
               {/* Rute khusus Super Admin — Staff akan di-redirect ke /inventory */}
               <Route element={<StaffRoute />}>

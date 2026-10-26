@@ -24,6 +24,7 @@ import {
     Layers,
     ShieldAlert,
     History,
+    Stamp,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
@@ -99,7 +100,18 @@ const navItems = [
         icon: Layers,
         description: 'Provider & logo',
     },
+    {
+        label: 'Watermark',
+        path: '/watermark',
+        icon: Stamp,
+        description: 'Foto testimoni',
+    },
 ];
+
+// Menu utama (bar bawah HP). Sisanya masuk "Lainnya".
+const PRIMARY_PATHS = ['/inventory', '/calculator', '/checkout-history', '/operational'];
+// Halaman yang boleh dibuka Staff (harus sama dengan rute semua-role di App.tsx)
+const STAFF_PATHS = [...PRIMARY_PATHS, '/watermark'];
 
 // -----------------------------------------------------------------------------
 // Page Titles
@@ -146,6 +158,10 @@ const pageTitles: Record<string, { title: string; description: string }> = {
         title: 'Kelola Provider',
         description: 'Tambah dan kelola provider digital beserta logo',
     },
+    '/watermark': {
+        title: 'Watermark',
+        description: 'Beri watermark DiBeliin pada foto testimoni',
+    },
 };
 
 // -----------------------------------------------------------------------------
@@ -165,10 +181,8 @@ interface SidebarProps {
 function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user, isStaff }: SidebarProps) {
     const location = useLocation();
 
-    // Filter navigasi: Staff bisa akses Inventory, Calculator, dan Operational
-    const visibleNavItems = isStaff
-        ? navItems.filter((item) => ['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path))
-        : navItems;
+    // Filter navigasi: Staff hanya melihat halaman yang boleh ia buka
+    const visibleNavItems = isStaff ? navItems.filter((item) => STAFF_PATHS.includes(item.path)) : navItems;
 
     return (
         <>
@@ -384,18 +398,10 @@ function Sidebar({ isOpen, collapsed, onClose, onSignOut, onToggleCollapse, user
 // Mobile Bottom Navigation
 // -----------------------------------------------------------------------------
 
-// Menu default untuk Super Admin
-const primaryNavItems = navItems.filter((item) =>
-    ['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path)
-);
-const secondaryNavItems = navItems.filter(
-    (item) => !['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path)
-);
-
-// Menu untuk Staff (Inventory, Calculator, Riwayat Checkout, dan Operational)
-const staffNavItems = navItems.filter((item) =>
-    ['/inventory', '/calculator', '/checkout-history', '/operational'].includes(item.path)
-);
+const primaryNavItems = navItems.filter((item) => PRIMARY_PATHS.includes(item.path));
+const secondaryNavItems = navItems.filter((item) => !PRIMARY_PATHS.includes(item.path));
+// "Lainnya" untuk Staff: hanya halaman staff di luar menu utama (Watermark)
+const staffSecondaryNavItems = secondaryNavItems.filter((item) => STAFF_PATHS.includes(item.path));
 
 interface MobileBottomNavProps {
     isStaff: boolean;
@@ -408,13 +414,11 @@ function MobileBottomNav({ isStaff, onSignOut }: MobileBottomNavProps) {
     const [moreMenuOpen, setMoreMenuOpen] = useState(false);
     const popupRef = useRef<HTMLDivElement>(null);
 
-    // Cek apakah halaman aktif ada di secondary menu
-    const isSecondaryActive = !isStaff && secondaryNavItems.some(
-        (item) => location.pathname === item.path
-    );
+    // Isi menu "Lainnya" berdasarkan role
+    const moreItems = isStaff ? staffSecondaryNavItems : secondaryNavItems;
 
-    // Tentukan item yang ditampilkan berdasarkan role
-    const activePrimaryItems = isStaff ? staffNavItems : primaryNavItems;
+    // Cek apakah halaman aktif ada di secondary menu
+    const isSecondaryActive = moreItems.some((item) => location.pathname === item.path);
 
     // Tutup popup saat klik di luar
     useEffect(() => {
@@ -440,7 +444,7 @@ function MobileBottomNav({ isStaff, onSignOut }: MobileBottomNavProps) {
                 }}
             >
                 <div className="flex h-14 items-center justify-around">
-                    {activePrimaryItems.map((item) => {
+                    {primaryNavItems.map((item) => {
                         const isActive = location.pathname === item.path;
                         const Icon = item.icon;
 
@@ -471,116 +475,103 @@ function MobileBottomNav({ isStaff, onSignOut }: MobileBottomNavProps) {
                         );
                     })}
 
-                    {/* Tombol Logout — hanya tampil untuk Staff (langsung di bar) */}
-                    {isStaff && (
-                        <button
-                            onClick={onSignOut}
-                            className="relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1 min-w-[60px] text-slate-400 active:text-red-500"
-                        >
-                            <LogOut className="h-5 w-5 flex-shrink-0" />
-                            <span className="text-[10px] leading-tight font-medium">Keluar</span>
-                        </button>
-                    )}
-
-                    {/* Tombol "Lainnya" — hanya tampil untuk Super Admin */}
-                    {!isStaff && (
-                        <div className="relative min-w-[60px] flex justify-center" ref={popupRef}>
-                            {/* Popup — muncul ke atas dari tombol */}
-                            {moreMenuOpen && (
-                                <div className="absolute bottom-full right-0 mb-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/80 z-[80] overflow-hidden">
-                                    {/* Header */}
-                                    <div className="px-4 py-3 border-b border-slate-100">
-                                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                                            Menu Lainnya
-                                        </p>
-                                    </div>
-
-                                    {/* Items */}
-                                    <nav className="p-2 space-y-0.5">
-                                        {secondaryNavItems.map((item) => {
-                                            const isActive = location.pathname === item.path;
-                                            const Icon = item.icon;
-                                            return (
-                                                <button
-                                                    key={item.path}
-                                                    onClick={() => {
-                                                        navigate(item.path);
-                                                        setMoreMenuOpen(false);
-                                                    }}
-                                                    className={cn(
-                                                        'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left',
-                                                        isActive
-                                                            ? 'bg-amber-50 text-amber-700'
-                                                            : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
-                                                    )}
-                                                >
-                                                    <div className={cn(
-                                                        'p-1.5 rounded-lg shrink-0',
-                                                        isActive ? 'bg-amber-100' : 'bg-slate-100'
-                                                    )}>
-                                                        <Icon className="h-4 w-4" />
-                                                    </div>
-                                                    <div className="flex-1 min-w-0">
-                                                        <span className="font-medium text-sm">{item.label}</span>
-                                                        <p className={cn(
-                                                            'text-xs truncate',
-                                                            isActive ? 'text-amber-500' : 'text-slate-400'
-                                                        )}>
-                                                            {item.description}
-                                                        </p>
-                                                    </div>
-                                                    {isActive && (
-                                                        <ChevronRight className="h-4 w-4 text-amber-500 shrink-0" />
-                                                    )}
-                                                </button>
-                                            );
-                                        })}
-                                    </nav>
-
-                                    {/* Divider + Logout */}
-                                    <div className="border-t border-slate-100 p-2">
-                                        <button
-                                            onClick={() => {
-                                                setMoreMenuOpen(false);
-                                                onSignOut();
-                                            }}
-                                            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left text-red-500 hover:bg-red-50 active:bg-red-100"
-                                        >
-                                            <div className="p-1.5 rounded-lg shrink-0 bg-red-50">
-                                                <LogOut className="h-4 w-4" />
-                                            </div>
-                                            <span className="font-medium text-sm">Keluar</span>
-                                        </button>
-                                    </div>
+                    {/* Tombol "Lainnya" — menu tambahan sesuai role + Keluar */}
+                    <div className="relative min-w-[60px] flex justify-center" ref={popupRef}>
+                        {/* Popup — muncul ke atas dari tombol */}
+                        {moreMenuOpen && (
+                            <div className="absolute bottom-full right-0 mb-3 w-64 bg-white rounded-2xl shadow-xl border border-slate-200/80 z-[80] overflow-hidden">
+                                {/* Header */}
+                                <div className="px-4 py-3 border-b border-slate-100">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                        Menu Lainnya
+                                    </p>
                                 </div>
-                            )}
 
-                            {/* Tombol trigger */}
-                            <button
-                                onClick={() => setMoreMenuOpen(prev => !prev)}
-                                className={cn(
-                                    'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1 w-full',
-                                    moreMenuOpen || isSecondaryActive
-                                        ? 'text-amber-600'
-                                        : 'text-slate-400 active:text-slate-600'
-                                )}
-                            >
-                                {isSecondaryActive && !moreMenuOpen && (
-                                    <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
-                                )}
-                                <Menu className={cn(
-                                    'h-5 w-5 flex-shrink-0 transition-transform duration-200',
-                                    moreMenuOpen && 'rotate-90'
-                                )} />
-                                <span className={cn(
-                                    'text-[10px] leading-tight text-center whitespace-nowrap',
-                                    (moreMenuOpen || isSecondaryActive) ? 'font-semibold' : 'font-medium'
-                                )}>
-                                    Lainnya
-                                </span>
-                            </button>
-                        </div>
-                    )}
+                                {/* Items */}
+                                <nav className="p-2 space-y-0.5">
+                                    {moreItems.map((item) => {
+                                        const isActive = location.pathname === item.path;
+                                        const Icon = item.icon;
+                                        return (
+                                            <button
+                                                key={item.path}
+                                                onClick={() => {
+                                                    navigate(item.path);
+                                                    setMoreMenuOpen(false);
+                                                }}
+                                                className={cn(
+                                                    'flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left',
+                                                    isActive
+                                                        ? 'bg-amber-50 text-amber-700'
+                                                        : 'text-slate-600 hover:bg-slate-50 active:bg-slate-100'
+                                                )}
+                                            >
+                                                <div className={cn(
+                                                    'p-1.5 rounded-lg shrink-0',
+                                                    isActive ? 'bg-amber-100' : 'bg-slate-100'
+                                                )}>
+                                                    <Icon className="h-4 w-4" />
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <span className="font-medium text-sm">{item.label}</span>
+                                                    <p className={cn(
+                                                        'text-xs truncate',
+                                                        isActive ? 'text-amber-500' : 'text-slate-400'
+                                                    )}>
+                                                        {item.description}
+                                                    </p>
+                                                </div>
+                                                {isActive && (
+                                                    <ChevronRight className="h-4 w-4 text-amber-500 shrink-0" />
+                                                )}
+                                            </button>
+                                        );
+                                    })}
+                                </nav>
+
+                                {/* Divider + Logout */}
+                                <div className="border-t border-slate-100 p-2">
+                                    <button
+                                        onClick={() => {
+                                            setMoreMenuOpen(false);
+                                            onSignOut();
+                                        }}
+                                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl transition-all duration-150 text-left text-red-500 hover:bg-red-50 active:bg-red-100"
+                                    >
+                                        <div className="p-1.5 rounded-lg shrink-0 bg-red-50">
+                                            <LogOut className="h-4 w-4" />
+                                        </div>
+                                        <span className="font-medium text-sm">Keluar</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tombol trigger */}
+                        <button
+                            onClick={() => setMoreMenuOpen(prev => !prev)}
+                            className={cn(
+                                'relative flex flex-col items-center justify-center gap-0.5 transition-colors px-3 py-1 w-full',
+                                moreMenuOpen || isSecondaryActive
+                                    ? 'text-amber-600'
+                                    : 'text-slate-400 active:text-slate-600'
+                            )}
+                        >
+                            {isSecondaryActive && !moreMenuOpen && (
+                                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 bg-amber-500 rounded-full" />
+                            )}
+                            <Menu className={cn(
+                                'h-5 w-5 flex-shrink-0 transition-transform duration-200',
+                                moreMenuOpen && 'rotate-90'
+                            )} />
+                            <span className={cn(
+                                'text-[10px] leading-tight text-center whitespace-nowrap',
+                                (moreMenuOpen || isSecondaryActive) ? 'font-semibold' : 'font-medium'
+                            )}>
+                                Lainnya
+                            </span>
+                        </button>
+                    </div>
                 </div>
             </nav>
         </>
