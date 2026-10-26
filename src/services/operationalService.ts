@@ -444,15 +444,26 @@ export interface BluAccount {
  * Isi yang rusak/bukan array diperlakukan sebagai daftar kosong — pilihan blu
  * hilang dari checkout, QRIS tetap jalan.
  */
-export async function getKopkenBluAccounts(): Promise<BluAccount[]> {
+export const getKopkenBluAccounts = () => getAkunBayar(KOPKEN_BLU_ACCOUNTS_KEY);
+export const updateKopkenBluAccounts = (accounts: BluAccount[]) => updateAkunBayar(KOPKEN_BLU_ACCOUNTS_KEY, accounts);
+
+/**
+ * Nomor DANA admin buat bayar order Tomoro (checkout kopsu memberi link DANA; halaman DANA minta nomor
+ * DANA si pembayar, lalu konfirmasi di app DANA). Bentuk & aturannya sama dengan daftar akun blu.
+ */
+const TOMORO_DANA_ACCOUNTS_KEY = 'tomoro_dana_accounts';
+export const getTomoroDanaAccounts = () => getAkunBayar(TOMORO_DANA_ACCOUNTS_KEY);
+export const updateTomoroDanaAccounts = (accounts: BluAccount[]) => updateAkunBayar(TOMORO_DANA_ACCOUNTS_KEY, accounts);
+
+async function getAkunBayar(key: string): Promise<BluAccount[]> {
     const { data, error } = await supabase
         .from('app_settings')
         .select('value')
-        .eq('key', KOPKEN_BLU_ACCOUNTS_KEY)
+        .eq('key', key)
         .maybeSingle();
 
     if (error) {
-        console.error('Error fetching kopken blu accounts:', error);
+        console.error(`Error fetching ${key}:`, error);
         return [];
     }
     if (typeof data?.value !== 'string' || !data.value.trim()) return [];
@@ -468,22 +479,22 @@ export async function getKopkenBluAccounts(): Promise<BluAccount[]> {
             .map((row) => ({ label: row.label.trim(), number: row.number.trim() }))
             .filter((row) => row.label && row.number);
     } catch (parseError) {
-        console.error('Error parsing kopken blu accounts:', parseError);
+        console.error(`Error parsing ${key}:`, parseError);
         return [];
     }
 }
 
-export async function updateKopkenBluAccounts(accounts: BluAccount[]): Promise<void> {
+async function updateAkunBayar(key: string, accounts: BluAccount[]): Promise<void> {
     const { error } = await supabase
         .from('app_settings')
         .upsert(
-            { key: KOPKEN_BLU_ACCOUNTS_KEY, value: JSON.stringify(accounts) },
+            { key, value: JSON.stringify(accounts) },
             { onConflict: 'key' }
         );
 
     if (error) {
-        console.error('Error updating kopken blu accounts:', error);
-        throw new Error(`Failed to update kopken blu accounts: ${error.message}`);
+        console.error(`Error updating ${key}:`, error);
+        throw new Error(`Failed to update ${key}: ${error.message}`);
     }
 }
 
@@ -502,15 +513,23 @@ export type KopkenDefaultPayments = Record<string, string>;
  * super_admin di Operational. User yang tidak ada di sini jatuh ke akun blu
  * pertama; isi rusak = objek kosong, jadi semua user ikut jatuh ke situ.
  */
-export async function getKopkenDefaultPayments(): Promise<KopkenDefaultPayments> {
+export const getKopkenDefaultPayments = () => getDefaultBayar(KOPKEN_DEFAULT_PAYMENT_KEY);
+export const updateKopkenDefaultPayments = (defaults: KopkenDefaultPayments) => updateDefaultBayar(KOPKEN_DEFAULT_PAYMENT_KEY, defaults);
+
+/** Email user -> label akun DANA (lihat getTomoroDanaAccounts). Tanpa QRIS: Tomoro tidak menawarkannya. */
+const TOMORO_DEFAULT_PAYMENT_KEY = 'tomoro_default_payment';
+export const getTomoroDefaultPayments = () => getDefaultBayar(TOMORO_DEFAULT_PAYMENT_KEY);
+export const updateTomoroDefaultPayments = (defaults: KopkenDefaultPayments) => updateDefaultBayar(TOMORO_DEFAULT_PAYMENT_KEY, defaults);
+
+async function getDefaultBayar(key: string): Promise<KopkenDefaultPayments> {
     const { data, error } = await supabase
         .from('app_settings')
         .select('value')
-        .eq('key', KOPKEN_DEFAULT_PAYMENT_KEY)
+        .eq('key', key)
         .maybeSingle();
 
     if (error) {
-        console.error('Error fetching kopken default payments:', error);
+        console.error(`Error fetching ${key}:`, error);
         return {};
     }
     if (typeof data?.value !== 'string' || !data.value.trim()) return {};
@@ -525,21 +544,21 @@ export async function getKopkenDefaultPayments(): Promise<KopkenDefaultPayments>
                 .filter(([email, pilihan]) => email && pilihan)
         );
     } catch (parseError) {
-        console.error('Error parsing kopken default payments:', parseError);
+        console.error(`Error parsing ${key}:`, parseError);
         return {};
     }
 }
 
-export async function updateKopkenDefaultPayments(defaults: KopkenDefaultPayments): Promise<void> {
+async function updateDefaultBayar(key: string, defaults: KopkenDefaultPayments): Promise<void> {
     const { error } = await supabase
         .from('app_settings')
         .upsert(
-            { key: KOPKEN_DEFAULT_PAYMENT_KEY, value: JSON.stringify(defaults) },
+            { key, value: JSON.stringify(defaults) },
             { onConflict: 'key' }
         );
 
     if (error) {
-        console.error('Error updating kopken default payments:', error);
-        throw new Error(`Failed to update kopken default payments: ${error.message}`);
+        console.error(`Error updating ${key}:`, error);
+        throw new Error(`Failed to update ${key}: ${error.message}`);
     }
 }

@@ -1,7 +1,7 @@
 // =============================================================================
 // DiBeliin Admin - Checkout Job Service
 // =============================================================================
-// Job queue buat tombol "Proses Checkout" di Calculator (brand kopken & fore).
+// Job queue buat tombol "Proses Checkout" di Calculator (brand kopken, fore, tomoro, janjijiwa).
 // Insert row di sini -> checkout_worker.js (pm2, server automation) yang polling
 // & jalanin runCheckout()/runCheckoutFore() sesuai order_payload.brand, stream
 // progress ke kolom `log`.
@@ -24,12 +24,17 @@ export interface CheckoutJobOrderPayload {
      * runCheckout.js, 'fore' -> runCheckoutFore.js. Sengaja di dalam payload,
      * bukan kolom tersendiri — checkout_jobs tidak punya kolom `brand` dan
      * payload lama (tanpa field ini) tetap dibaca sebagai kopken. */
-    brand?: 'kopken' | 'fore';
+    brand?: 'kopken' | 'fore' | 'tomoro' | 'janjijiwa';
     /** Fore: nomor akun yang dipakai. Boleh kosong kalau di server cuma ada
      * satu sesi Fore tersimpan (lihat fore_session.js). */
     phone?: string;
-    /** Fore: nama metode bayar, dicocokkan ke user/order/list-payment. Default QRIS. */
+    /** Fore: nama metode bayar, dicocokkan ke user/order/list-payment. Default QRIS.
+     * Tomoro: 'DANA' (link DANA, dibayar admin); Janji Jiwa: 'GOPAY' (link membuka app GoPay). */
     payment?: string;
+    /** Tomoro + DANA: nomor DANA admin yang diketik di halaman DANA — cuma ditampilkan di CheckoutProcess. */
+    danaAccount?: string;
+    /** Tomoro/Janji Jiwa: "Akun N" hasil optimizer (metadata tampilan; worker memilih akun sendiri). */
+    akunKe?: number;
     /** Kopken: 'qris' (default) atau 'blu'. Dipetakan ke paymentMethodCode
      * 10461/10369 di runCheckout.js — kopsu.app cuma menawarkan dua ini. */
     paymentMethod?: 'qris' | 'blu';

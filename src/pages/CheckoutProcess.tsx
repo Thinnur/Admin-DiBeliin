@@ -38,6 +38,8 @@ import {
 } from '@/components/operational/CheckoutResultDisplay';
 import { isPaymentStatusFinal } from '@/lib/utils';
 
+const NAMA_BRAND: Record<string, string> = { kopken: 'Kopken', fore: 'Fore', tomoro: 'Tomoro', janjijiwa: 'Janji Jiwa' };
+
 export default function CheckoutProcessPage() {
     const { jobId } = useParams<{ jobId: string }>();
     const navigate = useNavigate();
@@ -159,7 +161,7 @@ export default function CheckoutProcessPage() {
                 {/* plastik ditagih Kopken tapi tak dihitung kalkulator, jadi selisihnya tak bermakna */}
                 {r?.amount != null && job.order_payload.discount != null && !job.order_payload.needPackaging && r.amount !== hargaKalkulator && (
                     <p className="text-sm font-medium text-red-600">
-                        Ditagih Kopken {formatPrice(r.amount)} — selisih {r.amount > hargaKalkulator ? '+' : '−'}
+                        Ditagih {NAMA_BRAND[job.order_payload.brand ?? 'kopken'] ?? 'brand'} {formatPrice(r.amount)} — selisih {r.amount > hargaKalkulator ? '+' : '−'}
                         {formatPrice(Math.abs(r.amount - hargaKalkulator))} dari kalkulator
                     </p>
                 )}
@@ -314,6 +316,7 @@ export default function CheckoutProcessPage() {
                                             pembayaran, bukan string EMV — di-render jadi QR malah
                                             gak kepakai. Job lama tanpa paymentType = QRIS. */}
                                         {r.paymentType && r.paymentType !== 'QRIS' ? (
+                                            <>
                                             <a
                                                 href={r.qrOrRedirect}
                                                 target="_blank"
@@ -322,6 +325,24 @@ export default function CheckoutProcessPage() {
                                             >
                                                 Buka pembayaran ({r.paymentChannel || r.paymentType})
                                             </a>
+                                            {/* Tomoro DANA: halaman DANA minta nomor DANA pembayar (admin). */}
+                                            {r.danaAccount && (
+                                                <button
+                                                    type="button"
+                                                    className="text-xs text-slate-600 underline-offset-2 hover:underline"
+                                                    onClick={() => navigator.clipboard.writeText(r.danaAccount ?? '')
+                                                        .then(() => toast.success('Nomor DANA disalin'))
+                                                        .catch(() => toast.error('Gagal menyalin'))}
+                                                >
+                                                    Nomor DANA: <span className="font-mono font-semibold">{r.danaAccount}</span> (salin)
+                                                </button>
+                                            )}
+                                            {/* Link e-wallet Tomoro/JJ dibuka di HP yang punya app-nya: QR ini
+                                                buat admin yang membuka halaman ini dari laptop. */}
+                                            {r.paymentType === 'EWALLET' && (
+                                                <QrisImage qrisString={r.qrOrRedirect} caption={`Scan pakai kamera HP yang ada app ${r.paymentChannel ?? 'e-wallet'}-nya`} />
+                                            )}
+                                            </>
                                         ) : (
                                             <QrisImage qrisString={r.qrOrRedirect} />
                                         )}

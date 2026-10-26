@@ -60,12 +60,14 @@ import {
 
 type StatusFilter = CheckoutJobStatus | 'all';
 
-// Cuma Kopken & Fore yang punya skrip checkout (lihat checkout_worker.js).
+// Brand yang punya skrip checkout (lihat checkout_worker.js).
 // Payload lama tanpa field brand = kopken.
 const BRAND_TABS = [
     { value: 'all', label: 'Semua Brand' },
     { value: 'kopken', label: 'Kopi Kenangan' },
     { value: 'fore', label: 'Fore Coffee' },
+    { value: 'tomoro', label: 'Tomoro' },
+    { value: 'janjijiwa', label: 'Janji Jiwa' },
 ] as const;
 type BrandFilter = (typeof BRAND_TABS)[number]['value'];
 

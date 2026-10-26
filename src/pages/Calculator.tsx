@@ -59,6 +59,8 @@ import {
     getKopkenModeMin50,
     getKopkenBluAccounts,
     getKopkenDefaultPayments,
+    getTomoroDanaAccounts,
+    getTomoroDefaultPayments,
     type AdminFees,
     type BluAccount,
 } from '@/services/operationalService';
@@ -374,7 +376,8 @@ function StrategyCard({
 // Brand lain (tomoro/janjijiwa/chatime) belum ada automation-nya.
 // -----------------------------------------------------------------------------
 
-const CHECKOUT_BRANDS: AccountBrand[] = ['kopken', 'fore'];
+const CHECKOUT_BRANDS: AccountBrand[] = ['kopken', 'fore', 'tomoro', 'janjijiwa'];
+const NAMA_BRAND_CHECKOUT: Partial<Record<AccountBrand, string>> = { kopken: 'Kopken', fore: 'Fore', tomoro: 'Tomoro', janjijiwa: 'Janji Jiwa' };
 
 function mapVoucherToTier(recommendedVoucher: string): string {
     if (recommendedVoucher === 'min50k') return 'Minimal 50k';
@@ -494,6 +497,56 @@ function buildForeOrderPayload(
     };
 }
 
+/**
+ * Payload Tomoro / Janji Jiwa (runCheckoutKopsu.js di worker):
+ *  - opsi dikirim UTUH "Grup: Pilihan" (bukan cuma nilainya) — level es & gula Janji Jiwa sama-sama
+ *    bernilai "Normal"/"Less", jadi nama grup yang membedakan;
+ *  - akhiran ukuran di nama ("Aren Latte - Small") dipindah ke opsi CupSize/Size;
+ *  - `voucher` = jenis grup optimizer (tomoro_bogo, jiwa_50_baru, ...); worker memilih/membuat akun
+ *    atas nama pelanggan sendiri (barista memanggil nama akun), `akunKe` cuma metadata tampilan;
+ *  - tanpa jadwal & plastik: panel kopsu tidak punya pilihan itu.
+ */
+const UKURAN_KOPSU = /^(.*?)\s*-\s*(Small|Medium|Jumbo|Regular|Reguler|Large|Ultimate)\s*$/i;
+
+function buildKopsuOrderPayload(
+    brand: 'tomoro' | 'janjijiwa',
+    group: OptimizationResult['groups'][0],
+    outlet: string,
+    customerName: string,
+    danaAccount: BluAccount | null,
+    orderNumber?: string,
+    groupIndex?: number,
+    groupTotal?: number
+): CheckoutJobOrderPayload {
+    const grupUkuran = brand === 'tomoro' ? 'CupSize' : 'Size';
+    return {
+        brand,
+        outlet: outlet || '',
+        name: customerName || 'DiBeliin',
+        voucher: group.recommendedVoucher,
+        payment: brand === 'tomoro' ? 'DANA' : 'GOPAY',
+        ...(danaAccount ? { danaAccount: danaAccount.number } : {}),
+        subtotal: group.totalPrice,
+        discount: group.estimatedDiscount,
+        items: group.items.map((item) => {
+            const { cleanAddons, note } = extractNote(item.addons ?? []);
+            const options = cleanAddons.map((addon) => addon.trim()).filter(Boolean);
+            const cocok = item.name.match(UKURAN_KOPSU);
+            const ukuran = cocok?.[2] ? cocok[2][0].toUpperCase() + cocok[2].slice(1).toLowerCase() : null;
+            // Regular = harga dasar Janji Jiwa (bukan pilihan); Tomoro tidak punya Regular/Large.
+            const ukuranValid = brand === 'tomoro' ? /^(Small|Medium|Jumbo)$/.test(ukuran ?? '') : /^(Large|Ultimate)$/.test(ukuran ?? '');
+            if (ukuranValid && !options.some((o) => o.toLowerCase().startsWith(`${grupUkuran.toLowerCase()}:`))) {
+                options.push(`${grupUkuran}: ${ukuran}`);
+            }
+            return { name: (cocok ? cocok[1] : item.name).trim(), options, ...(note ? { notes: note } : {}) };
+        }),
+        ...(group.account != null ? { akunKe: group.account } : {}),
+        ...(orderNumber ? { orderNumber } : {}),
+        ...(groupIndex != null ? { groupIndex } : {}),
+        ...(groupTotal != null ? { groupTotal } : {}),
+    };
+}
+
 function CheckoutPanel({
     brand,
     group,
@@ -546,23 +599,31 @@ function CheckoutPanel({
     }, [parsedPickupTime]);
 
     const isFore = brand === 'fore';
+    const isKopsu = brand === 'tomoro' || brand === 'janjijiwa';
+    const isTomoro = brand === 'tomoro';
+    // Dompet bayar yang bisa dipilih: Kopken blu (+QRIS), Tomoro DANA (tanpa QRIS). Janji Jiwa selalu
+    // GoPay lewat link, tanpa pilihan.
+    const pakaiDompet = brand === 'kopken' || isTomoro;
+    const adaQris = !isTomoro;
 
     // Metode bayar Kopken: kopsu.app cuma menawarkan QRIS (10461) dan blu by
     // BCA Digital (10369). Daftar akun blu dikelola di Operational — di sini
     // yang dipilih namanya saja (blu1, blu2, ...), nomornya sengaja tidak
     // ditampilkan. useQuery biar N panel (satu per grup akun) berbagi satu
     // fetch dan ikut ter-refresh bareng kalau daftarnya diubah.
+    // Tomoro memakai daftar DANA dengan pola yang sama.
     const { data: bluAccounts = [], isFetched: bluSiap } = useQuery<BluAccount[]>({
-        queryKey: ['kopkenBluAccounts'],
-        queryFn: getKopkenBluAccounts,
-        enabled: !isFore,
+        queryKey: [isTomoro ? 'tomoroDanaAccounts' : 'kopkenBluAccounts'],
+        queryFn: isTomoro ? getTomoroDanaAccounts : getKopkenBluAccounts,
+        enabled: pakaiDompet,
     });
     // Default bayar per user, diatur super_admin di Operational.
     const { data: defaultBayar, isFetched: defaultBayarSiap } = useQuery({
-        queryKey: ['kopkenDefaultPayments'],
-        queryFn: getKopkenDefaultPayments,
-        enabled: !isFore,
+        queryKey: [isTomoro ? 'tomoroDefaultPayments' : 'kopkenDefaultPayments'],
+        queryFn: isTomoro ? getTomoroDefaultPayments : getKopkenDefaultPayments,
+        enabled: pakaiDompet,
     });
+    const cadanganBayar = adaQris ? 'qris' : '';
     // 'qris' atau label akun blu. Worker tetap default 10461 kalau payload tidak
     // menyebut paymentMethod — itu jaring pengaman buat job lama.
     const [paymentChoice, setPaymentChoice] = useState('qris');
@@ -578,19 +639,19 @@ function CheckoutPanel({
             if (!bluSiap || !defaultBayarSiap) return;
             sudahSetDefaultBayar.current = true;
             const pilihanUser = defaultBayar?.[user?.email?.toLowerCase() ?? ''];
-            const pilihanValid = pilihanUser === 'qris' || bluAccounts.some((akun) => akun.label === pilihanUser);
-            setPaymentChoice(pilihanValid && pilihanUser ? pilihanUser : bluAccounts[0]?.label ?? 'qris');
+            const pilihanValid = (adaQris && pilihanUser === 'qris') || bluAccounts.some((akun) => akun.label === pilihanUser);
+            setPaymentChoice(pilihanValid && pilihanUser ? pilihanUser : bluAccounts[0]?.label ?? cadanganBayar);
             return;
         }
         // Akun yang sedang dipilih hilang dari daftar (dihapus/diganti nama di
         // Operational) -> jatuh balik, daripada mengirim label yang tidak bisa
         // diterjemahkan jadi nomor.
         setPaymentChoice((prev) => (
-            prev !== 'qris' && !bluAccounts.some((akun) => akun.label === prev)
-                ? bluAccounts[0]?.label ?? 'qris'
+            prev !== cadanganBayar && !bluAccounts.some((akun) => akun.label === prev)
+                ? bluAccounts[0]?.label ?? cadanganBayar
                 : prev
         ));
-    }, [bluAccounts, bluSiap, defaultBayar, defaultBayarSiap, user?.email]);
+    }, [bluAccounts, bluSiap, defaultBayar, defaultBayarSiap, user?.email, adaQris, cadanganBayar]);
 
     // Panel setelan per grup (jadwal/plastik/metode bayar) ditutup secara default:
     // nilainya hampir selalu sudah benar dari hasil parse + app_settings, jadi
@@ -599,23 +660,27 @@ function CheckoutPanel({
     const [showSettings, setShowSettings] = useState(false);
     // Pilihan menunjuk akun blu yang sudah tidak ada -> panel dipaksa terbuka,
     // kalau tidak admin kena toast error sementara pemilihnya tersembunyi.
-    const bluMissing = !isFore && paymentChoice !== 'qris' && !akunBluTerpilih;
+    const bluMissing = pakaiDompet && paymentChoice !== cadanganBayar && !akunBluTerpilih;
     const settingsOpen = showSettings || bluMissing;
 
-    const ringkasanSetelan = [
-        pickupMode === 'schedule' ? `Ambil ${pickupTimeValue}` : 'Ambil sekarang',
-        paymentChoice === 'qris' ? 'Bayar QRIS' : `Bayar ${paymentChoice}`,
-        needPackaging ? 'pakai plastik' : null,
-    ].filter(Boolean).join(' · ');
+    const ringkasanSetelan = isKopsu
+        ? (isTomoro ? `Bayar DANA${paymentChoice ? ` ${paymentChoice}` : ' (nomor diketik manual)'} lewat link` : 'Bayar GoPay lewat link')
+        : [
+            pickupMode === 'schedule' ? `Ambil ${pickupTimeValue}` : 'Ambil sekarang',
+            paymentChoice === 'qris' ? 'Bayar QRIS' : `Bayar ${paymentChoice}`,
+            needPackaging ? 'pakai plastik' : null,
+        ].filter(Boolean).join(' · ');
 
     const openDialog = () => {
         if (bluMissing) {
-            toast.error(`Akun blu "${paymentChoice}" sudah tidak ada — pilih ulang metode bayar.`);
+            toast.error(`Akun ${isTomoro ? 'DANA' : 'blu'} "${paymentChoice}" sudah tidak ada — pilih ulang metode bayar.`);
             return;
         }
         const pickupTime = pickupMode === 'schedule' ? pickupTimeValue : undefined;
         const payload = isFore
             ? buildForeOrderPayload(group, outlet, customerName, needPackaging, orderNumber, index + 1, groupTotal)
+            : isKopsu
+            ? buildKopsuOrderPayload(brand, group, outlet, customerName, akunBluTerpilih, orderNumber, index + 1, groupTotal)
             : {
                 ...buildKopkenOrderPayload(group, outlet, customerName, pickupTime, needPackaging, orderNumber, index + 1, groupTotal),
                 // Hanya dikirim kalau blu — payload QRIS tetap sama persis
@@ -675,10 +740,12 @@ function CheckoutPanel({
             >
                 <span className="truncate">{ringkasanSetelan}</span>
                 <span className={`shrink-0 font-medium ${bluMissing ? 'text-red-600' : 'text-slate-900'}`}>
-                    {bluMissing ? 'Akun blu hilang' : settingsOpen ? 'Tutup' : 'Ubah'}
+                    {bluMissing ? `Akun ${isTomoro ? 'DANA' : 'blu'} hilang` : settingsOpen ? 'Tutup' : 'Ubah'}
                 </span>
             </button>
             {settingsOpen && (
+            <>
+            {!isKopsu && (
             <>
             <div className="flex gap-1.5 mb-1.5">
                 <Button
@@ -712,15 +779,18 @@ function CheckoutPanel({
                 <Switch id={`need-packaging-${index}`} checked={needPackaging} onCheckedChange={setNeedPackaging} />
                 <Label htmlFor={`need-packaging-${index}`} className="text-xs font-normal">Pakai Plastik</Label>
             </div>
+            </>
+            )}
             {/* Nomornya sengaja tidak ditampilkan — cukup nama akunnya.
-                Daftarnya dikelola di Operational > Akun blu by BCA Digital. */}
+                Daftarnya dikelola di Operational > Akun blu by BCA Digital / Akun DANA. */}
+            {pakaiDompet && (
             <div className="mb-1.5">
                 <Select value={paymentChoice} onValueChange={setPaymentChoice}>
                     <SelectTrigger className="h-8 text-xs">
-                        <SelectValue />
+                        <SelectValue placeholder={isTomoro ? 'Nomor DANA diketik manual' : undefined} />
                     </SelectTrigger>
                     <SelectContent>
-                        <SelectItem value="qris">Bayar QRIS</SelectItem>
+                        {adaQris && <SelectItem value="qris">Bayar QRIS</SelectItem>}
                         {bluAccounts.map((akun) => (
                             <SelectItem key={akun.label} value={akun.label}>Bayar {akun.label}</SelectItem>
                         ))}
@@ -728,17 +798,20 @@ function CheckoutPanel({
                 </Select>
                 {bluAccounts.length === 0 && (
                     <p className="text-[10px] text-slate-500 mt-0.5">
-                        Belum ada akun blu — tambahkan di Operational kalau mau bayar lewat blu.
+                        {isTomoro
+                            ? 'Belum ada akun DANA — tambahkan di Operational supaya nomornya muncul di halaman checkout.'
+                            : 'Belum ada akun blu — tambahkan di Operational kalau mau bayar lewat blu.'}
                     </p>
                 )}
             </div>
+            )}
             </>
             )}
             </>
             )}
             <Button variant="outline" size="sm" className="w-full" onClick={openDialog}>
                 <Zap className="w-4 h-4 mr-2" />
-                {isFore ? 'Proses Checkout (Fore Otomatis)' : 'Proses Checkout (Kopken Otomatis)'}
+                {`Proses Checkout (${NAMA_BRAND_CHECKOUT[brand] ?? brand} Otomatis)`}
             </Button>
 
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -748,6 +821,8 @@ function CheckoutPanel({
                         <DialogDescription>
                             {isFore
                                 ? 'Cek nama menu & opsi (Ukuran Cup/Ice Cube/Dairy dll) sesuai aplikasi Fore sebelum kirim. Nama pemesan hanya diganti kalau tidak ada order yang masih berjalan di akun itu.'
+                                : isKopsu
+                                ? `Cek nama menu & opsi ("Grup: Pilihan") sesuai menu ${NAMA_BRAND_CHECKOUT[brand]}. Worker memakai akun atas nama pelanggan ini (atau membuat akun baru, KR terpotong) lalu memberi link bayar ${isTomoro ? 'DANA' : 'GoPay'} untuk admin.`
                                 : 'Cek nama menu & opsi (Ice/Sugar/Size dll) sesuai tampilan dawg.colok.me sebelum kirim — voucher akun akan langsung terpakai begitu diproses.'}
                         </DialogDescription>
                     </DialogHeader>

@@ -49,6 +49,11 @@ import {
     updateKopkenBluAccounts,
     getKopkenDefaultPayments,
     updateKopkenDefaultPayments,
+    getTomoroDanaAccounts,
+    updateTomoroDanaAccounts,
+    getTomoroDefaultPayments,
+    updateTomoroDefaultPayments,
+    type KopkenDefaultPayments,
     type Voucher,
     type AdminFees,
     type BluAccount,
@@ -765,15 +770,60 @@ function AdminFeeSection() {
 // Akun blu by BCA Digital (metode bayar Kopken)
 // -----------------------------------------------------------------------------
 
-// Daftar nomor blu yang dipakai buat bayar order Kopken. Label-nya (blu1, blu2,
-// ...) yang muncul di pilihan checkout Calculator, nomornya sengaja tidak —
-// admin cuma perlu tahu pakai akun yang mana. Disimpan sebagai satu baris JSON
-// di app_settings, lihat getKopkenBluAccounts().
-function BluAccountSection() {
+// Daftar nomor dompet admin buat bayar order brand (Kopken: blu by BCA Digital,
+// Tomoro: DANA). Label-nya (blu1, dana1, ...) yang muncul di pilihan checkout
+// Calculator. Disimpan sebagai satu baris JSON di app_settings per brand, lihat
+// getKopkenBluAccounts() / getTomoroDanaAccounts(). Kopken masih punya QRIS
+// sebagai pilihan lain, Tomoro tidak.
+interface DompetBayar {
+    nama: string;
+    prefix: string;
+    queryKey: string;
+    get: () => Promise<BluAccount[]>;
+    update: (accounts: BluAccount[]) => Promise<void>;
+    defaultQueryKey: string;
+    getDefault: () => Promise<KopkenDefaultPayments>;
+    updateDefault: (defaults: KopkenDefaultPayments) => Promise<void>;
+    judul: string;
+    deskripsi: string;
+    kosong: string;
+    judulDefault: string;
+    deskripsiDefault: string;
+    kosongDefault: string;
+    /** Kopken: 'qris' boleh jadi default; Tomoro tidak punya QRIS. */
+    adaQris: boolean;
+    idDefault: string;
+}
+
+const DOMPET_KOPKEN: DompetBayar = {
+    nama: 'blu', prefix: 'blu', queryKey: 'kopkenBluAccounts', get: getKopkenBluAccounts, update: updateKopkenBluAccounts,
+    defaultQueryKey: 'kopkenDefaultPayments', getDefault: getKopkenDefaultPayments, updateDefault: updateKopkenDefaultPayments,
+    judul: 'Akun blu by BCA Digital',
+    deskripsi: 'Nomor buat bayar order Kopken. Nama akun yang muncul di pilihan checkout, nomornya tidak.',
+    kosong: 'Belum ada akun blu. Tanpa ini, checkout Kopken cuma bisa lewat QRIS.',
+    judulDefault: 'Default Pembayaran Kopken',
+    deskripsiDefault: 'Metode bayar yang langsung terpilih saat user ini checkout Kopken. User yang tidak ada di daftar pakai akun blu pertama.',
+    kosongDefault: 'Belum ada pengaturan. Semua user default ke akun blu pertama.',
+    adaQris: true, idDefault: 'default-bayar',
+};
+
+const DOMPET_TOMORO: DompetBayar = {
+    nama: 'DANA', prefix: 'dana', queryKey: 'tomoroDanaAccounts', get: getTomoroDanaAccounts, update: updateTomoroDanaAccounts,
+    defaultQueryKey: 'tomoroDefaultPayments', getDefault: getTomoroDefaultPayments, updateDefault: updateTomoroDefaultPayments,
+    judul: 'Akun DANA (bayar Tomoro)',
+    deskripsi: 'Nomor DANA admin buat bayar order Tomoro. Saat checkout, nomor ini yang diketik di halaman DANA lalu dikonfirmasi di app DANA.',
+    kosong: 'Belum ada akun DANA. Link bayar tetap muncul, nomornya diketik manual.',
+    judulDefault: 'Default DANA per User (Tomoro)',
+    deskripsiDefault: 'Akun DANA yang langsung terpilih saat user ini checkout Tomoro. User yang tidak ada di daftar pakai akun DANA pertama.',
+    kosongDefault: 'Belum ada pengaturan. Semua user default ke akun DANA pertama.',
+    adaQris: false, idDefault: 'default-dana',
+};
+
+function BluAccountSection({ cfg }: { cfg: DompetBayar }) {
     const queryClient = useQueryClient();
     const { data: saved, isLoading } = useQuery<BluAccount[]>({
-        queryKey: ['kopkenBluAccounts'],
-        queryFn: getKopkenBluAccounts,
+        queryKey: [cfg.queryKey],
+        queryFn: cfg.get,
     });
 
     const [rows, setRows] = useState<BluAccount[]>([]);
@@ -784,14 +834,14 @@ function BluAccountSection() {
     }, [saved]);
 
     const saveMutation = useMutation({
-        mutationFn: updateKopkenBluAccounts,
+        mutationFn: cfg.update,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['kopkenBluAccounts'] });
-            toast.success('Daftar akun blu tersimpan');
+            queryClient.invalidateQueries({ queryKey: [cfg.queryKey] });
+            toast.success(`Daftar akun ${cfg.nama} tersimpan`);
         },
         onError: (error) => {
-            console.error('Failed to update blu accounts:', error);
-            toast.error('Gagal menyimpan daftar akun blu');
+            console.error(`Failed to update ${cfg.nama} accounts:`, error);
+            toast.error(`Gagal menyimpan daftar akun ${cfg.nama}`);
         },
     });
 
@@ -825,41 +875,37 @@ function BluAccountSection() {
                         <Wallet className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <CardTitle className="text-lg">Akun blu by BCA Digital</CardTitle>
-                        <CardDescription>
-                            Nomor buat bayar order Kopken. Nama akun yang muncul di pilihan checkout, nomornya tidak.
-                        </CardDescription>
+                        <CardTitle className="text-lg">{cfg.judul}</CardTitle>
+                        <CardDescription>{cfg.deskripsi}</CardDescription>
                     </div>
                 </div>
             </CardHeader>
             <CardContent>
                 {isLoading ? (
                     <div className="text-center py-6 text-slate-500">
-                        <div className="animate-pulse">Memuat akun blu...</div>
+                        <div className="animate-pulse">Memuat akun {cfg.nama}...</div>
                     </div>
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {rows.length === 0 && (
-                            <p className="text-sm text-slate-500">
-                                Belum ada akun blu. Tanpa ini, checkout Kopken cuma bisa lewat QRIS.
-                            </p>
+                            <p className="text-sm text-slate-500">{cfg.kosong}</p>
                         )}
                         {rows.map((row, index) => (
                             <div key={index} className="flex items-end gap-2">
                                 <div className="space-y-2 w-32 shrink-0">
-                                    <Label htmlFor={`blu-label-${index}`}>Nama</Label>
+                                    <Label htmlFor={`${cfg.prefix}-label-${index}`}>Nama</Label>
                                     <Input
-                                        id={`blu-label-${index}`}
-                                        placeholder="blu1"
+                                        id={`${cfg.prefix}-label-${index}`}
+                                        placeholder={`${cfg.prefix}1`}
                                         value={row.label}
                                         onChange={(e) => setRow(index, { label: e.target.value })}
                                         disabled={saveMutation.isPending}
                                     />
                                 </div>
                                 <div className="space-y-2 flex-1">
-                                    <Label htmlFor={`blu-number-${index}`}>Nomor HP (tanpa 0 di depan)</Label>
+                                    <Label htmlFor={`${cfg.prefix}-number-${index}`}>Nomor HP (tanpa 0 di depan)</Label>
                                     <Input
-                                        id={`blu-number-${index}`}
+                                        id={`${cfg.prefix}-number-${index}`}
                                         inputMode="numeric"
                                         placeholder="85163592203"
                                         value={row.number}
@@ -871,7 +917,7 @@ function BluAccountSection() {
                                     type="button"
                                     variant="ghost"
                                     size="icon"
-                                    aria-label={`Hapus akun blu ${row.label || index + 1}`}
+                                    aria-label={`Hapus akun ${cfg.nama} ${row.label || index + 1}`}
                                     className="text-slate-400 hover:text-red-500 hover:bg-red-50"
                                     disabled={saveMutation.isPending}
                                     onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))}
@@ -885,7 +931,7 @@ function BluAccountSection() {
                                 type="button"
                                 variant="outline"
                                 disabled={saveMutation.isPending}
-                                onClick={() => setRows((prev) => [...prev, { label: `blu${prev.length + 1}`, number: '' }])}
+                                onClick={() => setRows((prev) => [...prev, { label: `${cfg.prefix}${prev.length + 1}`, number: '' }])}
                             >
                                 <Plus className="h-4 w-4 mr-2" />
                                 Tambah Akun
@@ -909,15 +955,15 @@ function BluAccountSection() {
 // Pilihan bayar yang langsung terpilih di panel checkout Calculator, per email
 // user admin/staf. Daftar user tidak bisa diambil dari browser (auth.users butuh
 // service key), jadi emailnya diketik manual. Lihat getKopkenDefaultPayments().
-function KopkenDefaultPaymentSection() {
+function KopkenDefaultPaymentSection({ cfg }: { cfg: DompetBayar }) {
     const queryClient = useQueryClient();
     const { data: saved, isLoading } = useQuery({
-        queryKey: ['kopkenDefaultPayments'],
-        queryFn: getKopkenDefaultPayments,
+        queryKey: [cfg.defaultQueryKey],
+        queryFn: cfg.getDefault,
     });
     const { data: bluAccounts = [] } = useQuery<BluAccount[]>({
-        queryKey: ['kopkenBluAccounts'],
-        queryFn: getKopkenBluAccounts,
+        queryKey: [cfg.queryKey],
+        queryFn: cfg.get,
     });
 
     const [rows, setRows] = useState<{ email: string; pilihan: string }[]>([]);
@@ -928,13 +974,13 @@ function KopkenDefaultPaymentSection() {
     }, [saved]);
 
     const saveMutation = useMutation({
-        mutationFn: updateKopkenDefaultPayments,
+        mutationFn: cfg.updateDefault,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['kopkenDefaultPayments'] });
+            queryClient.invalidateQueries({ queryKey: [cfg.defaultQueryKey] });
             toast.success('Default pembayaran tersimpan');
         },
         onError: (error) => {
-            console.error('Failed to update kopken default payments:', error);
+            console.error(`Failed to update ${cfg.defaultQueryKey}:`, error);
             toast.error('Gagal menyimpan default pembayaran');
         },
     });
@@ -969,10 +1015,8 @@ function KopkenDefaultPaymentSection() {
                         <Wallet className="h-5 w-5 text-white" />
                     </div>
                     <div>
-                        <CardTitle className="text-lg">Default Pembayaran Kopken</CardTitle>
-                        <CardDescription>
-                            Metode bayar yang langsung terpilih saat user ini checkout Kopken. User yang tidak ada di daftar pakai akun blu pertama.
-                        </CardDescription>
+                        <CardTitle className="text-lg">{cfg.judulDefault}</CardTitle>
+                        <CardDescription>{cfg.deskripsiDefault}</CardDescription>
                     </div>
                 </div>
             </CardHeader>
@@ -984,16 +1028,14 @@ function KopkenDefaultPaymentSection() {
                 ) : (
                     <form onSubmit={handleSubmit} className="space-y-4">
                         {rows.length === 0 && (
-                            <p className="text-sm text-slate-500">
-                                Belum ada pengaturan. Semua user default ke akun blu pertama.
-                            </p>
+                            <p className="text-sm text-slate-500">{cfg.kosongDefault}</p>
                         )}
                         {rows.map((row, index) => (
                             <div key={index} className="flex items-end gap-2">
                                 <div className="space-y-2 flex-1 min-w-0">
-                                    <Label htmlFor={`default-bayar-email-${index}`}>Email user</Label>
+                                    <Label htmlFor={`${cfg.idDefault}-email-${index}`}>Email user</Label>
                                     <Input
-                                        id={`default-bayar-email-${index}`}
+                                        id={`${cfg.idDefault}-email-${index}`}
                                         type="email"
                                         placeholder="nama@akzara.id"
                                         value={row.email}
@@ -1012,13 +1054,13 @@ function KopkenDefaultPaymentSection() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="qris">QRIS</SelectItem>
+                                            {cfg.adaQris && <SelectItem value="qris">QRIS</SelectItem>}
                                             {labelBlu.map((label) => (
                                                 <SelectItem key={label} value={label}>{label}</SelectItem>
                                             ))}
                                             {/* Akun blu-nya sudah dihapus: tetap tampil biar admin sadar,
                                                 checkout akan jatuh ke blu pertama. */}
-                                            {row.pilihan !== 'qris' && !labelBlu.includes(row.pilihan) && (
+                                            {row.pilihan && row.pilihan !== 'qris' && !labelBlu.includes(row.pilihan) && (
                                                 <SelectItem value={row.pilihan} disabled>
                                                     {row.pilihan} (sudah dihapus)
                                                 </SelectItem>
@@ -1044,7 +1086,7 @@ function KopkenDefaultPaymentSection() {
                                 type="button"
                                 variant="outline"
                                 disabled={saveMutation.isPending}
-                                onClick={() => setRows((prev) => [...prev, { email: '', pilihan: labelBlu[0] ?? 'qris' }])}
+                                onClick={() => setRows((prev) => [...prev, { email: '', pilihan: labelBlu[0] ?? (cfg.adaQris ? 'qris' : '') }])}
                             >
                                 <Plus className="h-4 w-4 mr-2" />
                                 Tambah User
@@ -1932,9 +1974,13 @@ export default function Operational() {
 
                 {/* Sengaja cuma di tampilan super_admin — ini kredensial bayar,
                     bukan pengaturan operasional biasa. */}
-                <BluAccountSection />
+                <BluAccountSection cfg={DOMPET_KOPKEN} />
 
-                <KopkenDefaultPaymentSection />
+                <KopkenDefaultPaymentSection cfg={DOMPET_KOPKEN} />
+
+                <BluAccountSection cfg={DOMPET_TOMORO} />
+
+                <KopkenDefaultPaymentSection cfg={DOMPET_TOMORO} />
 
                 {/* Voucher Management */}
                 <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">

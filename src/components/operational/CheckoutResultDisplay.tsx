@@ -63,6 +63,16 @@ export interface KopkenCheckoutResult {
      *  Bentuknya beda per brand: Fore dari endpoint struk resminya, Kopken
      *  dari d5rk (order-status) — dibedakan lewat `order_payload.brand`. */
     receipt?: ForeReceiptData | KopkenReceiptData | null;
+    /** Tomoro/Janji Jiwa (runCheckoutKopsu.js): akun kopsu yang dipakai — namanya yang dipanggil barista. */
+    accountId?: number | null;
+    accountName?: string | null;
+    akunBaru?: boolean;
+    /** Tomoro + DANA: nomor DANA admin yang diketik di halaman DANA. */
+    danaAccount?: string | null;
+    /** Diisi kopsu_status_worker.js: nomor ambil (Tomoro takeFoodNo / JJ pickupCode) & teks status mentah. */
+    pickupNo?: string | null;
+    statusLabel?: string | null;
+    outletName?: string | null;
 }
 
 export interface ForeReceiptData {
@@ -402,7 +412,7 @@ export function PaymentCountdown({ expiresAt }: { expiresAt?: string | null }) {
 }
 
 /** Render string QRIS mentah jadi gambar QR code langsung di browser (tanpa API pihak ketiga). */
-export function QrisImage({ qrisString }: { qrisString: string }) {
+export function QrisImage({ qrisString, caption = 'Scan QRIS untuk bayar' }: { qrisString: string; caption?: string }) {
     const [dataUrl, setDataUrl] = useState<string | null>(null);
 
     useEffect(() => {
@@ -416,8 +426,8 @@ export function QrisImage({ qrisString }: { qrisString: string }) {
     if (!dataUrl) return null;
     return (
         <div className="flex flex-col items-center gap-1 pt-1">
-            <img src={dataUrl} alt="QRIS" className="w-40 h-40 rounded-lg border border-slate-200" />
-            <span className="text-[11px] text-slate-500">Scan QRIS untuk bayar</span>
+            <img src={dataUrl} alt={caption} className="w-40 h-40 rounded-lg border border-slate-200" />
+            <span className="text-[11px] text-slate-500 text-center">{caption}</span>
         </div>
     );
 }
@@ -532,6 +542,25 @@ export function ReceiptSection({
     // sengaja tidak dipakai: itu PNG-nya Kopken yang punya, sedangkan Fore
     // mengembalikan SPA kosong tanpa identitas order — dirender sebagai <img>
     // hasilnya gambar rusak, di-iframe pun kosong.
+    // Tomoro & Janji Jiwa tidak punya struk yang bisa digambar: yang penting buat ambil pesanan adalah
+    // nama akun (dipanggil barista) dan nomor ambil, diisi kopsu_status_worker.js.
+    if (job.order_payload?.brand === 'tomoro' || job.order_payload?.brand === 'janjijiwa') {
+        if (job.status !== 'success' || !r) return null;
+        return (
+            <div className="rounded-lg border border-slate-200 p-3 text-sm space-y-1">
+                <p>
+                    Atas nama: <span className="font-semibold">{r.accountName ?? '-'}</span>
+                    <span className="text-xs text-slate-500"> (akun {r.accountId ?? '-'}{r.akunBaru ? ', baru' : ''})</span>
+                </p>
+                {r.outletName && <p>Outlet: {r.outletName}</p>}
+                <p>Nomor ambil: <span className="font-semibold tabular-nums">{r.pickupNo ?? 'belum ada'}</span></p>
+                <p className="text-xs text-slate-500">
+                    Status brand: {r.statusLabel ?? 'menunggu pengecekan kopsu_status_worker'}
+                </p>
+            </div>
+        );
+    }
+
     if (job.order_payload?.brand === 'fore') {
         if (!r?.receipt) {
             return job.status === 'success' ? (
