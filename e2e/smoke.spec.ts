@@ -1,4 +1,7 @@
+/// <reference lib="dom" />
+// (lib dom: sebagian tes menjalankan kode di dalam browser lewat page.evaluate)
 import { test as base, expect, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { readOnlyGuard } from './guard';
 
 // Smoke test + screenshot pembanding untuk refactor performa web admin.
@@ -52,6 +55,7 @@ const PAGES = [
   '/digital-products',
   '/digital-tracking',
   '/digital-providers',
+  '/watermark',
 ];
 
 for (const path of PAGES) {
@@ -88,6 +92,74 @@ test('menus: paginasi', async ({ page }) => {
   await expect(firstCard).not.toHaveText(first);
   await page.getByPlaceholder('Cari menu...').fill('a'); // filter berubah -> tabel di-remount, kembali ke halaman 1
   await expect(pager).toHaveText(/^Hal 1 \//);
+});
+
+test('watermark: foto diberi watermark lalu diunduh', async ({ page }) => {
+  await page.goto('/watermark');
+  await expect(page).toHaveURL(/\/watermark$/);
+  // Foto uji 1600x1200 abu-abu polos, dibuat di browser supaya tak perlu berkas fixture.
+  const png = await page.evaluate(() => {
+    const c = document.createElement('canvas');
+    c.width = 1600;
+    c.height = 1200;
+    const ctx = c.getContext('2d')!;
+    ctx.fillStyle = '#808080';
+    ctx.fillRect(0, 0, c.width, c.height);
+    return c.toDataURL('image/png').split(',')[1];
+  });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: 'foto-uji.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(png, 'base64'),
+  });
+  await expect(page.getByRole('img', { name: 'foto-uji.png' })).toBeVisible();
+
+  const [download] = await Promise.all([
+    page.waitForEvent('download'),
+    page.getByRole('button', { name: 'Unduh foto-uji.png' }).click(),
+  ]);
+  expect(download.suggestedFilename()).toBe('foto-uji-wm.jpg');
+  const jpg = (await readFile(await download.path())).toString('base64');
+  const hasil = await page.evaluate(async (b64) => {
+    const bmp = await createImageBitmap(await (await fetch(`data:image/jpeg;base64,${b64}`)).blob());
+    const ctx = new OffscreenCanvas(bmp.width, bmp.height).getContext('2d')!;
+    ctx.drawImage(bmp, 0, 0);
+    const tengah = Array.from(ctx.getImageData(bmp.width >> 1, bmp.height >> 1, 1, 1).data.slice(0, 3));
+    // Kuadran kiri atas (di luar logo): foto asli polos, jadi simpangan > 0 berarti pola latar ada.
+    const d = ctx.getImageData(0, 0, bmp.width >> 2, bmp.height >> 2).data;
+    let sum = 0, sq = 0, n = 0;
+    for (let i = 0; i < d.length; i += 4) { sum += d[i]; sq += d[i] * d[i]; n++; }
+    const mean = sum / n;
+    return { w: bmp.width, h: bmp.height, tengah, std: Math.sqrt(sq / n - mean * mean) };
+  }, jpg);
+  expect([hasil.w, hasil.h]).toEqual([1080, 810]); // lebar maksimal bawaan 1080 px, rasio tetap
+  expect(Math.max(...hasil.tengah.map((v) => Math.abs(v - 128)))).toBeGreaterThan(15); // logo di tengah
+  expect(hasil.std).toBeGreaterThan(2); // pola samar di latar
+});
+
+test.describe('sebagai staff', () => {
+  // Peran dibaca dari sesi lokal (AuthContext: getSession, bukan getUser), jadi cukup ubah
+  // user_metadata.role di localStorage. Token di server tetap milik akun tes super admin.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      for (const key of Object.keys(localStorage)) {
+        if (!/^sb-.+-auth-token$/.test(key)) continue;
+        const session = JSON.parse(localStorage.getItem(key)!);
+        session.user.user_metadata = { ...session.user.user_metadata, role: 'staff' };
+        localStorage.setItem(key, JSON.stringify(session));
+      }
+    });
+  });
+
+  test('bar bawah: Lainnya berisi Watermark dan Keluar', async ({ page }) => {
+    await page.goto('/inventory');
+    const bar = page.locator('nav.fixed.bottom-0');
+    await bar.getByRole('button', { name: 'Lainnya' }).click();
+    await expect(bar.getByRole('button', { name: 'Keluar' })).toBeVisible(); // jangan diklik: logout = request tulis
+    await expect(bar.getByRole('button', { name: /Finance/ })).toHaveCount(0); // menu super admin tetap tersembunyi
+    await bar.getByRole('button', { name: /Watermark/ }).click();
+    await expect(page).toHaveURL(/\/watermark$/);
+  });
 });
 
 test.describe('tanpa login', () => {
