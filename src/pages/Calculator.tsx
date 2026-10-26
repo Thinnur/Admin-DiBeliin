@@ -95,6 +95,11 @@ const VOUCHER_LABELS: Record<string, string> = {
     fore_25pct: 'Diskon 25%',
     tomoro_bogo: 'Tomoro BOGO',
     tomoro_50: 'Tomoro 50%',
+    tomoro_10k: 'Tomoro -Rp10rb',
+    tomoro_5k: 'Tomoro -Rp5rb',
+    tomoro_3k: 'Tomoro -Rp3rb',
+    tomoro_none: 'Tanpa voucher',
+    jiwa_50_baru: 'Janji Jiwa 50% Pengguna Baru',
     jiwa_50: 'Janji Jiwa 50%',
 };
 
@@ -279,6 +284,11 @@ function StrategyCard({
         fore_25pct: { label: 'Diskon 25%', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
         tomoro_bogo: { label: 'Tomoro BOGO', color: 'bg-orange-50 text-orange-700 border-orange-200' },
         tomoro_50: { label: 'Tomoro 50%', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+        tomoro_10k: { label: 'Tomoro -Rp10rb (min 30rb)', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+        tomoro_5k: { label: 'Tomoro -Rp5rb (min 25rb)', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+        tomoro_3k: { label: 'Tomoro -Rp3rb (min 20rb)', color: 'bg-amber-50 text-amber-700 border-amber-200' },
+        tomoro_none: { label: 'Tanpa voucher', color: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
+        jiwa_50_baru: { label: 'Janji Jiwa 50% Pengguna Baru', color: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
         jiwa_50: { label: 'Janji Jiwa 50%', color: 'bg-zinc-100 text-zinc-800 border-zinc-300' },
     };
     const discountSubLabel: Record<string, string> = {
@@ -287,6 +297,10 @@ function StrategyCard({
         min70k: '50%',
         fore_25pct: '25%',
         tomoro_50: '50%',
+        tomoro_10k: 'Rp10rb',
+        tomoro_5k: 'Rp5rb',
+        tomoro_3k: 'Rp3rb',
+        jiwa_50_baru: '50%, maks 50rb',
         jiwa_50: '50%',
     };
     const { label: voucherLabel, color: voucherColor } = voucherMeta[group.recommendedVoucher] ?? voucherMeta.nomin;
@@ -297,7 +311,7 @@ function StrategyCard({
             <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                     <CardTitle className="text-base">
-                        Akun {index + 1}
+                        {group.recommendedVoucher === 'tomoro_none' ? 'Tanpa voucher' : `Akun ${group.account ?? index + 1}`}
                     </CardTitle>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium border ${voucherColor}`}>
                         {voucherLabel}
@@ -1099,7 +1113,7 @@ export default function CalculatorPage() {
                     return [headerLine, ...addonLines].join('\n');
                 }).join('\n');
                 const label = VOUCHER_LABELS[g.recommendedVoucher] ?? g.recommendedVoucher;
-                return `Group ${i + 1} (${label}):\n${items}\n  Subtotal: ${formatPrice(g.totalPrice)}\n  Discount: -${formatPrice(g.estimatedDiscount)}`;
+                return `Group ${i + 1}${g.account ? ` (akun ${g.account})` : ''} (${label}):\n${items}\n  Subtotal: ${formatPrice(g.totalPrice)}\n  Discount: -${formatPrice(g.estimatedDiscount)}`;
             })
             .join('\n\n');
 
@@ -1120,6 +1134,7 @@ export default function CalculatorPage() {
             brand,
             groups: result.groups.map((g, i) => ({
                 index: i + 1,
+                account: g.account ?? null,
                 voucher: g.recommendedVoucher,
                 voucherLabel: VOUCHER_LABELS[g.recommendedVoucher] ?? g.recommendedVoucher,
                 items: g.items.map((item) => ({
