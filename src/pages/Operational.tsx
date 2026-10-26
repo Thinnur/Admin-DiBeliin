@@ -554,8 +554,8 @@ function AdminFeeSection() {
             setForeInput(adminFees.fee_jasdor_fore.toString());
             setKenanganInput(adminFees.fee_jasdor_kopken.toString());
             setKenanganMin70kInput((adminFees.fee_jasdor_kopken_min70k ?? 3000).toString());
-            setTomoroInput((adminFees.fee_jasdor_tomoro ?? 2000).toString());
-            setJanjijiwaInput((adminFees.fee_jasdor_janjijiwa ?? 2000).toString());
+            setTomoroInput((adminFees.fee_jasdor_tomoro ?? 5000).toString());
+            setJanjijiwaInput((adminFees.fee_jasdor_janjijiwa ?? 5000).toString());
             setChatimeInput((adminFees.fee_jasdor_chatime ?? 2000).toString());
             setSpecialItemInput((adminFees.fee_special_item ?? 5000).toString());
             setCinemaInput((adminFees.fee_cinema ?? 5000).toString());
@@ -608,11 +608,11 @@ function AdminFeeSection() {
                     await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_kopken_min70k', value: kenanganMin70kInput });
                     hasChanges = true;
                 }
-                if (tVal !== (adminFees.fee_jasdor_tomoro ?? 2000)) {
+                if (tVal !== (adminFees.fee_jasdor_tomoro ?? 5000)) {
                     await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_tomoro', value: tomoroInput });
                     hasChanges = true;
                 }
-                if (jVal !== (adminFees.fee_jasdor_janjijiwa ?? 2000)) {
+                if (jVal !== (adminFees.fee_jasdor_janjijiwa ?? 5000)) {
                     await updateFeeMutation.mutateAsync({ key: 'fee_jasdor_janjijiwa', value: janjijiwaInput });
                     hasChanges = true;
                 }
@@ -698,7 +698,7 @@ function AdminFeeSection() {
                                 <Input
                                     id="fee_jasdor_tomoro"
                                     type="number"
-                                    placeholder="2000"
+                                    placeholder="5000"
                                     value={tomoroInput}
                                     onChange={(e) => setTomoroInput(e.target.value)}
                                     disabled={updateFeeMutation.isPending}
@@ -709,7 +709,7 @@ function AdminFeeSection() {
                                 <Input
                                     id="fee_jasdor_janjijiwa"
                                     type="number"
-                                    placeholder="2000"
+                                    placeholder="5000"
                                     value={janjijiwaInput}
                                     onChange={(e) => setJanjijiwaInput(e.target.value)}
                                     disabled={updateFeeMutation.isPending}

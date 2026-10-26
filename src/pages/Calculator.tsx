@@ -887,8 +887,8 @@ export default function CalculatorPage() {
     const fallbackFees: Record<AccountBrand, number> = {
         fore: 5000,
         kopken: 5000,
-        tomoro: 2000,
-        janjijiwa: 2000,
+        tomoro: 5000,
+        janjijiwa: 5000,
         chatime: 2000,
     };
     const feeKeyMap: Record<AccountBrand, keyof AdminFees> = {

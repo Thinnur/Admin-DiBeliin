@@ -354,7 +354,7 @@ export interface AdminFees {
     fee_cinema: number;
 }
 
-const ADMIN_FEE_DEFAULTS: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_kopken_min70k: 3000, fee_jasdor_tomoro: 2000, fee_jasdor_janjijiwa: 2000, fee_jasdor_chatime: 2000, fee_special_item: 5000, fee_cinema: 5000 };
+const ADMIN_FEE_DEFAULTS: AdminFees = { fee_jasdor_fore: 5000, fee_jasdor_kopken: 5000, fee_jasdor_kopken_min70k: 3000, fee_jasdor_tomoro: 5000, fee_jasdor_janjijiwa: 5000, fee_jasdor_chatime: 2000, fee_special_item: 5000, fee_cinema: 5000 };
 
 /**
  * Fetch dynamic admin fees from app_settings
@@ -380,9 +380,9 @@ export async function getAdminFees(): Promise<AdminFees> {
             } else if (row.key === 'fee_jasdor_kopken_min70k') {
                 fees.fee_jasdor_kopken_min70k = Number(row.value) || 3000;
             } else if (row.key === 'fee_jasdor_tomoro') {
-                fees.fee_jasdor_tomoro = Number(row.value) || 2000;
+                fees.fee_jasdor_tomoro = Number(row.value) || 5000;
             } else if (row.key === 'fee_jasdor_janjijiwa') {
-                fees.fee_jasdor_janjijiwa = Number(row.value) || 2000;
+                fees.fee_jasdor_janjijiwa = Number(row.value) || 5000;
             } else if (row.key === 'fee_jasdor_chatime') {
                 fees.fee_jasdor_chatime = Number(row.value) || 2000;
             } else if (row.key === 'fee_special_item') {
