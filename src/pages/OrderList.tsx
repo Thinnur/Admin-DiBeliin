@@ -38,9 +38,10 @@ const BRAND_LABEL: Record<string, string> = {
     kenangan: 'Kenangan',
     fore: 'Fore',
     tomoro: 'Tomoro',
+    janjijiwa: 'Janji Jiwa',
     chatime: 'Chatime',
 };
-const BRAND_TABS = ['all', 'kenangan', 'fore', 'tomoro', 'chatime'] as const;
+const BRAND_TABS = ['all', 'kenangan', 'fore', 'tomoro', 'janjijiwa', 'chatime'] as const;
 type BrandTab = (typeof BRAND_TABS)[number];
 
 function dayKey(order: QrisOrder): string {
