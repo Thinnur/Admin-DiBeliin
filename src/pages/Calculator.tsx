@@ -1076,7 +1076,14 @@ export default function CalculatorPage() {
             return;
         }
 
-        const editableItems = toEditableItems(parsed.items);
+        // Brand ikut teks pesanan (mis. "order *Tomoro Coffee*") — tanpa ini pesanan Tomoro/Janji Jiwa yang
+        // ditempel dihitung dengan rumus brand yang kebetulan terpilih (default Kopken).
+        const targetBrand = parsed.brand ?? brand;
+        if (parsed.brand && parsed.brand !== brand) {
+            setBrand(parsed.brand);
+            toast.info(`Brand diganti ke ${NAMA_BRAND_CHECKOUT[parsed.brand] ?? parsed.brand} sesuai teks pesanan.`);
+        }
+        const editableItems = toEditableItems(parsed.items, targetBrand);
 
         setItems(editableItems);
         setResult(null);

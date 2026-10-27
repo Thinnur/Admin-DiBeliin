@@ -36,6 +36,32 @@ export interface ParseResult {
      * Sekarang). Baris ini di-generate oleh UniversalCart.tsx (DIBeliin) waktu
      * customer checkout — bukan diketik manual, jadi format-nya selalu konsisten. */
     pickupTime?: string;
+    /** Brand yang disebut teks pesanan (lihat detectBrand) — undefined kalau tidak ketemu. */
+    brand?: ParsedBrand;
+}
+
+export type ParsedBrand = 'kopken' | 'fore' | 'tomoro' | 'janjijiwa' | 'chatime';
+
+// Urutan penting untuk pencarian di seluruh teks: nama yang lebih khas dulu.
+const BRAND_DI_TEKS: [ParsedBrand, RegExp][] = [
+    ['janjijiwa', /janji\s*jiwa/i],
+    ['tomoro', /tomoro/i],
+    ['chatime', /chatime/i],
+    ['fore', /\bfore\b/i],
+    ['kopken', /kopi\s+kenangan|\bkenangan\b|\bkopken\b/i],
+];
+
+/**
+ * Brand dari teks pesanan. Utamanya baris pembuka web (UniversalCart.buildOrderMessage):
+ * "Halo, saya ingin order *Tomoro Coffee*:"; kalau tidak ada, kata kunci brand di mana pun di teks.
+ */
+export function detectBrand(text: string): ParsedBrand | undefined {
+    const pembuka = text.match(/ingin order\s*\*?([^*\n:]+)/i)?.[1];
+    for (const sumber of [pembuka, text]) {
+        if (!sumber) continue;
+        for (const [brand, re] of BRAND_DI_TEKS) if (re.test(sumber)) return brand;
+    }
+    return undefined;
 }
 
 interface PendingItem {
@@ -199,6 +225,7 @@ export function parseWhatsAppOrder(text: string): ParseResult {
         totalUnparsed: unparsedLines.length,
         customerName,
         outlet,
+        brand: detectBrand(text),
         pickupTime,
     };
 }
