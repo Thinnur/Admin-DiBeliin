@@ -12,8 +12,6 @@ export type AccountStatus = 'ready' | 'booked' | 'sold' | 'expired' | 'issue' | 
 
 export type TransactionType = 'income' | 'expense';
 
-export type AntrianStatus = 'selesai' | 'gagal';
-
 // -----------------------------------------------------------------------------
 // Database Tables
 // -----------------------------------------------------------------------------

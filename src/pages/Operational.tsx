@@ -4,9 +4,8 @@
 // Store status control, service toggles, voucher management, and banner management
 
 import { useState, useEffect } from 'react';
-import { Trash2, Plus, Store, Power, Tag, Coffee, Settings, Key, Server, Save, Clapperboard, Wallet } from 'lucide-react';
+import { Trash2, Plus, Store, Power, Tag, Coffee, Save, Clapperboard, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -53,6 +52,7 @@ import {
     updateTomoroDanaAccounts,
     getTomoroDefaultPayments,
     updateTomoroDefaultPayments,
+    getAdminUserEmails,
     type KopkenDefaultPayments,
     type Voucher,
     type AdminFees,
@@ -69,7 +69,6 @@ import {
 } from '@/services/popupTemplateService';
 import { useAuth } from '@/contexts/AuthContext';
 import BannerManagement from '@/components/inventory/BannerManagement';
-import AntrianPesananTable from '@/components/operational/AntrianPesananTable';
 import PopupTemplateManagement from '@/components/operational/PopupTemplateManagement';
 
 // -----------------------------------------------------------------------------
@@ -953,8 +952,8 @@ function BluAccountSection({ cfg }: { cfg: DompetBayar }) {
 // -----------------------------------------------------------------------------
 
 // Pilihan bayar yang langsung terpilih di panel checkout Calculator, per email
-// user admin/staf. Daftar user tidak bisa diambil dari browser (auth.users butuh
-// service key), jadi emailnya diketik manual. Lihat getKopkenDefaultPayments().
+// user admin/staf. Email dipilih dari daftar user di DB (RPC get_admin_users),
+// tidak diketik. Lihat getKopkenDefaultPayments().
 function KopkenDefaultPaymentSection({ cfg }: { cfg: DompetBayar }) {
     const queryClient = useQueryClient();
     const { data: saved, isLoading } = useQuery({
@@ -964,6 +963,10 @@ function KopkenDefaultPaymentSection({ cfg }: { cfg: DompetBayar }) {
     const { data: bluAccounts = [] } = useQuery<BluAccount[]>({
         queryKey: [cfg.queryKey],
         queryFn: cfg.get,
+    });
+    const { data: userEmails, isError: gagalMuatUser } = useQuery({
+        queryKey: ['adminUserEmails'],
+        queryFn: getAdminUserEmails,
     });
 
     const [rows, setRows] = useState<{ email: string; pilihan: string }[]>([]);
@@ -993,8 +996,8 @@ function KopkenDefaultPaymentSection({ cfg }: { cfg: DompetBayar }) {
         e.preventDefault();
         const bersih = rows.map((row) => ({ email: row.email.trim().toLowerCase(), pilihan: row.pilihan }));
 
-        if (bersih.some((row) => !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(row.email))) {
-            toast.error('Email tidak valid');
+        if (bersih.some((row) => !row.email)) {
+            toast.error('Pilih user di setiap baris');
             return;
         }
         const emails = bersih.map((row) => row.email);
@@ -1030,18 +1033,36 @@ function KopkenDefaultPaymentSection({ cfg }: { cfg: DompetBayar }) {
                         {rows.length === 0 && (
                             <p className="text-sm text-slate-500">{cfg.kosongDefault}</p>
                         )}
+                        {gagalMuatUser && (
+                            <p className="text-sm text-red-600">Daftar user gagal dimuat dari database. Muat ulang halaman.</p>
+                        )}
                         {rows.map((row, index) => (
                             <div key={index} className="flex items-end gap-2">
                                 <div className="space-y-2 flex-1 min-w-0">
-                                    <Label htmlFor={`${cfg.idDefault}-email-${index}`}>Email user</Label>
-                                    <Input
-                                        id={`${cfg.idDefault}-email-${index}`}
-                                        type="email"
-                                        placeholder="nama@akzara.id"
+                                    <Label>Email user</Label>
+                                    <Select
                                         value={row.email}
-                                        onChange={(e) => setRow(index, { email: e.target.value })}
+                                        onValueChange={(email) => setRow(index, { email })}
                                         disabled={saveMutation.isPending}
-                                    />
+                                    >
+                                        <SelectTrigger className="w-full" aria-label={`Email user baris ${index + 1}`}>
+                                            <SelectValue placeholder="Pilih user" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {/* Email yang sudah dipakai baris lain disembunyikan: satu user satu baris. */}
+                                            {(userEmails ?? [])
+                                                .filter((email) => email === row.email || !rows.some((r) => r.email === email))
+                                                .map((email) => (
+                                                    <SelectItem key={email} value={email}>{email}</SelectItem>
+                                                ))}
+                                            {/* Tersimpan tapi user-nya sudah tak ada di DB (atau daftar belum termuat). */}
+                                            {row.email && !userEmails?.includes(row.email) && (
+                                                <SelectItem value={row.email} disabled>
+                                                    {row.email}{userEmails ? ' (user sudah tidak ada)' : ''}
+                                                </SelectItem>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
                                 </div>
                                 <div className="space-y-2 w-36 shrink-0">
                                     <Label>Metode bayar</Label>
@@ -1402,170 +1423,6 @@ function VoucherTable({ vouchers, onDelete, isDeleting }: VoucherTableProps) {
 }
 
 // -----------------------------------------------------------------------------
-// API Sync Kopi Kenangan Section
-// -----------------------------------------------------------------------------
-
-function ApiSyncSection() {
-    const [authToken, setAuthToken] = useState('');
-    const [wtoken, setWtoken] = useState('');
-    const [clsignature, setClsignature] = useState('');
-    const [deviceId, setDeviceId] = useState('');
-    const [isSaving, setIsSaving] = useState(false);
-    const [isLoading, setIsLoading] = useState(true);
-
-    useEffect(() => {
-        async function loadConfig() {
-            try {
-                const { data, error } = await supabase
-                    .from('api_configs')
-                    .select('*')
-                    .eq('id', 1)
-                    .single();
-
-                if (error && error.code !== 'PGRST116') {
-                    throw error;
-                }
-
-                if (data) {
-                    setAuthToken(data.auth_token || '');
-                    setWtoken(data.wtoken || '');
-                    setClsignature(data.clsignature || '');
-                    setDeviceId(data.deviceid || '');
-                }
-            } catch (err) {
-                console.error('Error fetching api config:', err);
-                toast.error('Gagal memuat konfigurasi API Kopi Kenangan');
-            } finally {
-                setIsLoading(false);
-            }
-        }
-
-        loadConfig();
-    }, []);
-
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setIsSaving(true);
-
-        try {
-            const { error } = await supabase
-                .from('api_configs')
-                .upsert({
-                    id: 1,
-                    auth_token: authToken.trim(),
-                    wtoken: wtoken.trim(),
-                    clsignature: clsignature.trim(),
-                    deviceid: deviceId.trim(),
-                    updated_at: new Date().toISOString(),
-                }, { onConflict: 'id' });
-
-            if (error) throw error;
-            toast.success('Konfigurasi API Kopi Kenangan berhasil disimpan!');
-        } catch (err) {
-            console.error('Error saving config:', err);
-            toast.error(`Gagal menyimpan: ${(err as { message?: string } | null)?.message || 'Error tidak diketahui'}`);
-        } finally {
-            setIsSaving(false);
-        }
-    };
-
-    return (
-        <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
-            <CardHeader className="pb-4">
-                <div className="flex items-center gap-3">
-                    <div className="p-2.5 bg-gradient-to-br from-red-800 to-amber-900 rounded-xl shadow-lg">
-                        <Settings className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                        <CardTitle className="text-lg">Integrasi API Kopi Kenangan</CardTitle>
-                        <CardDescription>Atur header otentikasi untuk sinkronisasi menu secara real-time</CardDescription>
-                    </div>
-                </div>
-            </CardHeader>
-            <CardContent>
-                {isLoading ? (
-                    <div className="text-center py-6 text-slate-500">
-                        <div className="animate-pulse">Memuat konfigurasi...</div>
-                    </div>
-                ) : (
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <Label htmlFor="auth_token" className="flex items-center gap-1.5 font-medium text-slate-700">
-                                <Key className="h-4 w-4 text-slate-500" /> Auth Token (Authorization Header)
-                            </Label>
-                            <Input
-                                id="auth_token"
-                                value={authToken}
-                                onChange={(e) => setAuthToken(e.target.value)}
-                                placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpX..."
-                                disabled={isSaving}
-                                className="font-mono text-xs"
-                                required
-                            />
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label htmlFor="wtoken" className="flex items-center gap-1.5 font-medium text-slate-700">
-                                <Server className="h-4 w-4 text-slate-500" /> WToken Header
-                            </Label>
-                            <Input
-                                id="wtoken"
-                                value={wtoken}
-                                onChange={(e) => setWtoken(e.target.value)}
-                                placeholder="0005_9E7436C1DB348FE8617..."
-                                disabled={isSaving}
-                                className="font-mono text-xs"
-                                required
-                            />
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                                <Label htmlFor="clsignature" className="flex items-center gap-1.5 font-medium text-slate-700">
-                                    <Key className="h-4 w-4 text-slate-500" /> CLSignature Header
-                                </Label>
-                                <Input
-                                    id="clsignature"
-                                    value={clsignature}
-                                    onChange={(e) => setClsignature(e.target.value)}
-                                    placeholder="71b56da6a2d51a4d66..."
-                                    disabled={isSaving}
-                                    className="font-mono text-xs"
-                                    required
-                                />
-                            </div>
-
-                            <div className="space-y-2">
-                                <Label htmlFor="deviceid" className="flex items-center gap-1.5 font-medium text-slate-700">
-                                    <Server className="h-4 w-4 text-slate-500" /> Device ID Header
-                                </Label>
-                                <Input
-                                    id="deviceid"
-                                    value={deviceId}
-                                    onChange={(e) => setDeviceId(e.target.value)}
-                                    placeholder="ba5f2493777de32a"
-                                    disabled={isSaving}
-                                    className="font-mono text-xs"
-                                    required
-                                />
-                            </div>
-                        </div>
-
-                        <Button type="submit" disabled={isSaving} className="w-full sm:w-auto bg-red-800 hover:bg-red-950 text-white gap-2">
-                            {isSaving ? 'Menyimpan...' : (
-                                <>
-                                    <Save className="h-4 w-4" /> Simpan Konfigurasi
-                                </>
-                            )}
-                        </Button>
-                    </form>
-                )}
-            </CardContent>
-        </Card>
-    );
-}
-
-// -----------------------------------------------------------------------------
 // Main Operational Page
 // -----------------------------------------------------------------------------
 
@@ -1915,17 +1772,14 @@ export default function Operational() {
                 <TabsTrigger value="operational" className="flex-1 sm:flex-none">
                     Operasional
                 </TabsTrigger>
+                <TabsTrigger value="pembayaran" className="flex-1 sm:flex-none">
+                    Pembayaran
+                </TabsTrigger>
                 <TabsTrigger value="banner" className="flex-1 sm:flex-none">
                     Banner
                 </TabsTrigger>
-                <TabsTrigger value="riwayat-antrian" className="flex-1 sm:flex-none">
-                    Riwayat Antrian
-                </TabsTrigger>
                 <TabsTrigger value="popup-templates" className="flex-1 sm:flex-none">
                     Templat Popup
-                </TabsTrigger>
-                <TabsTrigger value="api-sync" className="flex-1 sm:flex-none">
-                    API Sync Kopi Kenangan
                 </TabsTrigger>
             </TabsList>
 
@@ -1972,16 +1826,6 @@ export default function Operational() {
 
                 <AdminFeeSection />
 
-                {/* Sengaja cuma di tampilan super_admin — ini kredensial bayar,
-                    bukan pengaturan operasional biasa. */}
-                <BluAccountSection cfg={DOMPET_KOPKEN} />
-
-                <KopkenDefaultPaymentSection cfg={DOMPET_KOPKEN} />
-
-                <BluAccountSection cfg={DOMPET_TOMORO} />
-
-                <KopkenDefaultPaymentSection cfg={DOMPET_TOMORO} />
-
                 {/* Voucher Management */}
                 <Card className="border-0 shadow-lg bg-gradient-to-br from-white to-slate-50">
                     <CardHeader className="pb-4">
@@ -2018,24 +1862,24 @@ export default function Operational() {
                 </Card>
             </TabsContent>
 
+            {/* ── Tab: Pembayaran ──────────────────────────────────────── */}
+            {/* Sengaja cuma di tampilan super_admin — ini kredensial bayar,
+                bukan pengaturan operasional biasa. */}
+            <TabsContent value="pembayaran" className="space-y-6 mt-0">
+                <BluAccountSection cfg={DOMPET_KOPKEN} />
+                <KopkenDefaultPaymentSection cfg={DOMPET_KOPKEN} />
+                <BluAccountSection cfg={DOMPET_TOMORO} />
+                <KopkenDefaultPaymentSection cfg={DOMPET_TOMORO} />
+            </TabsContent>
+
             {/* ── Tab: Banner ──────────────────────────────────────────── */}
             <TabsContent value="banner" className="mt-0">
                 <BannerManagement />
             </TabsContent>
 
-            {/* ── Tab: Riwayat Antrian ──────────────────────────────────── */}
-            <TabsContent value="riwayat-antrian" className="mt-0">
-                <AntrianPesananTable />
-            </TabsContent>
-
             {/* ── Tab: Templat Popup ───────────────────────────────────── */}
             <TabsContent value="popup-templates" className="mt-0">
                 <PopupTemplateManagement />
-            </TabsContent>
-
-            {/* ── Tab: API Sync Kopi Kenangan ───────────────────────────── */}
-            <TabsContent value="api-sync" className="mt-0">
-                <ApiSyncSection />
             </TabsContent>
         </Tabs>
     );

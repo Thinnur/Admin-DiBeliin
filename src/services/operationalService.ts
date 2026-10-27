@@ -24,22 +24,6 @@ export interface Voucher {
 export type VoucherInsert = Omit<Voucher, 'id'>;
 
 // -----------------------------------------------------------------------------
-// Antrian Pesanan Types
-// -----------------------------------------------------------------------------
-
-export type AntrianStatus = 'selesai' | 'gagal' | 'menunggu' | 'diproses';
-
-export interface AntrianPesanan {
-    id: string;
-    created_at: string;        // ISO timestamp
-    nomor_antrian: number | null; // int4 di DB
-    toko: string;              // Nama toko
-    nomor_wa: string | null;   // Nomor WhatsApp (text)
-    admin_in_charge: string | null; // Nama admin yang bertugas
-    status: string;            // Status raw dari DB (uppercase: SELESAI, GAGAL, dll)
-}
-
-// -----------------------------------------------------------------------------
 // Store Status Operations
 // -----------------------------------------------------------------------------
 
@@ -312,33 +296,6 @@ export async function updateCinemaOrderWindow(chain: CinemaChain, bound: 'start'
 }
 
 // -----------------------------------------------------------------------------
-// Antrian Pesanan Operations
-// -----------------------------------------------------------------------------
-
-/**
- * Fetch all antrian pesanan records, ordered by created_at descending (newest first).
- * Returns empty array if table doesn't exist yet.
- */
-export async function getAntrianPesanan(): Promise<AntrianPesanan[]> {
-    try {
-        const { data, error } = await supabase
-            .from('antrian_pesanan')
-            .select('id, created_at, nomor_antrian, nomor_wa, toko, status, admin_in_charge')
-            .order('created_at', { ascending: false });
-
-        if (error) {
-            console.error('Error fetching antrian pesanan:', error);
-            return [];
-        }
-
-        return (data as AntrianPesanan[]) || [];
-    } catch (error) {
-        console.error('Error fetching antrian pesanan:', error);
-        return [];
-    }
-}
-
-// -----------------------------------------------------------------------------
 // Admin Fees Operations (Dynamic Jasdor Fees)
 // -----------------------------------------------------------------------------
 
@@ -520,6 +477,13 @@ export const updateKopkenDefaultPayments = (defaults: KopkenDefaultPayments) => 
 const TOMORO_DEFAULT_PAYMENT_KEY = 'tomoro_default_payment';
 export const getTomoroDefaultPayments = () => getDefaultBayar(TOMORO_DEFAULT_PAYMENT_KEY);
 export const updateTomoroDefaultPayments = (defaults: KopkenDefaultPayments) => updateDefaultBayar(TOMORO_DEFAULT_PAYMENT_KEY, defaults);
+
+/** Email semua user admin/staf (huruf kecil). auth.users tak bisa dibaca browser, jadi lewat RPC. */
+export async function getAdminUserEmails(): Promise<string[]> {
+    const { data, error } = await supabase.rpc('get_admin_users');
+    if (error) throw new Error(`Gagal memuat daftar user: ${error.message}`);
+    return ((data ?? []) as { email: string }[]).map((row) => row.email);
+}
 
 async function getDefaultBayar(key: string): Promise<KopkenDefaultPayments> {
     const { data, error } = await supabase
