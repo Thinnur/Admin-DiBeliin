@@ -137,6 +137,52 @@ test('watermark: foto diberi watermark lalu diunduh', async ({ page }) => {
   expect(hasil.std).toBeGreaterThan(2); // pola samar di latar
 });
 
+test('struk Tomoro & Janji Jiwa: digambar lalu diunduh PNG', async ({ page }) => {
+  // Job tiruan (bukan data produksi); result.struk berbentuk keluaran kopsu_status_worker.js.
+  const job = (brand: string, struk: object) => ({
+    id: `uji-${brand}`, status: 'success', log: [], created_by: null, receipt_refresh_requested_at: null, cancel_requested_at: null,
+    created_at: '2026-10-20T03:00:00Z', updated_at: '2026-10-20T03:00:00Z',
+    order_payload: { brand, outlet: 'Outlet Uji', name: 'Budi', items: [{ name: 'Kopi Uji', options: [] }], subtotal: 42000 },
+    result: { orderId: `UJI-${brand}`, accountId: 1, accountName: 'Budi', paymentStatus: 'PAYMENT_SUCCESS', phase: 'Ambil Sekarang', pickupNo: '8015', statusLabel: 'Pickup', struk },
+  });
+  const jobs: Record<string, object> = {
+    'uji-tomoro': job('tomoro', {
+      v: 1, code: 'TO2026UJI', status: 4, takeFoodNo: '8015', statusRateCard: 'Your order is ready', pointNum: 0,
+      storeName: 'SPBU Tendean', storeAddress: 'Jl. Kapten Tendean', paymentMoney: 21000, currencyUnit: 'Rp',
+      createTime: 1792900000000, bizChannel: 'APP', payChannelName: 'DANA', note: null,
+      items: [{ name: 'TOMORO Aren Latte', desc: 'Small, Iced', amount: 2, price: 21000, linePrice: 42000, image: null }],
+      summary: [{ name: 'Subtotal', money: 42000, discount: false }, { name: 'Voucher (B1G1)', money: 21000, discount: true }],
+    }),
+    'uji-janjijiwa': job('janjijiwa', {
+      v: 1, status: 'ORDER_READY', title: 'Pesanan siap diambil', subtitle: null, receipt: 'J+2026UJI', datetime: '20 Oct 2026 | 10:00',
+      pickupTime: '20 Oct 2026 | 10:05', pickupCode: 'A12', outletName: 'TALANG JAWA', outletAddress: 'Muara Enim',
+      qr: { size: 21, d: 'M0 0h7v7H0zM14 0h7v7h-7zM0 14h7v7H0z' },
+      items: [{ qty: 1, name: 'Signature Kopi Susu', info: 'Ice Temp, Large Size', notes: 'Ice: Less', image: null }],
+    }),
+  };
+  await page.route(/\/rest\/v1\/checkout_jobs\?/, (route) => {
+    const id = new URL(route.request().url()).searchParams.get('id')!.replace(/^eq\./, '');
+    return route.fulfill({ json: jobs[id] });
+  });
+
+  for (const [id, berkas, teks] of [
+    ['uji-tomoro', 'Struk_Tomoro_UJI-tomoro.png', 'Order Number'],
+    ['uji-janjijiwa', 'Struk_JanjiJiwa_UJI-janjijiwa.png', 'Kode Pick Up Kamu'],
+  ]) {
+    await page.goto(`/checkout-process/${id}`);
+    await expect(page.getByText(teks)).toBeVisible();
+    await expect(page.getByText('Atas nama:')).toContainText('Budi');
+    const [download] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: 'Download PNG' }).click(),
+    ]);
+    expect(download.suggestedFilename()).toBe(berkas);
+    const png = await readFile(await download.path());
+    expect(png.readUInt32BE(16)).toBe(800); // lebar ekspor 400 px x pixelRatio 2
+  }
+  await expect(page.getByRole('img', { name: 'QR kode pick up' })).toBeVisible(); // QR hanya di struk JJ
+});
+
 test.describe('sebagai staff', () => {
   // Peran dibaca dari sesi lokal (AuthContext: getSession, bukan getUser), jadi cukup ubah
   // user_metadata.role di localStorage. Token di server tetap milik akun tes super admin.

@@ -1,0 +1,134 @@
+/* Struk Tomoro (.tr) & Janji Jiwa (.jr): CSS halaman struk kopsu.app (nodes/53 & nodes/39, 2026-10-28)
+   disalin apa adanya, dicakup di bawah kelas akar supaya tidak bocor ke halaman admin. Yang dibuang:
+   aturan html:has() (mengubah latar seluruh halaman), min-height 100dvh, tombol Share, dialog QR. */
+
+@font-face{font-family:Tomoro;src:url(/tomoro-assets/tomoro-400.ttf) format("truetype");font-weight:400;font-display:block;ascent-override:100%;descent-override:26.5%;line-gap-override:0%}
+@font-face{font-family:Tomoro;src:url(/tomoro-assets/tomoro-600.ttf) format("truetype");font-weight:600;font-display:block;ascent-override:100%;descent-override:26.5%;line-gap-override:0%}
+@font-face{font-family:Tomoro;src:url(/tomoro-assets/tomoro-700.ttf) format("truetype");font-weight:700;font-display:block;ascent-override:100%;descent-override:26.5%;line-gap-override:0%}
+@font-face{font-family:"Jiwa Lexend";src:url(/janjiw-assets/lexend-400.woff) format("woff");font-weight:400;font-display:block;ascent-override:100%;descent-override:25%;line-gap-override:0%}
+@font-face{font-family:"Jiwa Lexend";src:url(/janjiw-assets/lexend-500.woff) format("woff");font-weight:500;font-display:block;ascent-override:100%;descent-override:25%;line-gap-override:0%}
+@font-face{font-family:"Jiwa Lexend";src:url(/janjiw-assets/lexend-700.woff) format("woff");font-weight:700;font-display:block;ascent-override:100%;descent-override:25%;line-gap-override:0%}
+
+/* ── Tomoro ─────────────────────────────────────────────────────────────── */
+.tr{color:#222;letter-spacing:0;-webkit-font-smoothing:antialiased;background:#f8f8f8;font-family:Tomoro,system-ui,sans-serif;font-size:16px;font-weight:400;line-height:1.265;text-align:left}
+.tr .n,.tr .d,.tr .tip,.tr .sm span{white-space:pre-wrap}
+.tr .hd{height:54px;display:flex;position:relative}
+.tr .back{place-items:center;width:54px;height:54px;display:grid;position:absolute;bottom:0;left:0}
+.tr .back img{width:22px;height:22px}
+.tr .mn{padding:10px 15px 15px}
+.tr .card{background:#fff;border-radius:10px}
+.tr .no{box-sizing:border-box;text-align:center;height:66px;padding-top:20px;font-size:24px;font-weight:600}
+.tr .steps{height:52.45px;display:flex;position:relative}
+.tr .ic{object-fit:contain;width:32px;height:32px;position:absolute;top:0}
+.tr .ic.big{transform:scale(1.2)}
+.tr .ic.s0{left:42px}
+.tr .ic.s1{left:calc(50% - 16px)}
+.tr .ic.s2{right:42px}
+.tr .dl{color:#dedede;height:17.71px;font-size:14px;position:absolute;top:7.15px;overflow:hidden}
+.tr .l1{left:90px;right:calc(50% + 32px)}
+.tr .l2{left:calc(50% + 32px);right:90px}
+.tr .dot{background:radial-gradient(circle closest-side,#ef7945 2px,#fff 2px 3px,#ef7945 3px);border-radius:50%;width:9px;height:9px;position:absolute;top:11.5px}
+.tr .d1{left:81px}
+.tr .d2{left:calc(50% - 32px)}
+.tr .d3{left:calc(100% - 90px)}
+.tr .lb{color:#999;white-space:nowrap;font-size:13px;position:absolute;top:36px;transform:translate(-50%)}
+.tr .lb.s0{left:58px}
+.tr .lb.s1{left:50%}
+.tr .lb.s2{left:calc(100% - 58px)}
+.tr .lb.on{color:#f06f3a}
+.tr .arw{background:0 0/100% 100% no-repeat;height:29px;margin:8px 15px 0}
+.tr .tip{margin:3px 15px 0;padding-bottom:20px;font-size:13px}
+.tr .st{padding:10px 15px 5px}
+.tr .ttl,.tr .done{align-items:center;font-size:17px;display:flex}
+.tr .ttl{gap:5px;font-weight:700}
+.tr .ttl img,.tr .done img{width:17px;height:17px}
+.tr .desc{align-items:center;margin-top:10px;font-size:13px;display:flex}
+.tr .big-no{font-size:23px;font-weight:700}
+.tr .done{gap:6px;margin-top:4.75px}
+.tr .pt{align-items:center;height:54px;margin-top:15px;padding:0 15px;display:flex}
+.tr .pt b{flex:1;font-size:15px;font-weight:700}
+.tr .pt span{color:#ef7945;align-items:center;gap:5px;font-size:13px;font-weight:700;display:flex}
+.tr .pt img{width:20px;height:20px}
+.tr .ol{margin-top:15px;padding-bottom:20px;position:relative}
+.tr .ol:before,.tr .ol:after{content:"";background:#f8f8f8;width:10px;height:20px;position:absolute;top:71px}
+.tr .ol:before{border-radius:0 10px 10px 0;left:0}
+.tr .ol:after{border-radius:10px 0 0 10px;right:0}
+.tr .cut{background:repeating-linear-gradient(90deg,#f0f0f0 0 4px,#0000 4px 7px) 0/100% 1px no-repeat;height:2px;position:absolute;top:80px;left:12px;right:12px}
+.tr .sh{box-sizing:border-box;flex-direction:column;height:80px;padding-top:20px;display:flex;position:relative}
+.tr .nm,.tr .ad{white-space:nowrap;text-overflow:ellipsis;margin:0 67px 0 15px;overflow:hidden}
+.tr .nm{font-size:13px;font-weight:700}
+.tr .ad{color:#999;margin-top:8px;font-size:12px}
+.tr .info{background:url(/tomoro-assets/tip.webp) 0 0/100% 100%;width:20px;height:20px;position:absolute;top:39.63px;right:15px}
+.tr .it{gap:10px;padding:16px 15px 10px;display:flex}
+.tr .it img,.tr .noimg{object-fit:contain;border-radius:8px;flex:none;width:66px;height:66px}
+.tr .tx{flex:1;min-width:0}
+.tr .n{font-size:15px;font-weight:700}
+.tr .d{color:#999;margin-top:6px;font-size:13px}
+.tr .p{align-items:center;margin-top:10px;font-size:13px;display:flex}
+.tr .p s{color:#999;margin-left:12px;font-size:12px}
+.tr .ct{color:#999;margin-left:auto;font-size:12px}
+.tr .sm{margin-top:15px;display:flow-root}
+.tr .r{justify-content:space-between;align-items:flex-start;gap:25px;margin:0 15px 15px;font-size:13px;display:flex}
+.tr .r b{flex:none;font-size:12px;font-weight:600}
+.tr .r b.red{color:#e24200}
+.tr .dash{background:repeating-linear-gradient(90deg,#dedede 0 4px,#0000 4px 8px) 0/100% 1px no-repeat;height:1.5px;margin:5px 15px 0;display:block}
+.tr .tt{justify-content:space-between;margin:20px 15px 0;font-size:15px;font-weight:700;display:flex}
+.tr .tt b+b{font-weight:600}
+.tr .in{margin:15px 0;padding:10px 0 15px}
+.tr .in .r{color:#999;align-items:center;gap:0;margin:0;padding:5px 15px}
+.tr .in .v{text-align:right;overflow-wrap:anywhere;flex:1;min-width:0}
+.tr .cp{background:url(/tomoro-assets/copy.webp) 0 0/100% 100%;flex:none;width:16px;height:16px;margin-left:3px}
+
+/* ── Janji Jiwa ─────────────────────────────────────────────────────────── */
+/* --u: kopsu memakai min(100vw,480px)/350; di sini lebar kartu (wadah container-type inline-size). */
+.jr{--u:calc(100cqw / 350);--ink:#15181b;--gray:#abb3bd;--red:#ff5050;padding-bottom:calc(var(--u) * 20);color:var(--ink);letter-spacing:0;-webkit-font-smoothing:antialiased;background:#f8f8f9;font-family:"Jiwa Lexend",system-ui,sans-serif;font-size:16px;font-weight:400;text-align:left}
+.jr .hd{height:calc(var(--u) * 59.7);background:#fff;position:relative}
+.jr .back{left:calc(var(--u) * 10.73);bottom:calc(var(--u) * 4.1);width:calc(var(--u) * 44);height:calc(var(--u) * 44);place-items:center;display:grid;position:absolute}
+.jr .back svg{width:calc(var(--u) * 15.06);height:calc(var(--u) * 15.06)}
+.jr h1{left:calc(var(--u) * 64.05);right:calc(var(--u) * 16);bottom:calc(var(--u) * 15.04);font-size:calc(var(--u) * 16);line-height:calc(var(--u) * 20);white-space:nowrap;text-overflow:ellipsis;font-weight:700;position:absolute;overflow:hidden}
+.jr .card{box-sizing:border-box;width:93%;margin:calc(var(--u) * 20) 0 0 2.5%;padding:calc(var(--u) * 24) calc(var(--u) * 23.4);border-radius:calc(var(--u) * 12);background:#fff}
+.jr h2{font-size:calc(var(--u) * 16);line-height:calc(var(--u) * 20);font-weight:500}
+.jr .ta h2{margin-top:calc(var(--u) * 2.28)}
+.jr .ls h2{margin-top:calc(var(--u) * 2.58)}
+.jr .row{gap:calc(var(--u) * 10);display:flex}
+.jr .row .txt{flex:1;min-width:0}
+.jr .st{padding-bottom:calc(var(--u) * 23.6)}
+.jr .st h2{margin-top:calc(var(--u) * 4.9)}
+.jr .sub{margin-top:calc(var(--u) * 1.66);font-size:calc(var(--u) * 12);line-height:calc(var(--u) * 16);color:var(--gray)}
+.jr .icon{width:calc(var(--u) * 60);height:calc(var(--u) * 60);flex:none}
+.jr .oid,.jr .meta{font-size:calc(var(--u) * 10);line-height:calc(var(--u) * 14);font-weight:500}
+.jr .oid{margin-top:calc(var(--u) * 8.21);overflow-wrap:anywhere}
+.jr .copy{top:calc(var(--u) * 4.2);margin-left:calc(var(--u) * 3.1);position:relative;display:inline-block}
+.jr .copy svg{width:calc(var(--u) * 8.4);height:calc(var(--u) * 8.4);display:block}
+.jr .meta{justify-content:space-between;align-items:baseline;gap:calc(var(--u) * 8);margin-top:calc(var(--u) * 7.64);display:flex}
+.jr .tnc{color:var(--red);text-underline-offset:.11em;flex:none;font-weight:700;text-decoration:underline;text-decoration-thickness:.07em}
+.jr .pk{justify-content:space-between;gap:calc(var(--u) * 10);display:flex}
+.jr .left{margin-top:calc(var(--u) * 12.21)}
+.jr .lbl{font-size:calc(var(--u) * 10);line-height:calc(var(--u) * 14)}
+.jr .code{margin-top:calc(var(--u) * 2.38);font-size:calc(var(--u) * 16);line-height:calc(var(--u) * 20);font-weight:500}
+.jr .qrbtn{align-items:center;gap:calc(var(--u) * 6.9);height:calc(var(--u) * 30);margin-top:calc(var(--u) * 8.71);padding:0 calc(var(--u) * 18.2);border-radius:calc(var(--u) * 15);background:var(--red);color:#fff;font-size:calc(var(--u) * 10);line-height:calc(var(--u) * 14);white-space:nowrap;display:inline-flex}
+.jr .qrbtn svg{width:calc(var(--u) * 15.7);height:calc(var(--u) * 15.7)}
+.jr .qr{width:calc(var(--u) * 100);height:calc(var(--u) * 100);flex:none;display:block}
+.jr .tl{gap:calc(var(--u) * 11.8);display:flex}
+.jr .ta h2+.tl{margin-top:calc(var(--u) * 17.11)}
+.jr .rail{width:calc(var(--u) * 22);flex-direction:column;flex:none;align-items:center;display:flex}
+.jr .dot{width:calc(var(--u) * 22);height:calc(var(--u) * 22);background:var(--red);border-radius:50%;place-items:center;display:grid}
+.jr .dot .store{width:calc(var(--u) * 11.4);height:calc(var(--u) * 11.4)}
+.jr .dot .clock{width:calc(var(--u) * 13.5);height:calc(var(--u) * 13.5)}
+.jr .dash{background:repeating-linear-gradient(#cdcdcd 0 calc(var(--u) * 5.2), transparent 0 calc(var(--u) * 10));flex:1;width:1px}
+.jr .tl .txt{flex:1;min-width:0}
+.jr .tl .lbl{margin-top:calc(var(--u) * .2);font-weight:500}
+.jr .tl .txt.first{padding-bottom:calc(var(--u) * 18.9)}
+.jr .tl .txt.first .lbl{margin-top:calc(var(--u) * .46)}
+.jr .name,.jr .time{font-size:calc(var(--u) * 14);line-height:calc(var(--u) * 17.5);font-weight:700}
+.jr .name{margin-top:calc(var(--u) * 1.03)}
+.jr .addr{margin-top:calc(var(--u) * .86);font-size:calc(var(--u) * 10);line-height:calc(var(--u) * 14)}
+.jr .time{margin-top:calc(var(--u) * 6)}
+.jr .ta{padding-bottom:calc(var(--u) * 25.1)}
+.jr .it{gap:calc(var(--u) * 20);margin-top:calc(var(--u) * 16);display:flex}
+.jr .ls h2+.it{margin-top:calc(var(--u) * 16.82)}
+.jr .it img,.jr .noimg{width:calc(var(--u) * 74);height:calc(var(--u) * 74);margin-left:calc(var(--u) * 13.35);object-fit:contain;flex:none}
+.jr .it .txt{flex:1;min-width:0}
+.jr .nm{margin-top:calc(var(--u) * 1.3);font-size:calc(var(--u) * 14);line-height:calc(var(--u) * 17.5);font-weight:500}
+.jr .inf{margin-top:calc(var(--u) * 5.6);font-size:calc(var(--u) * 12);line-height:calc(var(--u) * 15);color:var(--gray)}
+.jr .inf+.inf{margin-top:calc(var(--u) * 2)}

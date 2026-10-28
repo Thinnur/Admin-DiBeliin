@@ -19,6 +19,7 @@ import {
 } from '@/services/checkoutJobService';
 import { useEksporGambar, TombolEkspor } from './useEksporGambar';
 import { KopkenPickupCard, type KopkenReceiptData } from './KopkenPickupScreen';
+import { KopsuStrukCard, type JiwaStrukData, type TomoroStrukData } from './KopsuStruk';
 
 export interface KopkenCheckoutResult {
     orderId?: string;
@@ -73,6 +74,9 @@ export interface KopkenCheckoutResult {
     pickupNo?: string | null;
     statusLabel?: string | null;
     outletName?: string | null;
+    /** Tomoro/JJ: struk dari halaman struk panel (kopsu_status_worker.js). Bukan `receipt`:
+     *  `receipt` JJ adalah token transaction_receipt (string). */
+    struk?: TomoroStrukData | JiwaStrukData | null;
 }
 
 export interface ForeReceiptData {
@@ -542,21 +546,29 @@ export function ReceiptSection({
     // sengaja tidak dipakai: itu PNG-nya Kopken yang punya, sedangkan Fore
     // mengembalikan SPA kosong tanpa identitas order — dirender sebagai <img>
     // hasilnya gambar rusak, di-iframe pun kosong.
-    // Tomoro & Janji Jiwa tidak punya struk yang bisa digambar: yang penting buat ambil pesanan adalah
-    // nama akun (dipanggil barista) dan nomor ambil, diisi kopsu_status_worker.js.
-    if (job.order_payload?.brand === 'tomoro' || job.order_payload?.brand === 'janjijiwa') {
+    // Tomoro & Janji Jiwa: yang penting buat ambil pesanan adalah nama akun (dipanggil barista) dan nomor
+    // ambil. Struknya (result.struk) diisi kopsu_status_worker.js dari halaman struk panel kopsu.
+    const brand = job.order_payload?.brand;
+    if (brand === 'tomoro' || brand === 'janjijiwa') {
         if (job.status !== 'success' || !r) return null;
         return (
-            <div className="rounded-lg border border-slate-200 p-3 text-sm space-y-1">
-                <p>
-                    Atas nama: <span className="font-semibold">{r.accountName ?? '-'}</span>
-                    <span className="text-xs text-slate-500"> (akun {r.accountId ?? '-'}{r.akunBaru ? ', baru' : ''})</span>
-                </p>
-                {r.outletName && <p>Outlet: {r.outletName}</p>}
-                <p>Nomor ambil: <span className="font-semibold tabular-nums">{r.pickupNo ?? 'belum ada'}</span></p>
-                <p className="text-xs text-slate-500">
-                    Status brand: {r.statusLabel ?? 'menunggu pengecekan kopsu_status_worker'}
-                </p>
+            <div className="space-y-3">
+                <div className="rounded-lg border border-slate-200 p-3 text-sm space-y-1">
+                    <p>
+                        Atas nama: <span className="font-semibold">{r.accountName ?? '-'}</span>
+                        <span className="text-xs text-slate-500"> (akun {r.accountId ?? '-'}{r.akunBaru ? ', baru' : ''})</span>
+                    </p>
+                    {r.outletName && <p>Outlet: {r.outletName}</p>}
+                    <p>Nomor ambil: <span className="font-semibold tabular-nums">{r.pickupNo ?? 'belum ada'}</span></p>
+                    <p className="text-xs text-slate-500">
+                        Status brand: {r.statusLabel ?? 'menunggu pengecekan kopsu_status_worker'}
+                    </p>
+                </div>
+                {r.struk ? (
+                    <KopsuStrukCard data={r.struk} brand={brand} fileName={r.orderId} />
+                ) : (
+                    <p className="text-[11px] text-slate-400">Struk belum tersedia — menunggu kopsu_status_worker.</p>
+                )}
             </div>
         );
     }
